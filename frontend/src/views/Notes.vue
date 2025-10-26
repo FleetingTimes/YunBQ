@@ -57,28 +57,17 @@
       </template>
     </el-dialog>
 
-    <div class="grid">
-      <div v-for="n in notes" :key="n.id" class="sticky" :class="paperClass(n) + ' ' + rotClass(n)">
-        <div class="ribbon" v-if="n.archived">已归档</div>
-        <div class="actions">
-          <el-button size="small" @click="archive(n)">{{ n.archived ? '取消归档' : '归档' }}</el-button>
-          <el-button size="small" type="danger" @click="remove(n)">删除</el-button>
-        </div>
-        <!-- 移除每条便签的标题栏显示 -->
-        <!-- <div class="title">{{ n.title }}</div> -->
-        <div class="meta" style="display:flex; justify-content:space-between; align-items:center; margin:4px 0;">
-          <el-tag size="small" :type="n.isPublic ? 'success' : 'info'">{{ n.isPublic ? '公开' : '私有' }}</el-tag>
-          <el-button size="small" type="primary" link @click="togglePublic(n)">{{ n.isPublic ? '设为私有' : '设为公开' }}</el-button>
-        </div>
-        <div class="content">{{ n.content }}</div>
-        <div class="tags">
-          <el-tag v-for="t in parsedTags(n.tags)" :key="t" type="info" size="small">{{ t }}</el-tag>
-        </div>
-        <div class="likes" style="margin-top:6px; display:flex; align-items:center; gap:8px;">
-          <el-button size="small" :type="n.liked ? 'danger' : 'primary'" link @click="toggleLike(n)" :loading="n.likeLoading" :disabled="n.likeLoading">{{ n.liked ? '已赞' : '点赞' }}</el-button>
-          <el-tag size="small" type="info">赞 {{ n.likeCount || 0 }}</el-tag>
-        </div>
+    <div class="danmu-section">
+      <div class="danmu-track" v-for="row in danmuRowList" :key="row" :style="trackStyle(row)">
+        <div class="danmu-item" v-for="item in danmuItemsForRow(row)" :key="item.id" :style="danmuStyle(item)">
+           <span class="danmu-text">{{ item.content }}</span>
+           <span class="like-badge" @click.stop="toggleLikeById(item.id)">{{ item.liked ? '♥' : '♡' }} {{ item.likeCount || 0 }}</span>
+         </div>
       </div>
+    </div>
+
+    <div class="grid">
+      <!-- 便签列表改为顶部弹幕展示，移除卡片列表 -->
 
       <div class="sticky composer p-2 rot-2">
         <div class="title">新建便签</div>
@@ -112,6 +101,61 @@ import { ElMessage } from 'element-plus';
 const router = useRouter();
 const q = ref('');
 const notes = ref([]);
+
+// 顶部弹幕行数与数据
+const danmuRows = 6;
+const danmuRowList = computed(() => Array.from({ length: danmuRows }, (_, i) => i + 1));
+// 增加弹幕速度系数，使整体更慢一些
+const danmuSpeedScale = 1.35;
+
+function hueFromNote(n, idx) {
+  const tagsStr = Array.isArray(n.tags) ? n.tags.join(',') : (n.tags || '');
+  const s = (n.content || '') + tagsStr + String(n.id ?? idx);
+  let hash = 0;
+  for (let i = 0; i < s.length; i++) {
+    hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+  }
+  return hash % 360;
+}
+
+const danmuCache = ref({});
+const danmuItems = computed(() => notes.value.map((n, idx) => {
+  const h = hueFromNote(n, idx);
+  const cached = danmuCache.value[n.id] || {
+    row: (idx % danmuRows) + 1,
+    delay: Math.random() * 8,
+    duration: 12 + Math.random() * 8,
+  };
+  danmuCache.value[n.id] = cached;
+  return {
+    id: n.id,
+    content: n.content,
+    row: cached.row,
+    delay: cached.delay,
+    duration: cached.duration,
+    h,
+    bg: `hsla(${h}, 85%, 88%, 0.95)`,
+    fg: `hsl(${h}, 35%, 22%)`,
+    liked: !!n.liked,
+    likeCount: n.likeCount || 0,
+  };
+}));
+function danmuItemsForRow(row) {
+  return danmuItems.value.filter(i => i.row === row);
+}
+function danmuStyle(it) {
+  return {
+    animationDuration: (it.duration * danmuSpeedScale) + 's',
+    animationDelay: it.delay + 's',
+    background: it.bg,
+    color: it.fg,
+    border: `1px solid hsla(${it.h}, 70%, 80%, 1)`
+  };
+}
+function trackStyle(row) {
+  const h = 100 / danmuRows;
+  return { top: ((row - 1) * h) + '%', height: h + '%' };
+}
 // 更新：移除 title 字段
 const draft = reactive({ content: '', isPublic: false, tags: '' });
 const me = reactive({ username:'', nickname:'', avatarUrl:'', email:'' });
@@ -272,4 +316,58 @@ function parsedTags(tags){
   if (typeof tags === 'string') return tags.split(',').map(t => t.trim()).filter(Boolean);
   return [];
 }
+function toggleLikeById(id){
+  const n = notes.value.find(x => x.id === id);
+  if (!n) return;
+  if (n.likeLoading === undefined) n.likeLoading = false;
+  toggleLike(n);
+}
 </script>
+<style scoped>
+.danmu-section {
+  position: relative;
+  height: 33vh; /* 上方区域：高度为下方的 1/2，即占 1/3 页面 */
+  overflow: hidden;
+  background: transparent;
+  border-bottom: 1px solid #e5e7eb;
+}
+.danmu-track {
+  position: absolute;
+  left: 0;
+  width: 100%;
+}
+.danmu-item {
+  position: absolute;
+  right: -200px;
+  white-space: nowrap;
+  color: #333;
+  background: rgba(255,255,255,0.85);
+  border-radius: 16px;
+  padding: 6px 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  animation-name: danmu-move;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+@keyframes danmu-move {
+  0% { transform: translateX(100vw); }
+  100% { transform: translateX(-120vw); }
+}
+.danmu-item:hover {
+  animation-play-state: paused;
+  cursor: pointer;
+}
+.like-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-weight: 600;
+  color: currentColor;
+  background: rgba(255,255,255,0.6);
+  border-radius: 12px;
+  padding: 2px 6px;
+}
+.danmu-text {
+  display: inline-block;
+}
+</style>
