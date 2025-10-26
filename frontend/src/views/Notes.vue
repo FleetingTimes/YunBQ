@@ -101,6 +101,9 @@ import { ElMessage } from 'element-plus';
 const router = useRouter();
 const q = ref('');
 const notes = ref([]);
+// 新增：标记刚创建的便签 ID 或回退为首条
+const justCreatedId = ref(null);
+const justCreatedFirst = ref(false);
 
 // 顶部弹幕行数与数据
 const danmuRows = 6;
@@ -188,6 +191,16 @@ async function load(){
       likeCount: Number(it.likeCount ?? it.like_count ?? 0),
       liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
     }));
+    // 新增：若刚创建，则让对应弹幕立即开始移动（delay=0）
+    if (justCreatedId.value != null || justCreatedFirst.value) {
+      let targetId = justCreatedId.value;
+      if (!targetId && notes.value.length > 0) targetId = notes.value[0].id;
+      const idx = notes.value.findIndex(n => n.id === targetId);
+      const row = (idx >= 0 ? (idx % danmuRows) + 1 : 1);
+      danmuCache.value[targetId] = { row, delay: 0, duration: 12 + Math.random() * 8 };
+      justCreatedId.value = null;
+      justCreatedFirst.value = false;
+    }
   }catch(e){
     ElMessage.error('加载便签失败');
   }
@@ -281,7 +294,10 @@ async function create(){
   try{
     // 更新：移除 title 字段
     const payload = { content: draft.content, is_public: draft.isPublic, tags: (draft.tags || '').trim() };
-    await http.post('/notes', payload);
+    const { data } = await http.post('/notes', payload);
+    // 新增：记录刚创建的便签，令其弹幕 delay = 0
+    const createdId = data?.id ?? data?.note?.id ?? data?.data?.id ?? null;
+    if (createdId) justCreatedId.value = createdId; else justCreatedFirst.value = true;
     ElMessage.success('已添加');
     // 更新：移除 title 重置
     draft.content = ''; draft.tags = '';
@@ -355,6 +371,7 @@ function toggleLikeById(id){
   animation-name: danmu-move;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+  animation-fill-mode: backwards;
   will-change: transform;
 }
 @keyframes danmu-move {
