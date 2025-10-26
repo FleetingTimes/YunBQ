@@ -181,7 +181,13 @@ async function load(){
   try{
     const { data } = await http.get('/notes', { params: { q: q.value } });
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? []);
-    notes.value = items;
+    // 统一字段命名，兼容后端 SNAKE_CASE
+    notes.value = (items || []).map(it => ({
+      ...it,
+      isPublic: it.isPublic ?? it.is_public ?? false,
+      likeCount: Number(it.likeCount ?? it.like_count ?? 0),
+      liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
+    }));
   }catch(e){
     ElMessage.error('加载便签失败');
   }
@@ -193,8 +199,8 @@ async function toggleLike(n){
   try{
     const url = n.liked ? `/notes/${n.id}/unlike` : `/notes/${n.id}/like`;
     const { data } = await http.post(url);
-    n.likeCount = data?.count ?? (n.likeCount || 0);
-    n.liked = !!data?.likedByMe;
+    n.likeCount = Number(data?.count ?? data?.like_count ?? (n.likeCount || 0));
+    n.liked = Boolean((data?.likedByMe ?? data?.liked_by_me ?? n.liked));
   }catch(e){
     ElMessage.error('操作失败');
   }finally{

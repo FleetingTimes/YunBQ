@@ -1,5 +1,5 @@
 /* 基础布局与主题 */
-body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
 .bg-overlay { position: fixed; inset: 0; pointer-events: none; background: rgba(255,255,255,0.58); }
 .container { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
 .header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; }
