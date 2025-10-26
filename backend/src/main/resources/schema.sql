@@ -21,3 +21,16 @@ CREATE TABLE IF NOT EXISTS notes (
   INDEX idx_user (user_id),
   CONSTRAINT fk_notes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 新增：点赞记录表，唯一用户对便签的点赞
+CREATE TABLE IF NOT EXISTS note_likes (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  note_id BIGINT NOT NULL,
+  user_id BIGINT NOT NULL,
+  created_at DATETIME NOT NULL,
+  UNIQUE KEY uniq_note_user (note_id, user_id),
+  INDEX idx_note (note_id),
+  INDEX idx_user (user_id),
+  CONSTRAINT fk_likes_note FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_likes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

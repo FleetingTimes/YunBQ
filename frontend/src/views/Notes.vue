@@ -73,6 +73,10 @@
         <div class="tags">
           <el-tag v-for="t in n.tags" :key="t" type="info" size="small">{{ t }}</el-tag>
         </div>
+        <div class="likes" style="margin-top:6px; display:flex; align-items:center; gap:8px;">
+          <el-button size="small" :type="n.liked ? 'danger' : 'primary'" link @click="toggleLike(n)" :loading="n.likeLoading" :disabled="n.likeLoading">{{ n.liked ? '已赞' : '点赞' }}</el-button>
+          <el-tag size="small" type="info">赞 {{ n.likeCount || 0 }}</el-tag>
+        </div>
       </div>
 
       <div class="sticky composer p-2 rot-2">
@@ -127,9 +131,25 @@ async function loadMe(){
 async function load(){
   try{
     const { data } = await http.get('/notes', { params: { q: q.value } });
-    notes.value = Array.isArray(data) ? data : (data?.items || []);
+    const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? []);
+    notes.value = items;
   }catch(e){
     ElMessage.error('加载便签失败');
+  }
+}
+
+async function toggleLike(n){
+  if (n.likeLoading) return;
+  n.likeLoading = true;
+  try{
+    const url = n.liked ? `/notes/${n.id}/unlike` : `/notes/${n.id}/like`;
+    const { data } = await http.post(url);
+    n.likeCount = data?.count ?? (n.likeCount || 0);
+    n.liked = !!data?.likedByMe;
+  }catch(e){
+    ElMessage.error('操作失败');
+  }finally{
+    n.likeLoading = false;
   }
 }
 

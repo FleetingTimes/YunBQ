@@ -1,4 +1,3 @@
-com\yunbq\backend\controller\NoteController.class
 com\yunbq\backend\mapper\UserMapper.class
 com\yunbq\backend\dto\AuthRequest.class
 com\yunbq\backend\mapper\NoteMapper.class
@@ -24,7 +23,6 @@ com\yunbq\backend\controller\PasswordResetController.class
 com\yunbq\backend\service\CaptchaService$Captcha.class
 com\yunbq\backend\service\PasswordResetService.class
 com\yunbq\backend\service\CaptchaService$CaptchaEntry.class
-com\yunbq\backend\service\NoteService.class
 com\yunbq\backend\service\CaptchaService.class
 com\yunbq\backend\dto\NoteRequest.class
 com\yunbq\backend\YunbqBackendApplication$1.class
