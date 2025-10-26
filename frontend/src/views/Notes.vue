@@ -274,7 +274,7 @@ async function create(){
   if (!draft.content) { ElMessage.warning('请填写内容'); return; }
   try{
     // 更新：移除 title 字段
-    const payload = { content: draft.content, isPublic: draft.isPublic, tags: (draft.tags || '').trim() };
+    const payload = { content: draft.content, is_public: draft.isPublic, tags: (draft.tags || '').trim() };
     await http.post('/notes', payload);
     ElMessage.success('已添加');
     // 更新：移除 title 重置
@@ -297,8 +297,9 @@ async function create(){
 async function togglePublic(n){
   try{
     const tagsStr = Array.isArray(n.tags) ? n.tags.join(',') : (n.tags || '');
-    // 更新：移除 title 字段
-    const payload = { content: n.content, tags: tagsStr, archived: n.archived, isPublic: !n.isPublic };
+    const currentPublic = (n.isPublic ?? n.is_public ?? false);
+    // 更新：移除 title 字段 + 修正 is_public
+    const payload = { content: n.content, tags: tagsStr, archived: n.archived, is_public: !currentPublic };
     await http.put(`/notes/${n.id}`, payload);
     ElMessage.success('已更新可见性');
     load();
