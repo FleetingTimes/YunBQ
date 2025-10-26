@@ -1,4 +1,7 @@
+com\yunbq\backend\controller\NoteController.class
+com\yunbq\backend\model\NoteLike.class
 com\yunbq\backend\mapper\UserMapper.class
+com\yunbq\backend\config\CorsProperties.class
 com\yunbq\backend\dto\AuthRequest.class
 com\yunbq\backend\mapper\NoteMapper.class
 com\yunbq\backend\security\JwtAuthenticationFilter.class
@@ -6,12 +9,14 @@ com\yunbq\backend\security\SecurityConfig.class
 com\yunbq\backend\dto\RegisterRequest.class
 com\yunbq\backend\YunbqBackendApplication.class
 com\yunbq\backend\controller\AuthController.class
+com\yunbq\backend\dto\PageResult.class
 com\yunbq\backend\controller\BackgroundController.class
 com\yunbq\backend\controller\SocialAuthController.class
 com\yunbq\backend\controller\AccountController.class
 com\yunbq\backend\controller\CaptchaController.class
 com\yunbq\backend\security\JwtUtil.class
 com\yunbq\backend\dto\AuthResponse.class
+com\yunbq\backend\mapper\NoteLikeMapper.class
 com\yunbq\backend\service\PasswordResetService$ResetEntry.class
 com\yunbq\backend\service\UserService.class
 com\yunbq\backend\config\MybatisPlusConfig.class
@@ -23,6 +28,8 @@ com\yunbq\backend\controller\PasswordResetController.class
 com\yunbq\backend\service\CaptchaService$Captcha.class
 com\yunbq\backend\service\PasswordResetService.class
 com\yunbq\backend\service\CaptchaService$CaptchaEntry.class
+com\yunbq\backend\dto\NoteItem.class
+com\yunbq\backend\service\NoteService.class
 com\yunbq\backend\service\CaptchaService.class
 com\yunbq\backend\dto\NoteRequest.class
 com\yunbq\backend\YunbqBackendApplication$1.class

@@ -60,3 +60,7 @@ cors:
   allowed-headers:
     - Authorization
     - Content-Type
+logging:
+  level:
+    org.springframework.security: DEBUG
+    com.yunbq.backend.security: DEBUG

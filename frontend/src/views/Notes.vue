@@ -64,14 +64,15 @@
           <el-button size="small" @click="archive(n)">{{ n.archived ? '取消归档' : '归档' }}</el-button>
           <el-button size="small" type="danger" @click="remove(n)">删除</el-button>
         </div>
-        <div class="title">{{ n.title }}</div>
+        <!-- 移除每条便签的标题栏显示 -->
+        <!-- <div class="title">{{ n.title }}</div> -->
         <div class="meta" style="display:flex; justify-content:space-between; align-items:center; margin:4px 0;">
           <el-tag size="small" :type="n.isPublic ? 'success' : 'info'">{{ n.isPublic ? '公开' : '私有' }}</el-tag>
           <el-button size="small" type="primary" link @click="togglePublic(n)">{{ n.isPublic ? '设为私有' : '设为公开' }}</el-button>
         </div>
         <div class="content">{{ n.content }}</div>
         <div class="tags">
-          <el-tag v-for="t in n.tags" :key="t" type="info" size="small">{{ t }}</el-tag>
+          <el-tag v-for="t in parsedTags(n.tags)" :key="t" type="info" size="small">{{ t }}</el-tag>
         </div>
         <div class="likes" style="margin-top:6px; display:flex; align-items:center; gap:8px;">
           <el-button size="small" :type="n.liked ? 'danger' : 'primary'" link @click="toggleLike(n)" :loading="n.likeLoading" :disabled="n.likeLoading">{{ n.liked ? '已赞' : '点赞' }}</el-button>
@@ -81,7 +82,9 @@
 
       <div class="sticky composer p-2 rot-2">
         <div class="title">新建便签</div>
-        <el-input v-model="draft.title" placeholder="标题" style="margin-bottom:6px;" />
+        <!-- 移除标题输入框 -->
+        <!-- <el-input v-model="draft.title" placeholder="标题" style="margin-bottom:6px;" /> -->
+        <el-input v-model="draft.tags" placeholder="标签（用逗号分隔）" style="margin-bottom:6px;" />
         <el-input v-model="draft.content" type="textarea" :rows="4" placeholder="内容" />
         <div style="display:flex; align-items:center; justify-content:space-between; margin-top:6px;">
           <el-switch v-model="draft.isPublic" active-text="公开" inactive-text="私有" />
@@ -104,11 +107,13 @@ import { useRouter } from 'vue-router';
 import { http } from '@/api/http';
 import { avatarFullUrl } from '@/api/http';
 import { clearToken } from '@/utils/auth';
+import { ElMessage } from 'element-plus';
 
 const router = useRouter();
 const q = ref('');
 const notes = ref([]);
-const draft = reactive({ title: '', content: '', isPublic: false });
+// 更新：移除 title 字段
+const draft = reactive({ content: '', isPublic: false, tags: '' });
 const me = reactive({ username:'', nickname:'', avatarUrl:'', email:'' });
 const profileVisible = ref(false);
 const editVisible = ref(false);
@@ -222,21 +227,34 @@ async function remove(n){
 }
 
 async function create(){
-  if (!draft.title || !draft.content) { ElMessage.warning('请填写标题与内容'); return; }
+  if (!draft.content) { ElMessage.warning('请填写内容'); return; }
   try{
-    await http.post('/notes', draft);
+    // 更新：移除 title 字段
+    const payload = { content: draft.content, isPublic: draft.isPublic, tags: (draft.tags || '').trim() };
+    await http.post('/notes', payload);
     ElMessage.success('已添加');
-    draft.title = ''; draft.content = '';
+    // 更新：移除 title 重置
+    draft.content = ''; draft.tags = '';
     draft.isPublic = false;
     load();
   }catch(e){
-    ElMessage.error('添加失败');
+    const status = e?.response?.status;
+    if (status === 401){
+      ElMessage.error('未登录，请先登录');
+      router.replace('/login');
+    } else if (status === 403){
+      ElMessage.error('无权限，请检查登录状态或稍后重试');
+    } else {
+      ElMessage.error(e?.response?.data?.message || e?.message || '添加失败');
+    }
   }
 }
 
 async function togglePublic(n){
   try{
-    const payload = { title: n.title, content: n.content, tags: n.tags, archived: n.archived, isPublic: !n.isPublic };
+    const tagsStr = Array.isArray(n.tags) ? n.tags.join(',') : (n.tags || '');
+    // 更新：移除 title 字段
+    const payload = { content: n.content, tags: tagsStr, archived: n.archived, isPublic: !n.isPublic };
     await http.put(`/notes/${n.id}`, payload);
     ElMessage.success('已更新可见性');
     load();
@@ -248,5 +266,10 @@ async function togglePublic(n){
 function logout(){
   clearToken();
   router.replace('/login');
+}
+function parsedTags(tags){
+  if (Array.isArray(tags)) return tags;
+  if (typeof tags === 'string') return tags.split(',').map(t => t.trim()).filter(Boolean);
+  return [];
 }
 </script>

@@ -32,7 +32,7 @@ public class NoteService {
     public Note create(Long userId, NoteRequest req) {
         Note n = new Note();
         n.setUserId(userId);
-        n.setTitle(req.getTitle());
+        // 移除 title 引用
         n.setContent(req.getContent());
         n.setTags(req.getTags());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
@@ -49,7 +49,7 @@ public class NoteService {
         if (n == null || !n.getUserId().equals(userId)) {
             throw new RuntimeException("笔记不存在或无权限");
         }
-        n.setTitle(req.getTitle());
+        // 移除 title 引用
         n.setContent(req.getContent());
         n.setTags(req.getTags());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
@@ -72,7 +72,7 @@ public class NoteService {
         QueryWrapper<Note> qw = new QueryWrapper<>();
         qw.eq("user_id", userId);
         if (q != null && !q.isBlank()) {
-            qw.and(w -> w.like("title", q).or().like("content", q).or().like("tags", q));
+            qw.and(w -> w.like("content", q).or().like("tags", q));
         }
         if (archived != null) {
             qw.eq("archived", archived);
@@ -104,7 +104,7 @@ public class NoteService {
             NoteItem it = new NoteItem();
             it.setId(n.getId());
             it.setUserId(n.getUserId());
-            it.setTitle(n.getTitle());
+            // 移除 title 映射
             it.setContent(n.getContent());
             it.setTags(n.getTags());
             it.setArchived(n.getArchived());

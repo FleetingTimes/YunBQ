@@ -13,7 +13,6 @@ public class Note {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
-    private String title;
     private String content;
     private String tags; // comma-separated tags
     private Boolean archived;

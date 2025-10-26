@@ -7,8 +7,12 @@ import com.yunbq.backend.model.User;
 import com.yunbq.backend.util.AuthUtil;
 import com.yunbq.backend.service.PasswordResetService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,21 +26,25 @@ import java.util.regex.Pattern;
 public class AccountController {
     private final UserMapper userMapper;
     private final PasswordResetService resetService;
+    private static final Logger log = LoggerFactory.getLogger(AccountController.class);
     public AccountController(UserMapper userMapper, PasswordResetService resetService){ this.userMapper = userMapper; this.resetService = resetService; }
 
     @GetMapping("/me")
     public ResponseEntity<?> me(){
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        log.info("/api/account/me auth={}, principal={}", auth, auth != null ? auth.getPrincipal() : null);
         Long uid = AuthUtil.currentUserId();
+        log.info("/api/account/me uid={}", uid);
         if (uid == null) return ResponseEntity.status(401).body(Map.of("message","未登录"));
         User u = userMapper.selectById(uid);
         if (u == null) return ResponseEntity.status(404).body(Map.of("message","用户不存在"));
-        return ResponseEntity.ok(Map.of(
-                "id", u.getId(),
-                "username", u.getUsername(),
-                "nickname", u.getNickname(),
-                "email", u.getEmail(),
-                "avatarUrl", u.getAvatarUrl()
-        ));
+        java.util.Map<String,Object> resp = new java.util.HashMap<>();
+        resp.put("id", u.getId());
+        resp.put("username", u.getUsername());
+        resp.put("nickname", u.getNickname());
+        resp.put("email", u.getEmail());
+        resp.put("avatarUrl", u.getAvatarUrl());
+        return ResponseEntity.ok(resp);
     }
 
     // 上传头像并更新用户 avatarUrl
@@ -166,5 +174,18 @@ public class AccountController {
                 "email", u.getEmail(),
                 "avatarUrl", u.getAvatarUrl()
         ));
+    }
+
+    @GetMapping("/me2")
+    public ResponseEntity<?> me2(){
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Object principal = auth != null ? auth.getPrincipal() : null;
+        java.util.Map<String,Object> m = new java.util.HashMap<>();
+        m.put("authNull", auth == null);
+        m.put("isAuthenticated", auth != null && auth.isAuthenticated());
+        m.put("principal", principal);
+        m.put("principalType", principal != null ? principal.getClass().getSimpleName() : null);
+        m.put("currentUserId", AuthUtil.currentUserId());
+        return ResponseEntity.ok(m);
     }
 }

@@ -9,6 +9,11 @@ public class AuthUtil {
         if (auth == null) return null;
         Object principal = auth.getPrincipal();
         if (principal instanceof Long) return (Long) principal;
+        // 兼容其他可能的类型
+        if (principal instanceof Number) return ((Number) principal).longValue();
+        if (principal instanceof String) {
+            try { return Long.parseLong((String) principal); } catch (Exception ignored) {}
+        }
         return null;
     }
 }
