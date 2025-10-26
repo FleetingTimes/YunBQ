@@ -195,8 +195,8 @@
             this.loading = false;
           }
         },
-        loginWithQQ() { this.$message.info('QQ 扫码登录暂未接入'); },
-        loginWithWeChat() { this.$message.info('微信扫码登录暂未接入'); },
+        loginWithQQ() { window.location.href = API_BASE + '/auth/qq/login'; },
+        loginWithWeChat() { window.location.href = API_BASE + '/auth/wechat/login'; },
       }
     };
 
@@ -331,6 +331,12 @@
             <el-form-item label="邮箱" prop="email">
               <el-input v-model="form.email" placeholder="可选，用于找回密码" />
             </el-form-item>
+            <el-form-item label="验证码" prop="captchaCode">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <el-input v-model="form.captchaCode" placeholder="请输入验证码" style="flex:1;" />
+                <img :src="captcha.image" alt="captcha" width="120" height="40" style="border-radius:6px; cursor:pointer;" @click="refreshCaptcha" />
+              </div>
+            </el-form-item>
             <div class="auth-actions" style="justify-content:space-between;">
               <el-button type="text" @click="$router.push('/login')">返回登录</el-button>
               <el-button type="primary" @click="onSubmit" :loading="loading">注册</el-button>
@@ -340,21 +346,39 @@
       </div>`,
       data(){
         return {
-          form:{ username:'', password:'', nickname:'', email:'' },
+          form:{ username:'', password:'', nickname:'', email:'', captchaCode:'' },
+          captcha:{ id:'', image:'' },
           loading:false,
           rules:{
             username:[{ required:true, message:'请输入用户名', trigger:'blur' },{ min:4, max:20, message:'用户名长度 4-20', trigger:'blur' }],
             password:[{ required:true, message:'请输入密码', trigger:'blur' },{ min:6, max:32, message:'密码长度 6-32', trigger:'blur' }],
-            email:[{ type:'email', message:'邮箱格式不正确', trigger:'blur' }]
+            email:[{ type:'email', message:'邮箱格式不正确', trigger:'blur' }],
+            captchaCode:[{ required:true, message:'请输入验证码', trigger:'blur' },{ min:4, max:6, message:'验证码长度 4-6', trigger:'blur' }]
           }
         };
       },
+      mounted(){ this.refreshCaptcha(); },
       methods:{
+        async refreshCaptcha(){
+          try{
+            const { data } = await http.get('/captcha');
+            this.captcha.id = data.id;
+            this.captcha.image = data.image;
+          }catch(e){ this.$message.error('获取验证码失败'); }
+        },
         async onSubmit(){
           try{
             await this.$refs.formRef.validate();
             this.loading = true;
-            await http.post('/auth/register', this.form);
+            // 先校验图片验证码
+            const { data: cv } = await http.post('/captcha/verify', { id: this.captcha.id, code: this.form.captchaCode });
+            if (!cv?.valid){
+              this.$message.error('验证码错误');
+              this.refreshCaptcha();
+              return;
+            }
+            // 通过后继续注册
+            await http.post('/auth/register', { username:this.form.username, password:this.form.password, nickname:this.form.nickname, email:this.form.email });
             this.$message.success('注册成功，请登录');
             this.$router.replace('/login');
           }catch(e){
@@ -469,12 +493,37 @@
       }
     };
 
+    // OAuth 回调处理
+    const OAuthCallback = {
+      template: `
+      <div class="auth-wrapper">
+        <div class="auth-card p-1 rot-1">
+          <div class="auth-title"><h2>正在登录...</h2></div>
+        </div>
+      </div>`,
+      mounted(){
+        const qs = new URLSearchParams((window.location.hash.split('?')[1]) || '');
+        const token = qs.get('token');
+        const username = qs.get('username');
+        const nickname = qs.get('nickname');
+        if (token){
+          localStorage.setItem('token', token);
+          this.$message.success('社交登录成功');
+          this.$router.replace('/notes');
+        } else {
+          this.$message.error('社交登录失败');
+          this.$router.replace('/login');
+        }
+      }
+    };
+
     const routes = [
       { path: '/', redirect: '/login' },
       { path: '/login', component: Login },
       { path: '/notes', component: Notes },
       { path: '/register', component: Register },
       { path: '/forgot', component: Forgot },
+      { path: '/oauth/callback', component: OAuthCallback },
     ];
     const router = VueRouter.createRouter({
       history: VueRouter.createWebHashHistory(),
