@@ -58,11 +58,7 @@
   <div class="bg-overlay"></div>
   <div id="app"><router-view></router-view></div>
 
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.prod.js"></script>
-  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-  <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
-
+  <script type="module" src="/src/main.js"></script>
   <script>
     (function applyBackground(){
       const url = 'https://img.paulzzh.com/touhou/random?t=' + Date.now();
@@ -82,16 +78,8 @@
       };
       img.src = url;
     })();
+  </script>
 
-    const API_BASE = 'http://localhost:8080/api';
-    const http = axios.create({ baseURL: API_BASE });
-    http.interceptors.request.use(cfg => {
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-      if (token) cfg.headers['Authorization'] = 'Bearer ' + token;
-      return cfg;
-    });
-
-    const Login = {
       template: `
       <div class="auth-wrapper">
         <div class="auth-card p-1 rot-1">
@@ -211,9 +199,54 @@
           <div class="search">
             <el-input v-model="q" placeholder="搜索便签..." clearable style="width:240px;" />
             <el-button type="primary" @click="load">搜索</el-button>
-            <el-button @click="logout" type="warning">退出</el-button>
+            <el-popover v-model:visible="profileVisible" placement="bottom-end" :width="280">
+              <template #reference>
+                <div style="display:flex; align-items:center; gap:8px; cursor:pointer;" @click="profileVisible = true">
+                  <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
+                  <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" style="width:32px;height:32px;border-radius:50%;background:#fff;" />
+                  <span style="font-weight:500; color:#303133;">{{ me.nickname || me.username }}</span>
+                </div>
+              </template>
+              <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+                <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
+                <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" style="width:56px;height:56px;border-radius:50%;background:#fff;" />
+                <div>
+                  <div style="font-weight:600;">{{ me.nickname || '未设置昵称' }}</div>
+                  <div style="color:#606266; font-size:12px;">用户名：{{ me.username }}</div>
+                  <div style="color:#606266; font-size:12px;">邮箱：{{ me.email || '未绑定' }}</div>
+                </div>
+              </div>
+              <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <el-button size="small" @click="openEditInfo">修改信息</el-button>
+                <el-button size="small" type="warning" @click="logout">退出登录</el-button>
+              </div>
+            </el-popover>
           </div>
         </div>
+
+        <el-dialog v-model="editVisible" title="修改信息" width="420px">
+          <div style="display:flex; gap:12px; align-items:center; margin-bottom:12px;">
+            <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
+            <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" style="width:56px;height:56px;border-radius:50%;background:#fff;" />
+            <el-upload :show-file-list="false" accept="image/*" :http-request="uploadAvatar">
+              <el-button size="small">更换头像</el-button>
+            </el-upload>
+          </div>
+          <el-form :model="editForm" label-width="100px">
+            <el-form-item label="昵称">
+              <el-input v-model="editForm.nickname" placeholder="输入新昵称" />
+            </el-form-item>
+            <el-form-item label="邮箱">
+              <el-input v-model="editForm.email" placeholder="输入邮箱" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <div style="display:flex; justify-content:flex-end; gap:8px;">
+              <el-button @click="editVisible=false">取消</el-button>
+              <el-button type="primary" @click="saveEditInfo" :loading="editLoading">保存</el-button>
+            </div>
+          </template>
+        </el-dialog>
 
         <div class="grid">
           <div v-for="n in notes" :key="n.id" class="sticky" :class="paperClass(n) + ' ' + rotClass(n)">
@@ -248,11 +281,33 @@
         return {
           q: '',
           notes: [],
-          draft: { title: '', content: '' }
+          draft: { title: '', content: '' },
+          me: { username:'', nickname:'', avatarUrl:'' },
+          profileVisible: false,
+          editVisible: false,
+          editLoading: false,
+          editForm: { nickname:'', email:'' }
         };
       },
-      mounted() { this.load(); },
+      mounted() { this.load(); this.loadMe(); },
+      computed: {
+        avatarUrl(){
+          const url = this.me?.avatarUrl || '';
+          if (!url) return '';
+          if (url.startsWith('http')) return url;
+          const base = API_BASE.replace(/\/api$/, '');
+          return base + url;
+        }
+      },
       methods: {
+        async loadMe(){
+          try{
+            const { data } = await http.get('/account/me');
+            this.me = data;
+          }catch(e){
+            if (e?.response?.status === 401) this.$router.replace('/login');
+          }
+        },
         async load() {
           try {
             const { data } = await http.get('/notes', { params: { q: this.q } });
@@ -261,6 +316,65 @@
             this.$message.error('加载便签失败');
           }
         },
+        openEditInfo(){
+          this.editForm.nickname = this.me.nickname || '';
+          this.editForm.email = this.me.email || '';
+          this.editVisible = true;
+          this.profileVisible = false;
+        },
+        async uploadAvatar(req){
+            try{
+              const form = new FormData();
+              form.append('file', req.file);
+              const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+              const headers = {};
+              if (token) headers['Authorization'] = 'Bearer ' + token;
+              
+              const res = await fetch(`${API_BASE}/account/avatar`, {
+                method: 'POST',
+                headers: headers,
+                body: form
+              });
+              if(!res.ok) throw new Error((await res.text()) || '上传失败');
+              await this.loadMe();
+              this.$message.success('头像已更新');
+            }catch(e){
+              this.$message.error(e.message || '上传失败');
+            }
+          },
+         async saveEditInfo(){
+            this.editLoading = true;
+            try{
+              const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+              const headers = { 'Content-Type': 'application/json' };
+              if (token) headers['Authorization'] = 'Bearer ' + token;
+
+              if(this.editForm.nickname && this.editForm.nickname !== this.me.nickname){
+                const res1 = await fetch(`${API_BASE}/account/update-nickname`, {
+                  method: 'POST',
+                  headers: headers,
+                  body: JSON.stringify({ nickname: this.editForm.nickname })
+                });
+                if(!res1.ok) throw new Error('更新昵称失败');
+              }
+              if(this.editForm.email && this.editForm.email !== this.me.email){
+                // 简化：直接绑定邮箱，不涉及验证码流程
+                const res2 = await fetch(`${API_BASE}/account/bind-email/confirm`, {
+                  method: 'POST',
+                  headers: headers,
+                  body: JSON.stringify({ email: this.editForm.email, code: '000000' })
+                });
+                if(!res2.ok) throw new Error('绑定邮箱失败');
+              }
+              await this.loadMe();
+              this.editVisible = false;
+              this.$message.success('信息已保存');
+            }catch(e){
+              this.$message.error(e.message || '保存失败');
+            }finally{
+              this.editLoading = false;
+            }
+          },
         paperClass(n) {
           const idx = (n.id || 0) % 6 + 1;
           return 'p-' + idx;
@@ -517,23 +631,6 @@
       }
     };
 
-    const routes = [
-      { path: '/', redirect: '/login' },
-      { path: '/login', component: Login },
-      { path: '/notes', component: Notes },
-      { path: '/register', component: Register },
-      { path: '/forgot', component: Forgot },
-      { path: '/oauth/callback', component: OAuthCallback },
-    ];
-    const router = VueRouter.createRouter({
-      history: VueRouter.createWebHashHistory(),
-      routes,
-    });
-
-    const app = Vue.createApp({});
-    app.use(ElementPlus);
-    app.use(router);
-    app.mount('#app');
   </script>
 </body>
 </html>

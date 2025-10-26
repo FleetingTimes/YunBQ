@@ -1,79 +1,44 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/* 基础布局与主题 */
+body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+.bg-overlay { position: fixed; inset: 0; pointer-events: none; background: rgba(255,255,255,0.58); }
+.container { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+.header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; }
+.brand { display:flex; align-items:center; gap:10px; }
+.brand h1 { margin:0; font-size:22px; letter-spacing:1px; }
+.search { display:flex; gap:8px; }
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.sticky { position: relative; border-radius: 12px; padding: 14px 14px 12px; box-shadow: 0 6px 16px rgba(0,0,0,0.08); transition: transform .15s ease, box-shadow .15s ease; background: var(--paper, #fff); }
+.sticky::before { content:''; position:absolute; top:-10px; left:50%; transform: translateX(-50%); width: 64px; height: 22px; background: rgba(255,255,255,0.7); box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 4px; }
+.sticky:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0,0,0,0.12); }
+.sticky .title { font-weight: 600; font-size: 14px; color: #303133; margin-bottom: 8px; }
+.sticky .content { white-space: pre-wrap; line-height: 1.6; color: #606266; }
+.sticky .tags { margin-top: 8px; display:flex; flex-wrap:wrap; gap:6px; }
+.sticky .actions { position:absolute; right:8px; top:8px; opacity:0; transition: opacity .15s; display:flex; gap:6px; }
+.sticky:hover .actions { opacity:1; }
+.ribbon { position:absolute; left:-8px; top:14px; background:#909399; color:#fff; padding:2px 8px; border-radius:0 8px 8px 0; font-size:12px; }
+.archived { filter: grayscale(0.25) brightness(0.96); }
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+.p-1 { --paper: #fffbe6; }
+.p-2 { --paper: #e6fffb; }
+.p-3 { --paper: #f0f5ff; }
+.p-4 { --paper: #fff0f6; }
+.p-5 { --paper: #f9f0ff; }
+.p-6 { --paper: #f6ffed; }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
+.rot-0 { transform: rotate(0deg); }
+.rot-1 { transform: rotate(-0.6deg); }
+.rot-2 { transform: rotate(0.6deg); }
+.rot-3 { transform: rotate(-0.3deg); }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
+.composer { border: 1px dashed rgba(0,0,0,0.1); }
+.composer .title { color:#909399; font-weight:500; }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
+.footer { display:flex; justify-content:center; gap:8px; margin: 16px 0; }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-.card {
-  padding: 2em;
-}
-
-#app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
+.auth-wrapper { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 40px 16px; }
+.auth-card { position:relative; max-width: 440px; width: 100%; padding: 20px 18px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); background: var(--paper, #fffbe6); }
+.auth-card::before { content:''; position:absolute; top:-10px; left:50%; transform: translateX(-50%); width: 68px; height: 22px; background: rgba(255,255,255,0.7); box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 4px; }
+.auth-title { display:flex; align-items:center; gap:10px; margin-bottom: 12px; }
+.auth-title h2 { margin:0; font-size: 20px; letter-spacing: 1px; }
+.auth-actions { display:flex; gap:8px; align-items:center; margin-top: 8px; }

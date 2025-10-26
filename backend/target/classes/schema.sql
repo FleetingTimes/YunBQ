@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS notes (
   content TEXT,
   tags VARCHAR(255),
   archived TINYINT(1) DEFAULT 0,
+  is_public TINYINT(1) DEFAULT 0,
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
   INDEX idx_user (user_id),

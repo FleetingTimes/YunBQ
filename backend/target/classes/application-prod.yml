@@ -1,0 +1,15 @@
+cors:
+  allowed-origins:
+    - "https://your-domain.com"
+  allowed-origin-patterns:
+    - "https://*.your-domain.com"
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+  allowed-headers:
+    - Authorization
+    - Content-Type
+  allow-credentials: true

@@ -21,9 +21,11 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
+    private final com.yunbq.backend.config.CorsProperties corsProperties;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtFilter, com.yunbq.backend.config.CorsProperties corsProperties) {
         this.jwtFilter = jwtFilter;
+        this.corsProperties = corsProperties;
     }
 
     @Bean
@@ -56,10 +58,27 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true);
-        config.setAllowedOrigins(List.of("http://localhost:5500", "http://localhost:5173"));
-        config.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization","Content-Type"));
+        // allow credentials
+        if (Boolean.TRUE.equals(corsProperties.getAllowCredentials())) {
+            config.setAllowCredentials(true);
+        }
+        // origins or patterns
+        var patterns = corsProperties.getAllowedOriginPatterns();
+        var origins = corsProperties.getAllowedOrigins();
+        if (patterns != null && !patterns.isEmpty()) {
+            config.setAllowedOriginPatterns(patterns);
+        } else if (origins != null && !origins.isEmpty()) {
+            config.setAllowedOrigins(origins);
+        } else {
+            // fallback for dev
+            config.setAllowedOrigins(java.util.List.of("http://localhost:5500", "http://localhost:5173", "http://localhost:5174"));
+        }
+        // methods
+        var methods = corsProperties.getAllowedMethods();
+        config.setAllowedMethods(methods != null && !methods.isEmpty() ? methods : java.util.List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        // headers
+        var headers = corsProperties.getAllowedHeaders();
+        config.setAllowedHeaders(headers != null && !headers.isEmpty() ? headers : java.util.List.of("Authorization","Content-Type"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;

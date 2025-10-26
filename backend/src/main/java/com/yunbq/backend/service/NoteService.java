@@ -26,6 +26,7 @@ public class NoteService {
         n.setContent(req.getContent());
         n.setTags(req.getTags());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
+        n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
         n.setCreatedAt(LocalDateTime.now());
         n.setUpdatedAt(LocalDateTime.now());
         noteMapper.insert(n);
@@ -42,6 +43,7 @@ public class NoteService {
         n.setContent(req.getContent());
         n.setTags(req.getTags());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
+        n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
         n.setUpdatedAt(LocalDateTime.now());
         noteMapper.updateById(n);
         return n;
