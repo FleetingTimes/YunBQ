@@ -1,0 +1,490 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YunBQ 云便签</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+  <style>
+    body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .bg-overlay { position: fixed; inset: 0; pointer-events: none; background: rgba(255,255,255,0.58); }
+    .container { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
+    .header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; }
+    .brand { display:flex; align-items:center; gap:10px; }
+    .brand h1 { margin:0; font-size:22px; letter-spacing:1px; }
+    .search { display:flex; gap:8px; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .sticky { position: relative; border-radius: 12px; padding: 14px 14px 12px; box-shadow: 0 6px 16px rgba(0,0,0,0.08); transition: transform .15s ease, box-shadow .15s ease; background: var(--paper, #fff); }
+    .sticky::before { content:''; position:absolute; top:-10px; left:50%; transform: translateX(-50%); width: 64px; height: 22px; background: rgba(255,255,255,0.7); box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 4px; }
+    .sticky:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0,0,0,0.12); }
+    .sticky .title { font-weight: 600; font-size: 14px; color: #303133; margin-bottom: 8px; }
+    .sticky .content { white-space: pre-wrap; line-height: 1.6; color: #606266; }
+    .sticky .tags { margin-top: 8px; display:flex; flex-wrap:wrap; gap:6px; }
+    .sticky .actions { position:absolute; right:8px; top:8px; opacity:0; transition: opacity .15s; display:flex; gap:6px; }
+    .sticky:hover .actions { opacity:1; }
+    .ribbon { position:absolute; left:-8px; top:14px; background:#909399; color:#fff; padding:2px 8px; border-radius:0 8px 8px 0; font-size:12px; }
+    .archived { filter: grayscale(0.25) brightness(0.96); }
+
+    .p-1 { --paper: #fffbe6; }
+    .p-2 { --paper: #e6fffb; }
+    .p-3 { --paper: #f0f5ff; }
+    .p-4 { --paper: #fff0f6; }
+    .p-5 { --paper: #f9f0ff; }
+    .p-6 { --paper: #f6ffed; }
+
+    .rot-0 { transform: rotate(0deg); }
+    .rot-1 { transform: rotate(-0.6deg); }
+    .rot-2 { transform: rotate(0.6deg); }
+    .rot-3 { transform: rotate(-0.3deg); }
+
+    .composer { border: 1px dashed rgba(0,0,0,0.1); }
+    .composer .title { color:#909399; font-weight:500; }
+
+    .footer { display:flex; justify-content:center; gap:8px; margin: 16px 0; }
+
+    body.bg-loading #app { opacity: 0; }
+    body.bg-ready #app { opacity: 1; transition: opacity .25s ease-in; }
+
+    .auth-wrapper { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 40px 16px; }
+    .auth-card { position:relative; max-width: 440px; width: 100%; padding: 20px 18px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); background: var(--paper, #fffbe6); }
+    .auth-card::before { content:''; position:absolute; top:-10px; left:50%; transform: translateX(-50%); width: 68px; height: 22px; background: rgba(255,255,255,0.7); box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-radius: 4px; }
+    .auth-title { display:flex; align-items:center; gap:10px; margin-bottom: 12px; }
+    .auth-title h2 { margin:0; font-size: 20px; letter-spacing: 1px; }
+    .auth-actions { display:flex; gap:8px; align-items:center; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="bg-overlay"></div>
+  <div id="app"><router-view></router-view></div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/vue-router@4/dist/vue-router.global.prod.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
+
+  <script>
+    (function applyBackground(){
+      const url = 'https://img.paulzzh.com/touhou/random?t=' + Date.now();
+      document.body.classList.add('bg-loading');
+      const img = new Image();
+      img.onload = function(){
+        document.body.style.backgroundImage = `url('${url}')`;
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundPosition = 'center';
+        document.body.style.backgroundAttachment = 'fixed';
+        document.body.classList.remove('bg-loading');
+        document.body.classList.add('bg-ready');
+      };
+      img.onerror = function(){
+        document.body.classList.remove('bg-loading');
+        document.body.classList.add('bg-ready');
+      };
+      img.src = url;
+    })();
+
+    const API_BASE = 'http://localhost:8080/api';
+    const http = axios.create({ baseURL: API_BASE });
+    http.interceptors.request.use(cfg => {
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (token) cfg.headers['Authorization'] = 'Bearer ' + token;
+      return cfg;
+    });
+
+    const Login = {
+      template: `
+      <div class="auth-wrapper">
+        <div class="auth-card p-1 rot-1">
+          <div class="auth-title">
+            <img src="https://api.iconify.design/mdi/account-circle.svg" alt="login" width="26" height="26"/>
+            <h2>登录云便签</h2>
+          </div>
+          <el-form ref="formRef" @submit.prevent="onSubmit" label-width="80px" :model="form" :rules="rules">
+            <el-form-item label="用户名" prop="username">
+              <el-input v-model="form.username" placeholder="请输入用户名" />
+            </el-form-item>
+            <el-form-item label="密码" prop="password">
+              <el-input v-model="form.password" type="password" show-password placeholder="请输入密码" />
+            </el-form-item>
+            <el-form-item label="验证码" prop="captchaCode">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <el-input v-model="form.captchaCode" placeholder="请输入验证码" style="flex:1;" />
+                <img :src="captcha.image" alt="captcha" width="120" height="40" style="border-radius:6px; cursor:pointer;" @click="refreshCaptcha" />
+              </div>
+            </el-form-item>
+            <div class="auth-actions" style="justify-content:space-between;">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <el-checkbox v-model="form.remember">记住我</el-checkbox>
+                <el-link type="primary" @click="$router.push('/forgot')">忘记密码？</el-link>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <el-button type="primary" @click="onSubmit" :loading="loading">登录</el-button>
+                <el-button type="text" @click="$router.push('/register')">去注册</el-button>
+              </div>
+            </div>
+            <div class="auth-actions" style="justify-content:center; margin-top:8px;">
+              <el-button type="success" plain @click="loginWithQQ">QQ 扫码登录</el-button>
+              <el-button type="warning" plain @click="loginWithWeChat">微信扫码登录</el-button>
+            </div>
+          </el-form>
+        </div>
+      </div>`,
+      data() {
+        return {
+          form: { username:'', password:'', captchaCode:'', remember:true },
+          captcha: { id:'', image:'' },
+          loading:false,
+          rules: {
+            username: [
+              { required:true, message:'请输入用户名', trigger:'blur' },
+              { min:4, max:20, message:'用户名长度 4-20', trigger:'blur' }
+            ],
+            password: [
+              { required:true, message:'请输入密码', trigger:'blur' },
+              { min:6, max:32, message:'密码长度 6-32', trigger:'blur' }
+            ],
+            captchaCode: [
+              { required:true, message:'请输入验证码', trigger:'blur' },
+              { min:4, max:6, message:'验证码长度 4-6', trigger:'blur' }
+            ]
+          }
+        };
+      },
+      mounted() {
+        this.refreshCaptcha();
+      },
+      methods: {
+        async refreshCaptcha() {
+          try {
+            const { data } = await http.get('/captcha');
+            this.captcha.id = data.id;
+            this.captcha.image = data.image;
+          } catch (e) {
+            this.$message.error('获取验证码失败');
+          }
+        },
+        async onSubmit() {
+          try {
+            await this.$refs.formRef.validate();
+            this.loading = true;
+            const payload = {
+              username: this.form.username,
+              password: this.form.password,
+              captchaId: this.captcha.id,
+              captchaCode: this.form.captchaCode,
+            };
+            const { data } = await http.post('/auth/login', payload);
+            const token = data?.token;
+            if (token) {
+              const storage = this.form.remember ? localStorage : sessionStorage;
+              storage.setItem('token', token);
+              this.$message.success('登录成功');
+              this.$router.replace('/notes');
+            } else {
+              this.$message.error('登录失败：未返回 token');
+            }
+          } catch (e) {
+            if (e?.response?.data?.message) {
+              this.$message.error(e.response.data.message);
+            } else if (e?.message?.includes('validate')) {
+              this.$message.warning('请检查表单输入');
+            } else {
+              this.$message.error('登录失败');
+            }
+          } finally {
+            this.loading = false;
+          }
+        },
+        loginWithQQ() { this.$message.info('QQ 扫码登录暂未接入'); },
+        loginWithWeChat() { this.$message.info('微信扫码登录暂未接入'); },
+      }
+    };
+
+    const Notes = {
+      template: `
+      <div class="container">
+        <div class="header">
+          <div class="brand">
+            <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
+            <h1>云便签</h1>
+          </div>
+          <div class="search">
+            <el-input v-model="q" placeholder="搜索便签..." clearable style="width:240px;" />
+            <el-button type="primary" @click="load">搜索</el-button>
+            <el-button @click="logout" type="warning">退出</el-button>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div v-for="n in notes" :key="n.id" class="sticky" :class="paperClass(n) + ' ' + rotClass(n)">
+            <div class="ribbon" v-if="n.archived">已归档</div>
+            <div class="actions">
+              <el-button size="small" @click="archive(n)">{{ n.archived ? '取消归档' : '归档' }}</el-button>
+              <el-button size="small" type="danger" @click="remove(n)">删除</el-button>
+            </div>
+            <div class="title">{{ n.title }}</div>
+            <div class="content">{{ n.content }}</div>
+            <div class="tags">
+              <el-tag v-for="t in n.tags" :key="t" type="info" size="small">{{ t }}</el-tag>
+            </div>
+          </div>
+
+          <div class="sticky composer p-2 rot-2">
+            <div class="title">新建便签</div>
+            <el-input v-model="draft.title" placeholder="标题" style="margin-bottom:6px;" />
+            <el-input v-model="draft.content" type="textarea" :rows="4" placeholder="内容" />
+            <div class="auth-actions" style="justify-content:flex-end;">
+              <el-button type="primary" @click="create">添加</el-button>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <el-tag type="info">共 {{ notes.length }} 条</el-tag>
+        </div>
+      </div>
+      `,
+      data() {
+        return {
+          q: '',
+          notes: [],
+          draft: { title: '', content: '' }
+        };
+      },
+      mounted() { this.load(); },
+      methods: {
+        async load() {
+          try {
+            const { data } = await http.get('/notes', { params: { q: this.q } });
+            this.notes = Array.isArray(data) ? data : (data?.items || []);
+          } catch (e) {
+            this.$message.error('加载便签失败');
+          }
+        },
+        paperClass(n) {
+          const idx = (n.id || 0) % 6 + 1;
+          return 'p-' + idx;
+        },
+        rotClass(n) {
+          const idx = (n.id || 0) % 4;
+          return 'rot-' + idx;
+        },
+        async archive(n) {
+          try {
+            await http.post(`/notes/${n.id}/archive`, { archived: !n.archived });
+            this.$message.success('已更新归档状态');
+            this.load();
+          } catch (e) {
+            this.$message.error('更新归档失败');
+          }
+        },
+        async remove(n) {
+          try {
+            await http.delete(`/notes/${n.id}`);
+            this.$message.success('已删除');
+            this.load();
+          } catch (e) {
+            this.$message.error('删除失败');
+          }
+        },
+        async create() {
+          if (!this.draft.title || !this.draft.content) {
+            this.$message.warning('请填写标题与内容');
+            return;
+          }
+          try {
+            await http.post('/notes', this.draft);
+            this.$message.success('已添加');
+            this.draft = { title: '', content: '' };
+            this.load();
+          } catch (e) {
+            this.$message.error('添加失败');
+          }
+        },
+        logout() {
+          localStorage.removeItem('token');
+          sessionStorage.removeItem('token');
+          this.$router.replace('/login');
+        }
+      }
+    };
+
+    // 注册页
+    const Register = {
+      template: `
+      <div class="auth-wrapper">
+        <div class="auth-card p-2 rot-2">
+          <div class="auth-title">
+            <img src="https://api.iconify.design/mdi/account-plus.svg" alt="register" width="26" height="26"/>
+            <h2>注册新用户</h2>
+          </div>
+          <el-form ref="formRef" @submit.prevent="onSubmit" label-width="80px" :model="form" :rules="rules">
+            <el-form-item label="用户名" prop="username">
+              <el-input v-model="form.username" placeholder="请输入用户名" />
+            </el-form-item>
+            <el-form-item label="密码" prop="password">
+              <el-input v-model="form.password" type="password" show-password placeholder="请输入密码" />
+            </el-form-item>
+            <el-form-item label="昵称" prop="nickname">
+              <el-input v-model="form.nickname" placeholder="可选" />
+            </el-form-item>
+            <el-form-item label="邮箱" prop="email">
+              <el-input v-model="form.email" placeholder="可选，用于找回密码" />
+            </el-form-item>
+            <div class="auth-actions" style="justify-content:space-between;">
+              <el-button type="text" @click="$router.push('/login')">返回登录</el-button>
+              <el-button type="primary" @click="onSubmit" :loading="loading">注册</el-button>
+            </div>
+          </el-form>
+        </div>
+      </div>`,
+      data(){
+        return {
+          form:{ username:'', password:'', nickname:'', email:'' },
+          loading:false,
+          rules:{
+            username:[{ required:true, message:'请输入用户名', trigger:'blur' },{ min:4, max:20, message:'用户名长度 4-20', trigger:'blur' }],
+            password:[{ required:true, message:'请输入密码', trigger:'blur' },{ min:6, max:32, message:'密码长度 6-32', trigger:'blur' }],
+            email:[{ type:'email', message:'邮箱格式不正确', trigger:'blur' }]
+          }
+        };
+      },
+      methods:{
+        async onSubmit(){
+          try{
+            await this.$refs.formRef.validate();
+            this.loading = true;
+            await http.post('/auth/register', this.form);
+            this.$message.success('注册成功，请登录');
+            this.$router.replace('/login');
+          }catch(e){
+            const msg = e?.response?.data?.message || '注册失败';
+            this.$message.error(msg);
+          }finally{
+            this.loading = false;
+          }
+        }
+      }
+    };
+
+    // 忘记密码页
+    const Forgot = {
+      template:`
+      <div class="auth-wrapper">
+        <div class="auth-card p-3 rot-3">
+          <div class="auth-title">
+            <img src="https://api.iconify.design/mdi/lock-reset.svg" alt="forgot" width="26" height="26"/>
+            <h2>找回密码</h2>
+          </div>
+          <el-tabs v-model="tab">
+            <el-tab-pane label="发送验证码" name="send">
+              <el-form ref="sendRef" :model="sendForm" label-width="80px">
+                <el-form-item label="邮箱" prop="email">
+                  <el-input v-model="sendForm.email" placeholder="请输入绑定邮箱" />
+                </el-form-item>
+                <el-form-item label="验证码" prop="captchaCode">
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <el-input v-model="sendForm.captchaCode" placeholder="请输入图片验证码" style="flex:1;" />
+                    <img :src="captcha.image" alt="captcha" width="120" height="40" style="border-radius:6px; cursor:pointer;" @click="refreshCaptcha" />
+                  </div>
+                </el-form-item>
+                <div class="auth-actions" style="justify-content:space-between;">
+                  <el-button type="text" @click="$router.push('/login')">返回登录</el-button>
+                  <el-button type="primary" @click="send" :loading="loading">发送验证码</el-button>
+                </div>
+              </el-form>
+            </el-tab-pane>
+            <el-tab-pane label="重置密码" name="reset">
+              <el-form ref="resetRef" :model="resetForm" label-width="80px">
+                <el-form-item label="邮箱" prop="email">
+                  <el-input v-model="resetForm.email" placeholder="请输入绑定邮箱" />
+                </el-form-item>
+                <el-form-item label="邮箱验证码" prop="code">
+                  <el-input v-model="resetForm.code" placeholder="请输入邮箱验证码" />
+                </el-form-item>
+                <el-form-item label="新密码" prop="newPassword">
+                  <el-input v-model="resetForm.newPassword" type="password" show-password placeholder="请输入新密码" />
+                </el-form-item>
+                <div class="auth-actions" style="justify-content:flex-end;">
+                  <el-button type="primary" @click="reset" :loading="loading">重置密码</el-button>
+                </div>
+              </el-form>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+      </div>
+      `,
+      data(){
+        return {
+          tab:'send',
+          loading:false,
+          captcha:{ id:'', image:'' },
+          sendForm:{ email:'', captchaCode:'' },
+          resetForm:{ email:'', code:'', newPassword:'' }
+        };
+      },
+      mounted(){ this.refreshCaptcha(); },
+      methods:{
+        async refreshCaptcha(){
+          try{
+            const { data } = await http.get('/captcha');
+            this.captcha.id = data.id;
+            this.captcha.image = data.image;
+          }catch(e){ this.$message.error('获取验证码失败'); }
+        },
+        async send(){
+          try{
+            this.loading = true;
+            const payload = { email:this.sendForm.email, captchaId:this.captcha.id, captchaCode:this.sendForm.captchaCode };
+            const { data } = await http.post('/auth/forgot', payload);
+            if (data?.ok){
+              this.$message.success('已发送邮箱验证码，请查收');
+              this.tab = 'reset';
+            } else {
+              const msg = data?.message || '发送失败';
+              this.$message.error(msg);
+            }
+          }catch(e){
+            const msg = e?.response?.data?.message || '发送失败';
+            this.$message.error(msg);
+          }finally{ this.loading = false; }
+        },
+        async reset(){
+          try{
+            this.loading = true;
+            const payload = { email:this.resetForm.email, code:this.resetForm.code, newPassword:this.resetForm.newPassword };
+            const { data } = await http.post('/auth/reset', payload);
+            if (data?.ok){
+              this.$message.success('密码重置成功，请登录');
+              this.$router.replace('/login');
+            } else {
+              const msg = data?.message || '重置失败';
+              this.$message.error(msg);
+            }
+          }catch(e){
+            const msg = e?.response?.data?.message || '重置失败';
+            this.$message.error(msg);
+          }finally{ this.loading = false; }
+        }
+      }
+    };
+
+    const routes = [
+      { path: '/', redirect: '/login' },
+      { path: '/login', component: Login },
+      { path: '/notes', component: Notes },
+      { path: '/register', component: Register },
+      { path: '/forgot', component: Forgot },
+    ];
+    const router = VueRouter.createRouter({
+      history: VueRouter.createWebHashHistory(),
+      routes,
+    });
+
+    const app = Vue.createApp({});
+    app.use(ElementPlus);
+    app.use(router);
+    app.mount('#app');
+  </script>
+</body>
+</html>
