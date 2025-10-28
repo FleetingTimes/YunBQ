@@ -1,8 +1,10 @@
 <template>
   <router-view />
+  <TransparentFooter />
 </template>
 
 <script setup>
+import TransparentFooter from '@/components/TransparentFooter.vue'
 </script>
 
 <style>
