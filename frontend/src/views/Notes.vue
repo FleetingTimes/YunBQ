@@ -35,7 +35,7 @@
     </div>
 
     <el-dialog v-model="editVisible" title="修改信息" width="420px">
-      <div style="display:flex; gap:12px; align-items:center; margin-bottom:12px;">
+      <div style="display:flex; flex-direction:column; gap:8px; align-items:center; margin-bottom:12px;">
         <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
         <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" style="width:56px;height:56px;border-radius:50%;background:#fff;" />
         <el-upload :show-file-list="false" accept="image/*" :http-request="uploadAvatar">
