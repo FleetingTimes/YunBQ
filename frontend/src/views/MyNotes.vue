@@ -181,6 +181,12 @@
       </div>
     </div>
   </div>
+  <!-- 右下：回到顶部组件（可见高度 360px 后出现） -->
+  <el-backtop :right="80" :bottom="100" :visibility-height="360">
+    <div class="backtop-btn" title="回到顶部">
+      <img src="https://api.iconify.design/mdi/arrow-up.svg" alt="up" width="20" height="20" />
+    </div>
+  </el-backtop>
 </template>
 
 <script setup>
@@ -690,4 +696,16 @@ function highlightHTML(s){
   0%{ box-shadow: 0 0 0 0 rgba(64,158,255,0.35); }
   100%{ box-shadow: 0 0 0 8px rgba(64,158,255,0); }
 }
+
+/* 右下回到顶部按钮美化 */
+.container :deep(.el-backtop){ z-index: 120; background: transparent; box-shadow: none; }
+.backtop-btn{
+  width: 44px; height: 44px; border-radius: 999px;
+  background: linear-gradient(135deg, #409eff, #66b1ff);
+  display:flex; align-items:center; justify-content:center; color:#fff;
+  box-shadow: 0 8px 24px rgba(64,158,255,0.30), 0 2px 6px rgba(0,0,0,0.12);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.backtop-btn:hover{ transform: translateY(-2px); box-shadow: 0 12px 28px rgba(64,158,255,0.38), 0 4px 10px rgba(0,0,0,0.14); }
+.backtop-btn:active{ transform: translateY(0); filter: brightness(0.96); }
 </style>
