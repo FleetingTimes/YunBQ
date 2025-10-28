@@ -39,6 +39,17 @@
             <el-option label="私有" value="private" />
           </el-select>
         </el-form-item>
+    <el-timeline>
+      <el-timeline-item
+        v-for="n in notes"
+        :key="n.id"
+        :timestamp="formatTime(n.createdAt || n.created_at)"
+        placement="top">
+        <div class="note-card" :style="noteCardStyle(n)">
+          <div class="note-head">
+            <el-tag size="small" :type="n.isPublic ? 'success' : 'info'">{{ n.isPublic ? '公开' : '私有' }}</el-tag>
+            <span class="author">作者：{{ authorName }}</span>
+            <span class="time">更新：{{ formatTime(n.updatedAt || n.updated_at) }}</span>
           </div>
           <div class="top-right">
         <el-form-item label="搜索" class="search-item aligned-340">
@@ -290,6 +301,7 @@ function parseHexColor(hex){
   const b = parseInt(v.slice(4,6), 16);
   return { r, g, b };
 }
+<<<<<<< HEAD
 function luminance({r,g,b}){
   return 0.2126*(r/255) + 0.7152*(g/255) + 0.0722*(b/255);
 }
@@ -302,6 +314,12 @@ function noteCardStyle(n){
     background: (typeof n.color === 'string' ? n.color.trim() : `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`),
     '--fgColor': fg
   };
+=======
+function noteCardStyle(n){
+  const rgb = parseHexColor(n.color);
+  if (!rgb) return {};
+  return { borderLeft: `6px solid rgba(${rgb.r},${rgb.g},${rgb.b},0.6)` };
+>>>>>>> 33e1ff3ce6d549a37c62a6a9792aa5b54a1393ef
 }
 
 onMounted(() => { loadMe(); loadNotes(); });

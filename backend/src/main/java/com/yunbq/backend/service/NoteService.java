@@ -35,8 +35,8 @@ public class NoteService {
         Note n = new Note();
         n.setUserId(userId);
         // 移除 title 引用
-        n.setContent(ct.content);
-        n.setTags(ct.tags);
+        n.setContent(req.getContent());
+        n.setTags(req.getTags());
         n.setColor(req.getColor());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
@@ -56,8 +56,13 @@ public class NoteService {
         Parsed ct = parseFromContent(req.getContent(), req.getTags());
         String finalTags = (ct.tags == null || ct.tags.isBlank()) ? (n.getTags() == null ? "" : n.getTags()) : ct.tags;
         // 移除 title 引用
+<<<<<<< HEAD
         n.setContent(ct.content);
         n.setTags(finalTags);
+=======
+        n.setContent(req.getContent());
+        n.setTags(req.getTags());
+>>>>>>> 33e1ff3ce6d549a37c62a6a9792aa5b54a1393ef
         n.setColor(req.getColor());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));

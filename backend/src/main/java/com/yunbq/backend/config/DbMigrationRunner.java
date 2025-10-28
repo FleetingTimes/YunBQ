@@ -45,21 +45,5 @@ public class DbMigrationRunner implements CommandLineRunner {
         } catch (Exception ignored) {
             // 不阻塞启动
         }
-
-        // 新增：为 users 表添加 role 列（若不存在），并修复历史空值
-        try {
-            Integer roleCount = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'users' AND column_name = 'role'",
-                Integer.class,
-                currentSchema
-            );
-            if (roleCount == null || roleCount == 0) {
-                jdbc.execute("ALTER TABLE users ADD COLUMN role VARCHAR(16) NOT NULL DEFAULT 'USER'");
-            }
-            // 兼容历史数据：将空值或空字符串设置为 USER
-            jdbc.execute("UPDATE users SET role = 'USER' WHERE role IS NULL OR role = ''");
-        } catch (Exception ignored) {
-            // 不阻塞启动，数据库差异或权限不足时忽略
-        }
     }
 }
