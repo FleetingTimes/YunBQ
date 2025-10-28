@@ -5,6 +5,7 @@ export const routes = [
   { path: '/login', component: () => import('../views/Login.vue') },
   { path: '/register', component: () => import('../views/Register.vue') },
   { path: '/notes', component: () => import('../views/Notes.vue') },
+  { path: '/my-notes', component: () => import('../views/MyNotes.vue') },
   { path: '/forgot', component: () => import('../views/Forgot.vue') },
   { path: '/oauth/callback', component: () => import('../views/OAuthCallback.vue') },
 ];

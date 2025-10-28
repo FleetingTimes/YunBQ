@@ -26,6 +26,7 @@
             </div>
           </div>
           <div style="display:flex; justify-content:flex-end; gap:8px;">
+            <el-button size="small" type="success" @click="goMyNotes">我的便签</el-button>
             <el-button size="small" @click="openEditInfo">修改信息</el-button>
             <el-button size="small" type="warning" @click="logout">退出登录</el-button>
           </div>
@@ -333,6 +334,10 @@ async function togglePublic(n){
 function logout(){
   clearToken();
   router.replace('/login');
+}
+function goMyNotes(){
+  profileVisible.value = false;
+  router.push('/my-notes');
 }
 function parsedTags(tags){
   if (Array.isArray(tags)) return tags;
