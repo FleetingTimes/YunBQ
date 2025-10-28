@@ -10,12 +10,61 @@
       </div>
     </div>
 
-    <el-timeline>
-      <el-timeline-item
-        v-for="n in notes"
-        :key="n.id"
-        :timestamp="formatTime(n.createdAt || n.created_at)"
-        placement="top">
+    <!-- 过滤与排序栏 -->
+    <div class="filters" :class="{ 'is-stuck': isStuck }" ref="filtersRef">
+      <el-form :inline="true" label-width="80px" class="filters-form">
+        <el-form-item label="公开性">
+          <el-select v-model="filters.visibility" style="width:140px">
+            <el-option label="全部" value="all" />
+            <el-option label="公开" value="public" />
+            <el-option label="私有" value="private" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="时间范围">
+          <el-date-picker
+            v-model="filters.range"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            style="width:280px"
+          />
+        </el-form-item>
+        <el-form-item label="标签">
+          <el-select v-model="filters.tags" multiple filterable allow-create default-first-option placeholder="选择或输入标签" style="width:280px">
+            <el-option v-for="t in allTags" :key="t" :label="'#' + t" :value="t" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-radio-group v-model="filters.sortBy" size="small">
+            <el-radio-button label="time">时间</el-radio-button>
+            <el-radio-button label="likes">点赞数</el-radio-button>
+          </el-radio-group>
+          <el-tooltip content="切换升/降序" placement="top">
+            <el-button size="small" class="order-toggle" @click="toggleOrder" style="margin-left:8px;">
+              <img v-if="filters.sortOrder==='desc'" src="https://api.iconify.design/mdi/sort-descending.svg" alt="desc" width="18" height="18" />
+              <img v-else src="https://api.iconify.design/mdi/sort-ascending.svg" alt="asc" width="18" height="18" />
+            </el-button>
+          </el-tooltip>
+        </el-form-item>
+        <el-form-item>
+          <el-button @click="resetFilters">清空</el-button>
+        </el-form-item>
+      </el-form>
+    </div>
+
+    <div class="year-groups">
+      <div v-for="g in yearGroups" :key="g.year" class="year-group">
+        <div class="year-header">
+          <span class="year-title">{{ g.year }}</span>
+        </div>
+        <el-timeline>
+          <transition-group name="list" tag="div">
+          <el-timeline-item
+            v-for="n in g.items"
+            :key="n.id"
+            :timestamp="formatMD(n.createdAt || n.created_at)"
+            placement="top">
         <div class="author-above">作者：{{ authorName }}</div>
         <div
           :class="['note-card', { editing: n.editing }]"
@@ -28,22 +77,24 @@
           @touchend="cancelPress"
         >
           <!-- 动作菜单：长按出现（图标版） -->
-          <div
-            v-if="n.showActions"
-            class="actions-overlay"
-            @click="closeActions(n)"
-            @mousedown.stop
-            @mouseup.stop
-            @touchstart.stop
-            @touchend.stop
-          >
+          <transition name="overlay">
+            <div
+              v-if="n.showActions"
+              class="actions-overlay"
+              @click="closeActions(n)"
+              @mousedown.stop
+              @mouseup.stop
+              @touchstart.stop
+              @touchend.stop
+            >
             <div class="action-icon" title="编辑" @click.stop="editNote(n)">
               <img src="https://api.iconify.design/mdi/pencil.svg" alt="edit" width="20" height="20" />
             </div>
             <div class="action-icon danger" title="删除" @click.stop="deleteNote(n)">
               <img src="https://api.iconify.design/mdi/delete.svg" alt="delete" width="20" height="20" />
             </div>
-          </div>
+            </div>
+          </transition>
 
           <!-- 非编辑态内容展示 -->
           <template v-if="!n.editing">
@@ -96,20 +147,39 @@
             </div>
           </template>
         </div>
-        
+      
       </el-timeline-item>
-    </el-timeline>
+      </transition-group>
+        </el-timeline>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { http } from '@/api/http';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 const notes = ref([]);
 const me = reactive({ username:'', nickname:'' });
 const authorName = computed(() => me.nickname || me.username || '我');
+
+// 过滤与排序状态
+const filters = reactive({
+  visibility: 'all', // all | public | private
+  range: null,       // [startDate, endDate]
+  tags: [],          // array of tag strings
+  sortBy: 'time',    // time | likes
+  sortOrder: 'desc', // desc | asc
+});
+function resetFilters(){
+  filters.visibility = 'all';
+  filters.range = null;
+  filters.tags = [];
+  filters.sortBy = 'time';
+  filters.sortOrder = 'desc';
+}
 
 function parsedTags(tags){
   if (Array.isArray(tags)) return tags;
@@ -121,6 +191,21 @@ function formatTime(t){
   if (!t) return '';
   // 兼容后端返回的 LocalDateTime 字符串
   try { return new Date(t).toLocaleString(); } catch { return String(t); }
+}
+
+// 月-日 时:分 格式（中文样式）
+function pad(n){ return String(n).padStart(2, '0'); }
+function formatMD(t){
+  if (!t) return '';
+  try{
+    const d = new Date(t);
+    if (isNaN(d.getTime())) return '';
+    const M = pad(d.getMonth()+1);
+    const D = pad(d.getDate());
+    const h = pad(d.getHours());
+    const m = pad(d.getMinutes());
+    return `${M}月${D}日 ${h}:${m}`;
+  }catch{ return ''; }
 }
 
 async function loadMe(){
@@ -137,6 +222,8 @@ async function loadNotes(){
     notes.value = (items || []).map(it => ({
       ...it,
       isPublic: it.isPublic ?? it.is_public ?? false,
+      likeCount: Number(it.likeCount ?? it.like_count ?? 0),
+      liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
       showActions: false,
       editing: false,
       contentEdit: it.content,
@@ -172,6 +259,92 @@ function noteCardStyle(n){
 }
 
 onMounted(() => { loadMe(); loadNotes(); });
+
+// 吸顶状态检测（用于视觉强调）
+const filtersRef = ref(null);
+const isStuck = ref(false);
+function updateStickyState(){
+  const el = filtersRef.value;
+  if (!el) return;
+  const top = el.getBoundingClientRect().top;
+  isStuck.value = top <= 0;
+}
+onMounted(() => {
+  window.addEventListener('scroll', updateStickyState, { passive: true });
+  updateStickyState();
+});
+onUnmounted(() => {
+  window.removeEventListener('scroll', updateStickyState);
+});
+
+// 所有标签集合（去重）
+const allTags = computed(() => {
+  const set = new Set();
+  for (const n of notes.value){
+    for (const t of parsedTags(n.tags)) set.add(t);
+  }
+  return Array.from(set);
+});
+
+// 过滤与排序后的结果
+const filteredNotes = computed(() => {
+  let arr = notes.value.slice();
+  // 过滤：公开性
+  if (filters.visibility !== 'all'){
+    const target = filters.visibility === 'public';
+    arr = arr.filter(n => Boolean(n.isPublic) === target);
+  }
+  // 过滤：时间范围（按更新时间，有则用，否则用创建时间）
+  if (Array.isArray(filters.range) && filters.range.length === 2 && filters.range[0] && filters.range[1]){
+    const start = new Date(filters.range[0]).getTime();
+    const end = new Date(filters.range[1]).getTime();
+    arr = arr.filter(n => {
+      const t = new Date(n.createdAt || n.created_at || 0).getTime();
+      return t >= start && t <= end;
+    });
+  }
+  // 过滤：标签（包含任意一个所选标签）
+  if (Array.isArray(filters.tags) && filters.tags.length > 0){
+    arr = arr.filter(n => {
+      const tags = parsedTags(n.tags);
+      return filters.tags.some(t => tags.includes(t));
+    });
+  }
+  // 排序
+  const by = filters.sortBy;
+  const dir = filters.sortOrder === 'asc' ? 1 : -1;
+  arr.sort((a,b) => {
+    let av, bv;
+    if (by === 'likes'){
+      av = Number(a.likeCount || 0);
+      bv = Number(b.likeCount || 0);
+    }else{
+      av = new Date(a.createdAt || a.created_at || 0).getTime();
+      bv = new Date(b.createdAt || b.created_at || 0).getTime();
+    }
+    return (av - bv) * dir;
+  });
+  return arr;
+});
+
+// 按年份分组（保持 filteredNotes 的排序顺序）
+const yearGroups = computed(() => {
+  const map = new Map();
+  for (const n of filteredNotes.value){
+    const t = new Date(n.createdAt || n.created_at || 0);
+    const year = isNaN(t.getTime()) ? '未知' : t.getFullYear();
+    if (!map.has(year)) map.set(year, []);
+    map.get(year).push(n);
+  }
+  // 保持出现顺序
+  const groups = [];
+  for (const [year, items] of map.entries()) groups.push({ year, items });
+  return groups;
+});
+
+function toggleOrder(){
+  filters.sortOrder = (filters.sortOrder === 'desc' ? 'asc' : 'desc');
+}
 
 // 长按动作菜单
 const pressTimer = ref(null);
@@ -338,6 +511,12 @@ function highlightHTML(s){
 .meta.bottom-right { position:absolute; right:12px; bottom:10px; color:#606266; font-size:12px; }
 .author-above { color:#606266; font-size:12px; margin: 0 0 6px 0; }
 
+/* 年份分组样式（层次更明显） */
+.year-group { margin-bottom: 16px; }
+.year-header { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:#ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.06); position: sticky; top: 48px; z-index: 10; }
+.year-title { font-size:22px; font-weight:700; color:#303133; letter-spacing:0.5px; }
+.year-header::before { content:''; display:block; width:6px; height:24px; border-radius:6px; background:#409eff; margin-right:10px; opacity:0.85; }
+
 /* 长按动作菜单覆盖层 */
 .actions-overlay {
   position:absolute;
@@ -373,6 +552,24 @@ function highlightHTML(s){
 .edit-footer { position:absolute; left:12px; right:12px; bottom:10px; display:flex; align-items:center; justify-content:space-between; }
 .edit-footer .left { display:flex; align-items:center; }
 .edit-footer .edit-actions { gap:8px; }
+
+/* 过滤栏样式优化 */
+.filters { background:#fff; border-radius:12px; padding:10px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.06); margin-bottom:12px; }
+.filters-form :deep(.el-form-item) { margin-bottom: 0; }
+.order-toggle { padding:4px 8px; }
+
+/* 吸顶效果 */
+.filters { position: sticky; top: 0; z-index: 20; }
+.filters.is-stuck { backdrop-filter: saturate(180%) blur(8px); background: rgba(255,255,255,0.85); box-shadow: 0 6px 20px rgba(0,0,0,0.12); border: 1px solid rgba(0,0,0,0.06); }
+
+/* 列表过渡动画（重排/进出） */
+.list-enter-active, .list-leave-active { transition: all .25s ease; will-change: transform, opacity; }
+.list-enter-from, .list-leave-to { opacity: 0; transform: translateY(8px) scale(0.98); }
+.list-move { transition: transform .25s ease; }
+
+/* 长按动作菜单过渡 */
+.overlay-enter-active, .overlay-leave-active { transition: opacity .18s ease, transform .18s ease; }
+.overlay-enter-from, .overlay-leave-to { opacity: 0; transform: scale(0.98); }
 
 /* 编辑态：#标签轻微高亮（不占额外空间） */
 .textarea-highlight-wrapper { position: relative; }
