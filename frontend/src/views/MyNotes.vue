@@ -16,17 +16,20 @@
         :key="n.id"
         :timestamp="formatTime(n.createdAt || n.created_at)"
         placement="top">
-        <div class="note-card">
-          <div class="note-head">
-            <el-tag size="small" :type="n.isPublic ? 'success' : 'info'">{{ n.isPublic ? '公开' : '私有' }}</el-tag>
-            <span class="author">作者：{{ authorName }}</span>
-            <span class="time">更新：{{ formatTime(n.updatedAt || n.updated_at) }}</span>
+        <div class="author-above">作者：{{ authorName }}</div>
+        <div class="note-card" :style="noteCardStyle(n)">
+          <div class="note-tags top-right" v-if="parsedTags(n.tags).length">
+            <el-tag v-for="t in parsedTags(n.tags)" :key="t" size="small" style="margin-left:6px;">{{ t }}</el-tag>
           </div>
           <div class="note-content">{{ n.content }}</div>
-          <div class="note-tags" v-if="parsedTags(n.tags).length">
-            <el-tag v-for="t in parsedTags(n.tags)" :key="t" size="small" style="margin-right:6px;">{{ t }}</el-tag>
+          <div class="meta bottom-left">
+            <el-tag size="small" :type="n.isPublic ? 'success' : 'info'">{{ n.isPublic ? '公开' : '私有' }}</el-tag>
+          </div>
+          <div class="meta bottom-right">
+            <span class="time">更新：{{ formatTime(n.updatedAt || n.updated_at) }}</span>
           </div>
         </div>
+        
       </el-timeline-item>
     </el-timeline>
   </div>
@@ -73,14 +76,31 @@ async function loadNotes(){
   }
 }
 
+function parseHexColor(hex){
+  if (!hex || typeof hex !== 'string') return null;
+  const m = hex.trim().match(/^#?([0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  const v = m[1];
+  const r = parseInt(v.slice(0,2), 16);
+  const g = parseInt(v.slice(2,4), 16);
+  const b = parseInt(v.slice(4,6), 16);
+  return { r, g, b };
+}
+function noteCardStyle(n){
+  const rgb = parseHexColor(n.color);
+  if (!rgb) return {};
+  return { borderLeft: `6px solid rgba(${rgb.r},${rgb.g},${rgb.b},0.6)` };
+}
+
 onMounted(() => { loadMe(); loadNotes(); });
 </script>
 
 <style scoped>
-.note-card { background:#fff; border-radius:12px; padding:12px; box-shadow:0 4px 12px rgba(0,0,0,0.08); }
-.note-head { display:flex; gap:10px; align-items:center; color:#606266; margin-bottom:6px; }
-.note-head .author { margin-left:auto; }
-.note-head .time { color:#909399; font-size:12px; margin-left:8px; }
+.note-card { background:#fff; border-radius:12px; padding:12px 12px 32px; box-shadow:0 4px 12px rgba(0,0,0,0.08); position:relative; }
 .note-content { white-space:pre-wrap; line-height:1.7; color:#303133; margin:4px 0 6px; }
 .note-tags { display:flex; flex-wrap:wrap; gap:6px; }
+.note-tags.top-right { position:absolute; top:8px; right:12px; }
+.meta.bottom-left { position:absolute; left:12px; bottom:10px; }
+.meta.bottom-right { position:absolute; right:12px; bottom:10px; color:#606266; font-size:12px; }
+.author-above { color:#606266; font-size:12px; margin: 0 0 6px 0; }
 </style>

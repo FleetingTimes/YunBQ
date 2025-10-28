@@ -10,6 +10,7 @@ public class NoteItem {
     private Long userId;
     private String content;
     private String tags;
+    private String color;
     private Boolean archived;
     private Boolean isPublic;
     private LocalDateTime createdAt;

@@ -35,6 +35,7 @@ public class NoteService {
         // 移除 title 引用
         n.setContent(req.getContent());
         n.setTags(req.getTags());
+        n.setColor(req.getColor());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
         n.setCreatedAt(LocalDateTime.now());
@@ -52,6 +53,7 @@ public class NoteService {
         // 移除 title 引用
         n.setContent(req.getContent());
         n.setTags(req.getTags());
+        n.setColor(req.getColor());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
         n.setUpdatedAt(LocalDateTime.now());
@@ -107,6 +109,7 @@ public class NoteService {
             // 移除 title 映射
             it.setContent(n.getContent());
             it.setTags(n.getTags());
+            it.setColor(n.getColor());
             it.setArchived(n.getArchived());
             it.setIsPublic(n.getIsPublic());
             it.setCreatedAt(n.getCreatedAt());

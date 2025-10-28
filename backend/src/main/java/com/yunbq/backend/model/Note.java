@@ -15,6 +15,7 @@ public class Note {
     private Long userId;
     private String content;
     private String tags; // comma-separated tags
+    private String color; // hex color like #RRGGBB
     private Boolean archived;
     private Boolean isPublic; // 新增：公开/私有
     private LocalDateTime createdAt;
