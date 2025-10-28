@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS notes (
   user_id BIGINT NOT NULL,
   content TEXT,
   tags VARCHAR(255),
+  color VARCHAR(16),
   archived TINYINT(1) DEFAULT 0,
   is_public TINYINT(1) DEFAULT 0,
   created_at DATETIME NOT NULL,

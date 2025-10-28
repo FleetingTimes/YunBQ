@@ -76,8 +76,12 @@
         <!-- <el-input v-model="draft.title" placeholder="标题" style="margin-bottom:6px;" /> -->
         <el-input v-model="draft.tags" placeholder="标签（用逗号分隔）" style="margin-bottom:6px;" />
         <el-input v-model="draft.content" type="textarea" :rows="4" placeholder="内容" />
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:6px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:6px; gap:8px;">
           <el-switch v-model="draft.isPublic" active-text="公开" inactive-text="私有" />
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:12px;color:#606266;">颜色</span>
+            <el-color-picker v-model="draft.color" size="small" />
+          </div>
           <div class="auth-actions" style="justify-content:flex-end;">
             <el-button type="primary" @click="create">添加</el-button>
           </div>
@@ -112,6 +116,20 @@ const danmuRowList = computed(() => Array.from({ length: danmuRows }, (_, i) => 
 // 增加弹幕速度系数，使整体更慢一些
 const danmuSpeedScale = 1.35;
 
+function parseHexColor(hex){
+  if (!hex || typeof hex !== 'string') return null;
+  const m = hex.trim().match(/^#?([0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  const v = m[1];
+  const r = parseInt(v.slice(0,2), 16);
+  const g = parseInt(v.slice(2,4), 16);
+  const b = parseInt(v.slice(4,6), 16);
+  return { r, g, b };
+}
+function luminance({r,g,b}){
+  return 0.2126*(r/255) + 0.7152*(g/255) + 0.0722*(b/255);
+}
+
 function hueFromNote(n, idx) {
   const tagsStr = Array.isArray(n.tags) ? n.tags.join(',') : (n.tags || '');
   const s = (n.content || '') + tagsStr + String(n.id ?? idx);
@@ -124,25 +142,37 @@ function hueFromNote(n, idx) {
 
 const danmuCache = ref({});
 const danmuItems = computed(() => notes.value.map((n, idx) => {
-  const h = hueFromNote(n, idx);
+  const rgb = parseHexColor(n.color);
+  const h = rgb ? null : hueFromNote(n, idx);
   const cached = danmuCache.value[n.id] || {
     row: (idx % danmuRows) + 1,
     delay: Math.random() * 8,
     duration: 15, // 固定持续时间15秒，确保所有弹幕速度一致
   };
   danmuCache.value[n.id] = cached;
-  return {
+  const base = {
     id: n.id,
     content: n.content,
     row: cached.row,
     delay: cached.delay,
     duration: cached.duration,
     h,
-    bg: `hsla(${h}, 85%, 88%, 0.95)`,
-    fg: `hsl(${h}, 35%, 22%)`,
+    bg: '',
+    fg: '',
     liked: !!n.liked,
     likeCount: n.likeCount || 0,
   };
+  if (rgb){
+    const lum = luminance(rgb);
+    base.bg = `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`;
+    base.fg = lum > 0.6 ? '#303133' : '#ffffff';
+    base.border = `1px solid rgba(${rgb.r},${rgb.g},${rgb.b},0.6)`;
+  } else {
+    base.bg = `hsla(${h}, 85%, 88%, 0.95)`;
+    base.fg = `hsl(${h}, 35%, 22%)`;
+    base.border = `1px solid hsla(${h}, 70%, 80%, 1)`;
+  }
+  return base;
 }));
 function danmuItemsForRow(row) {
   return danmuItems.value.filter(i => i.row === row);
@@ -153,7 +183,7 @@ function danmuStyle(it) {
     animationDelay: it.delay + 's',
     background: it.bg,
     color: it.fg,
-    border: `1px solid hsla(${it.h}, 70%, 80%, 1)`
+    border: it.border
   };
 }
 function trackStyle(row) {
@@ -161,7 +191,7 @@ function trackStyle(row) {
   return { top: ((row - 1) * h) + '%', height: h + '%' };
 }
 // 更新：移除 title 字段
-const draft = reactive({ content: '', isPublic: false, tags: '' });
+const draft = reactive({ content: '', isPublic: false, tags: '', color: '#ffd966' });
 const me = reactive({ username:'', nickname:'', avatarUrl:'', email:'' });
 const profileVisible = ref(false);
 const editVisible = ref(false);
@@ -294,14 +324,14 @@ async function create(){
   if (!draft.content) { ElMessage.warning('请填写内容'); return; }
   try{
     // 更新：移除 title 字段
-    const payload = { content: draft.content, is_public: draft.isPublic, tags: (draft.tags || '').trim() };
+    const payload = { content: draft.content, is_public: draft.isPublic, tags: (draft.tags || '').trim(), color: (draft.color || '').trim() };
     const { data } = await http.post('/notes', payload);
     // 新增：记录刚创建的便签，令其弹幕 delay = 0
     const createdId = data?.id ?? data?.note?.id ?? data?.data?.id ?? null;
     if (createdId) justCreatedId.value = createdId; else justCreatedFirst.value = true;
     ElMessage.success('已添加');
     // 更新：移除 title 重置
-    draft.content = ''; draft.tags = '';
+    draft.content = ''; draft.tags = ''; draft.color = '#ffd966';
     draft.isPublic = false;
     load();
   }catch(e){
@@ -322,7 +352,7 @@ async function togglePublic(n){
     const tagsStr = Array.isArray(n.tags) ? n.tags.join(',') : (n.tags || '');
     const currentPublic = (n.isPublic ?? n.is_public ?? false);
     // 更新：移除 title 字段 + 修正 is_public
-    const payload = { content: n.content, tags: tagsStr, archived: n.archived, is_public: !currentPublic };
+    const payload = { content: n.content, tags: tagsStr, archived: n.archived, is_public: !currentPublic, color: (n.color || '').trim() };
     await http.put(`/notes/${n.id}`, payload);
     ElMessage.success('已更新可见性');
     load();

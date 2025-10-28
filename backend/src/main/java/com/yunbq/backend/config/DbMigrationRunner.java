@@ -12,16 +12,38 @@ public class DbMigrationRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        String currentSchema;
+        try {
+            currentSchema = jdbc.queryForObject("SELECT DATABASE()", String.class);
+        } catch (Exception e) {
+            currentSchema = null;
+        }
         // 尝试删除 notes.title 列（若存在）
         try {
-            Boolean exists = jdbc.query("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'notes' AND column_name = 'title'", rs -> {
-                if (rs.next()) return rs.getInt(1) > 0; return false;
-            });
-            if (Boolean.TRUE.equals(exists)) {
+            Integer titleCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'notes' AND column_name = 'title'",
+                Integer.class,
+                currentSchema
+            );
+            if (titleCount != null && titleCount > 0) {
                 jdbc.execute("ALTER TABLE notes DROP COLUMN title");
             }
         } catch (Exception ignored) {
             // 不阻塞启动，数据库差异或权限不足时忽略
+        }
+
+        // 新增：为 notes 表添加 color 列（若不存在）
+        try {
+            Integer colorCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = ? AND table_name = 'notes' AND column_name = 'color'",
+                Integer.class,
+                currentSchema
+            );
+            if (colorCount == null || colorCount == 0) {
+                jdbc.execute("ALTER TABLE notes ADD COLUMN color VARCHAR(16)");
+            }
+        } catch (Exception ignored) {
+            // 不阻塞启动
         }
     }
 }

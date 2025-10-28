@@ -16,7 +16,7 @@
         :key="n.id"
         :timestamp="formatTime(n.createdAt || n.created_at)"
         placement="top">
-        <div class="note-card">
+        <div class="note-card" :style="noteCardStyle(n)">
           <div class="note-head">
             <el-tag size="small" :type="n.isPublic ? 'success' : 'info'">{{ n.isPublic ? '公开' : '私有' }}</el-tag>
             <span class="author">作者：{{ authorName }}</span>
@@ -71,6 +71,22 @@ async function loadNotes(){
   }catch(e){
     ElMessage.error('加载我的便签失败');
   }
+}
+
+function parseHexColor(hex){
+  if (!hex || typeof hex !== 'string') return null;
+  const m = hex.trim().match(/^#?([0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  const v = m[1];
+  const r = parseInt(v.slice(0,2), 16);
+  const g = parseInt(v.slice(2,4), 16);
+  const b = parseInt(v.slice(4,6), 16);
+  return { r, g, b };
+}
+function noteCardStyle(n){
+  const rgb = parseHexColor(n.color);
+  if (!rgb) return {};
+  return { borderLeft: `6px solid rgba(${rgb.r},${rgb.g},${rgb.b},0.6)` };
 }
 
 onMounted(() => { loadMe(); loadNotes(); });
