@@ -13,13 +13,9 @@
     <!-- 过滤与排序栏 -->
     <div class="filters" :class="{ 'is-stuck': isStuck }" ref="filtersRef">
       <el-form :inline="true" label-width="80px" class="filters-form">
-        <el-form-item label="公开性">
-          <el-select v-model="filters.visibility" style="width:140px">
-            <el-option label="全部" value="all" />
-            <el-option label="公开" value="public" />
-            <el-option label="私有" value="private" />
-          </el-select>
-        </el-form-item>
+        <!-- 第一行：左侧分组（时间范围/标签/公开性） + 右侧搜索 -->
+        <div class="top-row">
+          <div class="top-left">
         <el-form-item label="时间范围">
           <el-date-picker
             v-model="filters.range"
@@ -27,27 +23,58 @@
             range-separator="至"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
-            style="width:280px"
+            size="small"
+            style="width:180px"
           />
         </el-form-item>
         <el-form-item label="标签">
-          <el-select v-model="filters.tags" multiple filterable allow-create default-first-option placeholder="选择或输入标签" style="width:280px">
+          <el-select v-model="filters.tags" multiple filterable allow-create default-first-option placeholder="选择或输入标签" size="small" style="width:140px">
             <el-option v-for="t in allTags" :key="t" :label="'#' + t" :value="t" />
           </el-select>
         </el-form-item>
-        <el-form-item label="排序">
-          <el-radio-group v-model="filters.sortBy" size="small">
-            <el-radio-button label="time">时间</el-radio-button>
-            <el-radio-button label="likes">点赞数</el-radio-button>
-          </el-radio-group>
-          <el-tooltip content="切换升/降序" placement="top">
-            <el-button size="small" class="order-toggle" @click="toggleOrder" style="margin-left:8px;">
-              <img v-if="filters.sortOrder==='desc'" src="https://api.iconify.design/mdi/sort-descending.svg" alt="desc" width="18" height="18" />
-              <img v-else src="https://api.iconify.design/mdi/sort-ascending.svg" alt="asc" width="18" height="18" />
-            </el-button>
-          </el-tooltip>
+        <el-form-item label="公开性">
+          <el-select v-model="filters.visibility" size="small" style="width:60px">
+            <el-option label="全部" value="all" />
+            <el-option label="公开" value="public" />
+            <el-option label="私有" value="private" />
+          </el-select>
         </el-form-item>
-        <el-form-item>
+          </div>
+          <div class="top-right">
+        <el-form-item label="搜索" class="search-item aligned-340">
+          <el-input
+            v-model="filters.query"
+            clearable
+            placeholder="输入关键词"
+            :class="['search-input', { pulse: searchPulse }]"
+            size="small"
+            style="width:160px"
+            @keyup.enter="triggerSearchPulse"
+          >
+            <template #prefix>
+              <img src="https://api.iconify.design/mdi/magnify.svg" alt="search" width="16" height="16" />
+            </template>
+          </el-input>
+        </el-form-item>
+          </div>
+        </div>
+        <div class="flex-break" aria-hidden="true"></div>
+        <!-- 第二行：排序在左侧；清空在右侧 -->
+        <el-form-item label="排序">
+          <span class="sort-inline" style="width:260px">
+            <el-radio-group v-model="filters.sortBy" size="small">
+              <el-radio-button label="time">时间</el-radio-button>
+              <el-radio-button label="likes">点赞数</el-radio-button>
+            </el-radio-group>
+            <el-tooltip content="切换升/降序" placement="top">
+              <el-button size="small" class="order-toggle" @click="toggleOrder">
+                <img v-if="filters.sortOrder==='desc'" src="https://api.iconify.design/mdi/sort-descending.svg" alt="desc" width="18" height="18" />
+                <img v-else src="https://api.iconify.design/mdi/sort-ascending.svg" alt="asc" width="18" height="18" />
+              </el-button>
+            </el-tooltip>
+          </span>
+        </el-form-item>
+        <el-form-item class="pull-right">
           <el-button @click="resetFilters">清空</el-button>
         </el-form-item>
       </el-form>
@@ -170,6 +197,7 @@ const filters = reactive({
   visibility: 'all', // all | public | private
   range: null,       // [startDate, endDate]
   tags: [],          // array of tag strings
+  query: '',         // content search query
   sortBy: 'time',    // time | likes
   sortOrder: 'desc', // desc | asc
 });
@@ -177,8 +205,20 @@ function resetFilters(){
   filters.visibility = 'all';
   filters.range = null;
   filters.tags = [];
+  filters.query = '';
   filters.sortBy = 'time';
   filters.sortOrder = 'desc';
+}
+
+// 搜索框 Enter 动画反馈状态与触发方法
+const searchPulse = ref(false);
+function triggerSearchPulse(){
+  // 通过切换类名来触发一次性动画
+  searchPulse.value = false;
+  requestAnimationFrame(() => {
+    searchPulse.value = true;
+    setTimeout(() => { searchPulse.value = false; }, 400);
+  });
 }
 
 function parsedTags(tags){
@@ -309,6 +349,11 @@ const filteredNotes = computed(() => {
       const tags = parsedTags(n.tags);
       return filters.tags.some(t => tags.includes(t));
     });
+  }
+  // 过滤：内容关键词（大小写不敏感）
+  if (filters.query && typeof filters.query === 'string' && filters.query.trim()){
+    const q = filters.query.trim().toLowerCase();
+    arr = arr.filter(n => String(n.content || '').toLowerCase().includes(q));
   }
   // 排序
   const by = filters.sortBy;
@@ -555,8 +600,22 @@ function highlightHTML(s){
 
 /* 过滤栏样式优化 */
 .filters { background:#fff; border-radius:12px; padding:10px 12px; box-shadow:0 4px 12px rgba(0,0,0,0.06); margin-bottom:12px; }
-.filters-form :deep(.el-form-item) { margin-bottom: 0; }
+.filters-form :deep(.el-form-item) { margin-bottom: 0; margin-right: 26px; }
 .order-toggle { padding:4px 8px; }
+.sort-inline { display:inline-flex; align-items:center; gap:8px; }
+.filters-form { display:flex; flex-wrap:wrap; align-items:center; }
+.top-row { display:flex; align-items:center; justify-content:space-between; width:100%; flex: 1 1 100%; }
+.top-left { display:flex; flex-wrap:wrap; align-items:center; flex: 1 1 auto; min-width: 0; }
+.top-right { display:flex; align-items:center; flex: 0 0 auto; }
+.filters-form .pull-right { margin-left:auto; margin-right:0; }
+.filters-form .flex-break { flex-basis: 100%; height: 0; }
+/* 搜索项按内容自适应宽度（消除右侧空白占位），仍保留右对齐 */
+.filters-form .aligned-340 { flex: 0 0 auto; width: auto; min-width: 240px; margin-right:0; }
+@media (max-width: 480px){
+  .filters-form .aligned-340 { min-width: 200px; }
+}
+/* 强制统一标签宽度，避免因样式覆盖导致偏差 */
+.filters-form :deep(.el-form-item__label){ width: 80px !important; }
 
 /* 吸顶效果 */
 .filters { position: sticky; top: 0; z-index: 20; }
@@ -590,5 +649,34 @@ function highlightHTML(s){
   background: transparent !important;
   color: var(--fgColor, #303133) !important;
   caret-color: var(--fgColor, #303133);
+}
+/* 搜索框美化 */
+.search-input :deep(.el-input__wrapper) {
+  border-radius: 999px;
+  background: #f5f7fa;
+  box-shadow: none;
+  transition: box-shadow .15s ease, background-color .15s ease;
+}
+.search-input :deep(.el-input__wrapper:hover) {
+  background: #f4f6f9;
+}
+.search-input :deep(.el-input__wrapper.is-focus) {
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(64,158,255,0.25), 0 4px 10px rgba(0,0,0,0.06);
+}
+.search-input :deep(.el-input__prefix) {
+  margin-right: 4px;
+  opacity: 0.7;
+}
+.search-input :deep(input::placeholder) {
+  color: #909399;
+}
+/* Enter 轻微动画反馈（柔和扩散阴影） */
+.search-input.pulse :deep(.el-input__wrapper){
+  animation: pulseRing 400ms ease;
+}
+@keyframes pulseRing{
+  0%{ box-shadow: 0 0 0 0 rgba(64,158,255,0.35); }
+  100%{ box-shadow: 0 0 0 8px rgba(64,158,255,0); }
 }
 </style>
