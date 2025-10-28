@@ -1,11 +1,18 @@
 <template>
   <div class="header">
-    <div class="brand">
+    <div class="brand" @click="goSquare" style="cursor:pointer;">
       <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
       <h1>云便签</h1>
     </div>
     <div class="search" style="display:flex; align-items:center; gap:8px;">
-      <el-input v-model="q" placeholder="搜索便签..." clearable style="width:240px;" />
+      <el-input
+        v-model="q"
+        placeholder="搜索便签..."
+        clearable
+        style="width:240px;"
+        @keyup.enter="emitSearch"
+        @clear="emitSearch"
+      />
       <el-button type="primary" @click="emitSearch">搜索</el-button>
       <template v-if="authed">
       <el-popover v-model:visible="profileVisible" placement="bottom-end" :width="320">
@@ -225,6 +232,10 @@ function goLogin(){
   router.push(`/login?redirect=${redirect}`)
 }
 function goRegister(){ router.push('/register') }
+function goSquare(){
+  // 点击品牌或图标，跳转到广场首页
+  if (route.path !== '/') router.push('/')
+}
 </script>
 
 <style scoped>
