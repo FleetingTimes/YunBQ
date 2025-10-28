@@ -52,17 +52,11 @@ public class NoteService {
         if (n == null || !n.getUserId().equals(userId)) {
             throw new RuntimeException("笔记不存在或无权限");
         }
-        // 兼容：若未显式提供 tags，则从 content 中解析 #标签（逗号分隔）；若仍为空则保留原标签
         Parsed ct = parseFromContent(req.getContent(), req.getTags());
-        String finalTags = (ct.tags == null || ct.tags.isBlank()) ? (n.getTags() == null ? "" : n.getTags()) : ct.tags;
-        // 移除 title 引用
-<<<<<<< HEAD
+        String oldTags = (n.getTags() == null) ? "" : n.getTags();
+        String finalTags = (ct.tags == null || ct.tags.isBlank()) ? oldTags : ct.tags;
         n.setContent(ct.content);
         n.setTags(finalTags);
-=======
-        n.setContent(req.getContent());
-        n.setTags(req.getTags());
->>>>>>> 33e1ff3ce6d549a37c62a6a9792aa5b54a1393ef
         n.setColor(req.getColor());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));

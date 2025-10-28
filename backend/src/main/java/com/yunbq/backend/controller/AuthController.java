@@ -29,4 +29,5 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody AuthRequest req) {
         return ResponseEntity.ok(userService.login(req));
     }
+
 }

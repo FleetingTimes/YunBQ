@@ -52,6 +52,7 @@ public class UserService {
         return new AuthResponse(token, user.getId(), user.getUsername(), user.getNickname(), user.getRole());
     }
 
+
     public boolean resetPasswordByEmail(String email, String newPassword) {
         if (email == null || email.isBlank()) return false;
         User user = userMapper.selectOne(new QueryWrapper<User>().eq("email", email));
