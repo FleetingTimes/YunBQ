@@ -1,5 +1,5 @@
 <template>
-  <div class="container">
+  <div class="container" :style="{ '--filtersH': filtersHeight + 'px' }">
     <div class="header">
       <div class="brand">
         <img src="https://api.iconify.design/mdi/timeline-text.svg" alt="timeline" width="24" height="24" />
@@ -303,15 +303,26 @@ onMounted(() => { loadMe(); loadNotes(); });
 // 吸顶状态检测（用于视觉强调）
 const filtersRef = ref(null);
 const isStuck = ref(false);
+const filtersHeight = ref(0);
 function updateStickyState(){
   const el = filtersRef.value;
   if (!el) return;
   const top = el.getBoundingClientRect().top;
   isStuck.value = top <= 0;
+  // 同步过滤栏当前高度，用于年份吸顶偏移
+  filtersHeight.value = el.offsetHeight || 0;
 }
 onMounted(() => {
   window.addEventListener('scroll', updateStickyState, { passive: true });
   updateStickyState();
+  // 监听过滤栏尺寸变化，动态更新高度变量
+  const el = filtersRef.value;
+  if (el && 'ResizeObserver' in window){
+    const ro = new ResizeObserver(() => {
+      filtersHeight.value = el.offsetHeight || 0;
+    });
+    ro.observe(el);
+  }
 });
 onUnmounted(() => {
   window.removeEventListener('scroll', updateStickyState);
@@ -558,7 +569,7 @@ function highlightHTML(s){
 
 /* 年份分组样式（层次更明显） */
 .year-group { margin-bottom: 16px; }
-.year-header { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:#ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.06); position: sticky; top: 48px; z-index: 10; }
+.year-header { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:#ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.06); position: sticky; top: calc(var(--filtersH, 48px) + 6px); z-index: 10; }
 .year-title { font-size:22px; font-weight:700; color:#303133; letter-spacing:0.5px; }
 .year-header::before { content:''; display:block; width:6px; height:24px; border-radius:6px; background:#409eff; margin-right:10px; opacity:0.85; }
 
