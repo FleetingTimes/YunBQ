@@ -127,7 +127,7 @@ const danmuItems = computed(() => notes.value.map((n, idx) => {
   const cached = danmuCache.value[n.id] || {
     row: (idx % danmuRows) + 1,
     delay: Math.random() * 8,
-    duration: 12 + Math.random() * 8,
+    duration: 15, // 固定持续时间15秒，确保所有弹幕速度一致
   };
   danmuCache.value[n.id] = cached;
   return {
@@ -197,7 +197,7 @@ async function load(){
       if (!targetId && notes.value.length > 0) targetId = notes.value[0].id;
       const idx = notes.value.findIndex(n => n.id === targetId);
       const row = (idx >= 0 ? (idx % danmuRows) + 1 : 1);
-      danmuCache.value[targetId] = { row, delay: 0, duration: 12 + Math.random() * 8 };
+      danmuCache.value[targetId] = { row, delay: 0, duration: 15 }; // 固定持续时间15秒
       justCreatedId.value = null;
       justCreatedFirst.value = false;
     }

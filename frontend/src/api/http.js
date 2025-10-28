@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// 优先使用环境变量，其次回退到默认 8081
-const base = import.meta.env?.VITE_API_BASE || 'http://localhost:8081/api';
+// 优先使用环境变量，其次回退到默认 8080（与后端 application.yml 一致）
+const base = import.meta.env?.VITE_API_BASE || 'http://localhost:8080/api';
 export const API_BASE = base;
 
 export const http = axios.create({ baseURL: API_BASE });
