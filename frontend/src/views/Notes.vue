@@ -47,7 +47,21 @@
           <el-input v-model="editForm.nickname" placeholder="输入新昵称" />
         </el-form-item>
         <el-form-item label="邮箱">
-          <el-input v-model="editForm.email" placeholder="输入邮箱" />
+          <div style="display:flex; align-items:center; gap:8px; width:100%;">
+            <el-input v-model="editForm.email" placeholder="输入邮箱" style="flex:1 1 auto;" />
+            <el-button
+              class="send-code-btn"
+              :style="{ '--p': (sendCountdown>0 ? (sendCountdown/60) : 0) }"
+              :disabled="sendCountdown>0 || !editForm.email || sendLoading"
+              @click="sendEmailCode"
+              :loading="sendLoading"
+            >
+              {{ sendCountdown>0 ? (sendCountdown + 's') : (sentOnce ? '重新发送' : '发送验证码') }}
+            </el-button>
+          </div>
+        </el-form-item>
+        <el-form-item label="验证码">
+          <el-input ref="codeInputRef" v-model="editForm.code" placeholder="输入收到的验证码" maxlength="6" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -196,7 +210,12 @@ const me = reactive({ username:'', nickname:'', avatarUrl:'', email:'' });
 const profileVisible = ref(false);
 const editVisible = ref(false);
 const editLoading = ref(false);
-const editForm = reactive({ nickname:'', email:'' });
+const editForm = reactive({ nickname:'', email:'', code:'' });
+const sendLoading = ref(false);
+const sendCountdown = ref(0);
+const sentOnce = ref(false);
+const codeInputRef = ref(null);
+let sendTimer = null;
 
 onMounted(() => { load(); loadMe(); });
 
@@ -255,6 +274,7 @@ async function toggleLike(n){
 function openEditInfo(){
   editForm.nickname = me.nickname || '';
   editForm.email = me.email || '';
+  editForm.code = '';
   editVisible.value = true;
   profileVisible.value = false;
 }
@@ -278,8 +298,10 @@ async function saveEditInfo(){
       await http.post('/account/update-nickname', { nickname: editForm.nickname });
     }
     if(editForm.email && editForm.email !== me.email){
-      // 简化：直接绑定邮箱，不涉及验证码流程
-      await http.post('/account/bind-email/confirm', { email: editForm.email, code: '000000' });
+      if (!editForm.code || editForm.code.trim().length !== 6){
+        throw { response: { data: { message: '请填写 6 位验证码' } } };
+      }
+      await http.post('/account/bind-email/confirm', { email: editForm.email.trim(), code: editForm.code.trim() });
     }
     await loadMe();
     editVisible.value = false;
@@ -288,6 +310,35 @@ async function saveEditInfo(){
     ElMessage.error(e?.response?.data?.message || '保存失败');
   }finally{
     editLoading.value = false;
+  }
+}
+
+async function sendEmailCode(){
+  if (sendLoading.value) return;
+  try{
+    // 简单格式校验（前端），后端也会再校验
+    const email = (editForm.email || '').trim();
+    if (!email) { ElMessage.warning('请输入邮箱'); return; }
+    const re = /^[\w.-]+@[\w.-]+\.[A-Za-z]{2,}$/;
+    if (!re.test(email)) { ElMessage.warning('邮箱格式不正确'); return; }
+    sendLoading.value = true;
+    await http.post('/account/bind-email/send-code', { email });
+    ElMessage.success('验证码已发送，请查收邮箱');
+    sentOnce.value = true;
+    // 启动 60s 倒计时（与后端频率限制一致）
+    sendCountdown.value = 60;
+    if (sendTimer) clearInterval(sendTimer);
+    sendTimer = setInterval(() => {
+      sendCountdown.value -= 1;
+      if (sendCountdown.value <= 0){ clearInterval(sendTimer); sendTimer = null; }
+    }, 1000);
+    // 自动聚焦到验证码输入框
+    requestAnimationFrame(() => { codeInputRef.value?.focus?.(); });
+  }catch(e){
+    const msg = e?.response?.data?.message || '发送失败，请稍后再试';
+    ElMessage.error(msg);
+  }finally{
+    sendLoading.value = false;
   }
 }
 
@@ -428,5 +479,22 @@ function toggleLikeById(id){
 }
 .danmu-text {
   display: inline-block;
+}
+.send-code-btn {
+  position: relative;
+  overflow: visible;
+}
+.send-code-btn::after {
+  content: '';
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: conic-gradient(var(--el-color-primary) calc(var(--p, 0)*360deg), rgba(64,158,255,0.18) 0);
+  box-shadow: 0 0 0 2px rgba(64,158,255,0.18) inset;
+  transition: background 0.2s linear;
+  z-index: 1;
 }
 </style>

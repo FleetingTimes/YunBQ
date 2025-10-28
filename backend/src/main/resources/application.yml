@@ -19,6 +19,19 @@ spring:
     multipart:
       max-file-size: 5MB
       max-request-size: 5MB
+  mail:
+    host: "smtp.163.com"
+    port: 465
+    username: "wsk7931@163.com"
+    password: "KQmQZMKBVh7dgiCL"
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: false
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true

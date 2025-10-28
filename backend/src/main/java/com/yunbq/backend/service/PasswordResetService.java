@@ -37,6 +37,12 @@ public class PasswordResetService {
         return true;
     }
 
+    private final MailService mailService;
+
+    public PasswordResetService(MailService mailService) {
+        this.mailService = mailService;
+    }
+
     public String createCode(String email) {
         if (!canSend(email)) {
             throw new RuntimeException("发送过于频繁，请稍后再试");
@@ -44,8 +50,8 @@ public class PasswordResetService {
         String code = String.format("%06d", new Random().nextInt(1000000));
         long expire = Instant.now().plusSeconds(300).toEpochMilli();
         store.put(email, new ResetEntry(code, expire));
-        // 模拟发送邮件：实际项目中请配置 SMTP，通过 JavaMail 发送
-        System.out.println("[PasswordReset] send code " + code + " to " + email);
+        // 发送邮件或控制台回退
+        mailService.sendBindEmailCode(email, code);
         return code;
     }
 
