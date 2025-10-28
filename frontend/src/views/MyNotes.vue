@@ -61,10 +61,22 @@
 
           <!-- 编辑态：内容与公开/私有选择 -->
           <template v-else>
+            <!-- 编辑态：右上始终展示源标签（有则显示） -->
+            <div class="note-tags top-right" v-if="parsedTags(n.tags).length">
+              <el-tag v-for="t in parsedTags(n.tags)" :key="t" size="small" style="margin-left:6px;">#{{ t }}</el-tag>
+            </div>
             <div class="edit-form">
-              <el-input v-model="n.contentEdit" type="textarea" :rows="4" placeholder="内容与标签一起输入；标签以#开头，逗号分隔。例如：今天完成了任务 #工作,#计划" />
-              <div class="tags-preview" v-if="parseTagsFromText(n.contentEdit).length">
-                <el-tag v-for="t in parseTagsFromText(n.contentEdit)" :key="t" size="small">#{{ t }}</el-tag>
+              <div class="edit-toolbar">
+                <span class="label">内容</span>
+              </div>
+              <div class="textarea-highlight-wrapper" :data-note-id="n.id" ref="setWrapperRef(n)">
+                <div class="highlight-layer" v-html="highlightHTML(n.contentEdit)"></div>
+                <el-input
+                  v-model="n.contentEdit"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="内容与标签一起输入；标签以#开头，逗号分隔。例如：今天完成了任务 #工作,#计划"
+                />
               </div>
             </div>
             <div class="edit-footer">
@@ -129,7 +141,6 @@ async function loadNotes(){
       editing: false,
       contentEdit: it.content,
       isPublicEdit: it.isPublic ?? it.is_public ?? false,
-      // 编辑时再初始化 tagsInput
     }));
   }catch(e){
     ElMessage.error('加载我的便签失败');
@@ -146,12 +157,17 @@ function parseHexColor(hex){
   const b = parseInt(v.slice(4,6), 16);
   return { r, g, b };
 }
+function luminance({r,g,b}){
+  return 0.2126*(r/255) + 0.7152*(g/255) + 0.0722*(b/255);
+}
 function noteCardStyle(n){
   const rgb = parseHexColor(n.color);
   if (!rgb) return {};
+  const fg = luminance(rgb) > 0.6 ? '#303133' : '#ffffff';
   return {
     borderLeft: `6px solid rgba(${rgb.r},${rgb.g},${rgb.b},0.6)`,
-    background: (typeof n.color === 'string' ? n.color.trim() : `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`)
+    background: (typeof n.color === 'string' ? n.color.trim() : `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`),
+    '--fgColor': fg
   };
 }
 
@@ -173,6 +189,8 @@ function onDocClick(e){
 function startPress(n){
   // 若已显示动作菜单，避免重复触发并隐藏
   if (n.showActions) return;
+  // 编辑态下不显示长按菜单
+  if (n.editing) return;
   cancelPress();
   pressTimer.value = setTimeout(() => {
     n.showActions = true;
@@ -192,18 +210,30 @@ function editNote(n){
   n.editing = true;
   n.contentEdit = n.content;
   n.isPublicEdit = n.isPublic;
+  // 将缺失的标签拼入内容末尾，便于直接在内容中编辑
+  const existingArr = parsedTags(n.tags);
+  const inContentArr = parseTagsFromText(n.contentEdit);
+  const missing = existingArr.filter(t => !inContentArr.includes(t));
+  if (missing.length){
+    const suffix = missing.map(t => `#${t}`).join(',');
+    n.contentEdit = (n.contentEdit || '').trim();
+    // 将缺失的标签拼接到内容的下一行，便于视觉区分
+    n.contentEdit = n.contentEdit ? `${n.contentEdit}\n${suffix}` : suffix;
+  }
 }
 function cancelEdit(n){
   n.editing = false;
 }
 async function saveEdit(n){
   try{
-    const tagsArr = parseTagsFromText(n.contentEdit);
-    const tagsStr = tagsArr.join(',');
-    const contentClean = stripTagsFromText(n.contentEdit);
+    const parsedArr = parseTagsFromText(n.contentEdit);
+    const existingArr = parsedTags(n.tags);
+    const useParsed = parsedArr.length > 0;
+    const finalTagsArr = useParsed ? parsedArr : existingArr;
+    const contentClean = useParsed ? stripTagsFromText(n.contentEdit) : n.contentEdit;
     const payload = {
       content: contentClean,
-      tags: tagsStr,
+      tags: finalTagsArr.join(','),
       archived: n.archived ?? false,
       is_public: n.isPublicEdit,
       color: (typeof n.color === 'string' ? n.color.trim() : '')
@@ -211,9 +241,9 @@ async function saveEdit(n){
     const { data } = await http.put(`/notes/${n.id}`, payload);
     // 后端可能返回更新后的便签，若无则使用编辑值回填
     const updated = data || payload;
-    n.content = updated.content ?? n.contentEdit;
+    n.content = updated.content ?? contentClean;
     n.isPublic = (updated.isPublic ?? updated.is_public) ?? n.isPublicEdit;
-    n.tags = updated.tags ?? tagsStr;
+    n.tags = updated.tags ?? finalTagsArr.join(',');
     n.editing = false;
     ElMessage.success('已保存修改');
   }catch(e){
@@ -266,12 +296,42 @@ function stripTagsFromText(s){
   // 移除以#开头的标签以及其后的逗号（若有），并规范空白
   return s.replace(/\s*#([\p{L}\w-]+)\s*(,\s*)?/gu, ' ').replace(/\s{2,}/g, ' ').trim();
 }
+
+// 轻量高亮：在编辑态对正文中的 #标签 做背景高亮
+const wrapperRefs = new Map();
+function setWrapperRef(n){
+  return (el) => {
+    if (el) wrapperRefs.set(n.id, el); else wrapperRefs.delete(n.id);
+  };
+}
+function escapeHtml(str){
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+function highlightHTML(s){
+  const text = typeof s === 'string' ? s : '';
+  const re = /#([\p{L}\w-]+)/gu;
+  let out = '';
+  let last = 0;
+  for (const m of text.matchAll(re)){
+    const i = m.index ?? 0;
+    const full = m[0] ?? '';
+    out += escapeHtml(text.slice(last, i));
+    out += `<span class="hl-tag">${escapeHtml(full)}</span>`;
+    last = i + full.length;
+  }
+  out += escapeHtml(text.slice(last));
+  return out;
+}
 </script>
 
 <style scoped>
 .note-card { background:#fff; border-radius:12px; padding:12px 12px 32px; box-shadow:0 4px 12px rgba(0,0,0,0.08); position:relative; }
 .note-card.editing { box-shadow:0 0 0 3px rgba(64,158,255,0.14), 0 4px 12px rgba(0,0,0,0.08); }
 .note-content { white-space:pre-wrap; line-height:1.7; color:#303133; margin:4px 0 6px; }
+.note-card.editing .note-content { color: var(--fgColor, #303133); }
 .note-tags { display:flex; flex-wrap:wrap; gap:6px; }
 .note-tags.top-right { position:absolute; top:8px; right:12px; }
 .meta.bottom-left { position:absolute; left:12px; bottom:10px; }
@@ -304,8 +364,34 @@ function stripTagsFromText(s){
 
 /* 编辑态布局优化 */
 .edit-form { display:flex; flex-direction:column; gap:10px; padding-bottom:38px; }
+.edit-toolbar { display:flex; align-items:center; gap:8px; }
+.edit-toolbar .spacer { flex:1; }
+.edit-toolbar .label { font-size:12px; color:#606266; }
 .edit-row { display:flex; align-items:center; gap:8px; }
 .edit-row .label { font-size:12px; color:#606266; }
 .tags-preview { display:flex; flex-wrap:wrap; gap:6px; }
 .edit-footer { position:absolute; left:12px; right:12px; bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+.edit-footer .left { display:flex; align-items:center; }
+.edit-footer .edit-actions { gap:8px; }
+
+/* 编辑态：#标签轻微高亮（不占额外空间） */
+.textarea-highlight-wrapper { position: relative; }
+.textarea-highlight-wrapper .highlight-layer {
+  position: absolute; inset: 0;
+  padding: 6px 12px; /* 对齐 textarea 内边距 */
+  white-space: pre-wrap; word-break: break-word;
+  pointer-events: none; /* 不拦截输入 */
+  color: transparent; /* 普通文本透明，仅显示高亮片段 */
+}
+.textarea-highlight-wrapper .highlight-layer .hl-tag {
+  background: rgba(64,158,255,0.15);
+  border-radius: 4px;
+  padding: 0 2px;
+  color: #409eff;
+}
+.edit-form :deep(.el-textarea__inner) {
+  background: transparent !important;
+  color: var(--fgColor, #303133) !important;
+  caret-color: var(--fgColor, #303133);
+}
 </style>

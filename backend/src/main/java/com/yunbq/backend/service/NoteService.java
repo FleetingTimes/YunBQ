@@ -52,11 +52,12 @@ public class NoteService {
         if (n == null || !n.getUserId().equals(userId)) {
             throw new RuntimeException("笔记不存在或无权限");
         }
-        // 兼容：若未显式提供 tags，则从 content 中解析 #标签（逗号分隔），并清理内容
+        // 兼容：若未显式提供 tags，则从 content 中解析 #标签（逗号分隔）；若仍为空则保留原标签
         Parsed ct = parseFromContent(req.getContent(), req.getTags());
+        String finalTags = (ct.tags == null || ct.tags.isBlank()) ? (n.getTags() == null ? "" : n.getTags()) : ct.tags;
         // 移除 title 引用
         n.setContent(ct.content);
-        n.setTags(ct.tags);
+        n.setTags(finalTags);
         n.setColor(req.getColor());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
@@ -191,15 +192,20 @@ public class NoteService {
         java.util.regex.Pattern p = java.util.regex.Pattern.compile("#([\\p{L}\\w-]+)", java.util.regex.Pattern.UNICODE_CHARACTER_CLASS);
         java.util.regex.Matcher m = p.matcher(content);
         java.util.LinkedHashSet<String> set = new java.util.LinkedHashSet<>();
+        int found = 0;
         while (m.find()) {
             String tag = m.group(1);
-            if (tag != null && !tag.isBlank()) set.add(tag.trim());
+            if (tag != null && !tag.isBlank()) { set.add(tag.trim()); found++; }
+        }
+        String joined = String.join(",", set);
+        if (found == 0) {
+            // 未从内容解析出标签时，不清理内容，直接返回原内容与规范化的 tags（可能为空）
+            return new Parsed(content, normalizeTags(tags));
         }
         // 清理内容：移除 #标签 及其后可能的逗号与空白
         String cleaned = content.replaceAll("\\s*#([\\p{L}\\w-]+)\\s*(,\\s*)?", " ")
                                 .replaceAll("\\s{2,}", " ")
                                 .trim();
-        String joined = String.join(",", set);
         return new Parsed(cleaned, joined);
     }
     private static String normalizeTags(String s){
