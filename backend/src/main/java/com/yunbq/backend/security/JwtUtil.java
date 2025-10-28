@@ -19,7 +19,7 @@ public class JwtUtil {
     @Value("${jwt.expire-minutes}")
     private int expireMinutes;
 
-    public String generateToken(Long userId, String username) {
+    public String generateToken(Long userId, String username, String role) {
         Algorithm alg = Algorithm.HMAC256(secret);
         Date now = new Date();
         Date exp = new Date(now.getTime() + expireMinutes * 60L * 1000L);
@@ -29,6 +29,7 @@ public class JwtUtil {
                 .withExpiresAt(exp)
                 .withClaim("uid", userId)
                 .withClaim("uname", username)
+                .withClaim("role", role)
                 .sign(alg);
     }
 

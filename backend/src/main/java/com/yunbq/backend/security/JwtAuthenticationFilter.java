@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -39,10 +40,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 DecodedJWT jwt = jwtUtil.verify(token);
                 Long uid = jwt.getClaim("uid").asLong();
                 String uname = jwt.getClaim("uname").asString();
-                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(uid, null, Collections.emptyList());
+                String role = jwt.getClaim("role").asString();
+                java.util.List<org.springframework.security.core.GrantedAuthority> authorities = new java.util.ArrayList<>();
+                if ("ADMIN".equalsIgnoreCase(role)) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+                } else {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_USER"));
+                }
+                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(uid, null, authorities);
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(auth);
-                log.debug("JWT ok: uid={} uname={} uri={}", uid, uname, request.getRequestURI());
+                log.debug("JWT ok: uid={} uname={} role={} uri={}", uid, uname, role, request.getRequestURI());
             } catch (Exception e) {
                 log.warn("JWT verification failed: uri={} msg={}", request.getRequestURI(), e.getMessage());
                 SecurityContextHolder.clearContext();

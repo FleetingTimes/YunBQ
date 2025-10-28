@@ -226,7 +226,7 @@ async function loadMe(){
     const { data } = await http.get('/account/me');
     Object.assign(me, data);
   }catch(e){
-    if (e?.response?.status === 401) router.replace('/login');
+    if (e?.response?.status === 401) router.replace('/');
   }
 }
 
@@ -389,7 +389,7 @@ async function create(){
     const status = e?.response?.status;
     if (status === 401){
       ElMessage.error('未登录，请先登录');
-      router.replace('/login');
+      router.replace('/');
     } else if (status === 403){
       ElMessage.error('无权限，请检查登录状态或稍后重试');
     } else {
@@ -414,7 +414,7 @@ async function togglePublic(n){
 
 function logout(){
   clearToken();
-  router.replace('/login');
+  router.replace('/');
 }
 function goMyNotes(){
   profileVisible.value = false;

@@ -19,5 +19,6 @@ public class User {
     private String email;
     @TableField("avatar_url")
     private String avatarUrl;
+    private String role;
     private LocalDateTime createdAt;
 }

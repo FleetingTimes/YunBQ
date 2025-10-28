@@ -148,7 +148,7 @@ public class SocialAuthController {
             user.setCreatedAt(LocalDateTime.now());
             userMapper.insert(user);
         }
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         // 回跳到前端并携带token
         String frontend = frontendBaseUrl + "/#/oauth/callback?token=" + token + "&username=" + user.getUsername() + "&nickname=" + (user.getNickname()==null?"":user.getNickname());
         return ResponseEntity.status(302).location(URI.create(frontend)).build();

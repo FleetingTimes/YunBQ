@@ -12,6 +12,7 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\security\JwtUtil
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\AuthResponse.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\security\JwtAuthenticationFilter.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\CaptchaController.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\AdminController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\PasswordResetService.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\util\AuthUtil.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\PasswordResetController.java

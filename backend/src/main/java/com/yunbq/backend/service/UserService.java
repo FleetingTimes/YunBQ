@@ -37,6 +37,7 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode(req.getPassword()));
         user.setNickname(req.getNickname());
         user.setEmail(req.getEmail());
+        user.setRole("USER");
         user.setCreatedAt(LocalDateTime.now());
         userMapper.insert(user);
         return user;
@@ -47,8 +48,8 @@ public class UserService {
         if (user == null || !passwordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
             throw new RuntimeException("用户名或密码错误");
         }
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername());
-        return new AuthResponse(token, user.getId(), user.getUsername(), user.getNickname());
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getNickname(), user.getRole());
     }
 
     public boolean resetPasswordByEmail(String email, String newPassword) {

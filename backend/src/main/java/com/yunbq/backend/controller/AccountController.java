@@ -44,6 +44,7 @@ public class AccountController {
         resp.put("nickname", u.getNickname());
         resp.put("email", u.getEmail());
         resp.put("avatarUrl", u.getAvatarUrl());
+        resp.put("role", u.getRole());
         return ResponseEntity.ok(resp);
     }
 
