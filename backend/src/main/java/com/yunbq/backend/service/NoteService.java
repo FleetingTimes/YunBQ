@@ -30,11 +30,13 @@ public class NoteService {
 
     @Transactional
     public Note create(Long userId, NoteRequest req) {
+        // 兼容：若未显式提供 tags，则从 content 中解析 #标签（逗号分隔），并清理内容
+        Parsed ct = parseFromContent(req.getContent(), req.getTags());
         Note n = new Note();
         n.setUserId(userId);
         // 移除 title 引用
-        n.setContent(req.getContent());
-        n.setTags(req.getTags());
+        n.setContent(ct.content);
+        n.setTags(ct.tags);
         n.setColor(req.getColor());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
@@ -50,9 +52,11 @@ public class NoteService {
         if (n == null || !n.getUserId().equals(userId)) {
             throw new RuntimeException("笔记不存在或无权限");
         }
+        // 兼容：若未显式提供 tags，则从 content 中解析 #标签（逗号分隔），并清理内容
+        Parsed ct = parseFromContent(req.getContent(), req.getTags());
         // 移除 title 引用
-        n.setContent(req.getContent());
-        n.setTags(req.getTags());
+        n.setContent(ct.content);
+        n.setTags(ct.tags);
         n.setColor(req.getColor());
         n.setArchived(Boolean.TRUE.equals(req.getArchived()));
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
@@ -166,5 +170,47 @@ public class NoteService {
         long count = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId));
         boolean likedByMe = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId).eq("user_id", userId)) > 0;
         return Map.of("count", count, "likedByMe", likedByMe);
+    }
+
+    // ========= 解析工具 =========
+    private static class Parsed {
+        final String content;
+        final String tags;
+        Parsed(String c, String t){ this.content = c; this.tags = t; }
+    }
+    /**
+     * 若 tags 为空，尝试从 content 中提取以 # 开头、逗号分隔的标签；并将这些标签从内容中移除。
+     */
+    private static Parsed parseFromContent(String rawContent, String rawTags){
+        String content = (rawContent == null) ? "" : rawContent;
+        String tags = (rawTags == null) ? "" : rawTags;
+        if (tags != null && !tags.isBlank()) {
+            return new Parsed(content, normalizeTags(tags));
+        }
+        // 提取 #标签
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile("#([\\p{L}\\w-]+)", java.util.regex.Pattern.UNICODE_CHARACTER_CLASS);
+        java.util.regex.Matcher m = p.matcher(content);
+        java.util.LinkedHashSet<String> set = new java.util.LinkedHashSet<>();
+        while (m.find()) {
+            String tag = m.group(1);
+            if (tag != null && !tag.isBlank()) set.add(tag.trim());
+        }
+        // 清理内容：移除 #标签 及其后可能的逗号与空白
+        String cleaned = content.replaceAll("\\s*#([\\p{L}\\w-]+)\\s*(,\\s*)?", " ")
+                                .replaceAll("\\s{2,}", " ")
+                                .trim();
+        String joined = String.join(",", set);
+        return new Parsed(cleaned, joined);
+    }
+    private static String normalizeTags(String s){
+        if (s == null) return "";
+        String[] parts = s.split(",");
+        java.util.LinkedHashSet<String> set = new java.util.LinkedHashSet<>();
+        for (String part : parts){
+            if (part == null) continue;
+            String t = part.trim().replaceFirst("^#", "");
+            if (!t.isBlank()) set.add(t);
+        }
+        return String.join(",", set);
     }
 }
