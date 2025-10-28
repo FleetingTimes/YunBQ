@@ -32,12 +32,13 @@
 
 <script setup>
 import { reactive, ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { http, API_BASE } from '@/api/http';
 import { setToken } from '@/utils/auth';
 
 const router = useRouter();
+const route = useRoute();
 const formRef = ref();
 const form = reactive({ username:'', password:'', captchaCode:'' });
 const rules = {
@@ -79,7 +80,9 @@ async function onSubmit(){
     if (data?.token) {
       setToken(data.token, true);
       ElMessage.success('登录成功');
-      router.replace('/notes');
+      const r = route.query?.redirect;
+      const to = (typeof r === 'string' && r) ? r : '/';
+      router.replace(to);
     } else {
       ElMessage.error('登录失败：未返回 token');
     }

@@ -1,5 +1,8 @@
 <template>
   <div class="container">
+    <NotesTopBar @search="onSearch" />
+    <NotesBody :query="query" />
+    <div v-if="false">
     <div class="header">
       <div class="brand">
         <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
@@ -116,16 +119,25 @@
     <div class="footer">
       <el-tag type="info">共 {{ notes.length }} 条</el-tag>
     </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, computed } from 'vue';
+import { reactive, ref, onMounted, computed, defineAsyncComponent } from 'vue';
 import { useRouter } from 'vue-router';
 import { http } from '@/api/http';
 import { avatarFullUrl } from '@/api/http';
 import { clearToken } from '@/utils/auth';
 import { ElMessage } from 'element-plus';
+
+// 异步加载顶栏与正文组件
+const NotesTopBar = defineAsyncComponent(() => import('./notes/NotesTopBar.vue'));
+const NotesBody = defineAsyncComponent(() => import('./notes/NotesBody.vue'));
+
+// 搜索词由顶栏发出事件驱动
+const query = ref('');
+function onSearch(q){ query.value = q || ''; }
 
 const router = useRouter();
 const q = ref('');

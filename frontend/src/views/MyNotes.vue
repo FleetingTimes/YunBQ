@@ -6,7 +6,7 @@
         <h1>我的便签时间线</h1>
       </div>
       <div class="search">
-        <el-button @click="$router.push('/notes')">返回便签主页</el-button>
+        <el-button @click="$router.push('/')">返回便签主页</el-button>
       </div>
     </div>
 

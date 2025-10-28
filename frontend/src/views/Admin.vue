@@ -24,6 +24,8 @@
           <span>当前功能：{{ activeLabel }}</span>
           <span v-if="summary.total !== null"> · 总数：{{ summary.total }}</span>
         </template>
+        <span class="spacer"></span>
+        <el-button type="primary" size="small" @click="$router.push('/')">退出管理</el-button>
       </div>
 
       <!-- 内容栏：动态加载子页面，仅管理员可见 -->
@@ -77,5 +79,6 @@ onMounted(async () => {
 .sidebar-actions { display: flex; gap: 8px; }
 .main { display: grid; grid-template-rows: auto 1fr; }
 .topbar { border-bottom: 1px solid #e5e7eb; padding: 12px 16px; display: flex; align-items: center; gap: 8px; }
+.topbar .spacer { flex: 1; }
 .content { padding: 16px; overflow: auto; }
 </style>
