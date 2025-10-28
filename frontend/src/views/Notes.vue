@@ -8,7 +8,7 @@
       <div class="search">
         <el-input v-model="q" placeholder="搜索便签..." clearable style="width:240px;" />
         <el-button type="primary" @click="load">搜索</el-button>
-        <el-popover v-model:visible="profileVisible" placement="bottom-end" :width="280">
+        <el-popover v-model:visible="profileVisible" placement="bottom-end" :width="320">
           <template #reference>
             <div style="display:flex; align-items:center; gap:8px; cursor:pointer;" @click="profileVisible = true">
               <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
@@ -16,13 +16,23 @@
               <span style="font-weight:500; color:#303133;">{{ me.nickname || me.username }}</span>
             </div>
           </template>
-          <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+          <div style="position:relative; padding-top:8px;">
+            <!-- 管理员系统入口：右上角图标，只有 ADMIN 显示 -->
+            <div v-if="isAdmin" style="position:absolute; right:4px; top:4px; z-index:2;">
+              <el-tooltip content="系统管理" placement="left">
+                <el-button circle size="small" @click="goAdmin" title="系统管理">
+                  <img src="https://api.iconify.design/mdi/cog-outline.svg" alt="admin" width="18" height="18" />
+                </el-button>
+              </el-tooltip>
+            </div>
+            <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
             <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
             <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" style="width:56px;height:56px;border-radius:50%;background:#fff;" />
             <div>
               <div style="font-weight:600;">{{ me.nickname || '未设置昵称' }}</div>
               <div style="color:#606266; font-size:12px;">用户名：{{ me.username }}</div>
               <div style="color:#606266; font-size:12px;">邮箱：{{ me.email || '未绑定' }}</div>
+            </div>
             </div>
           </div>
           <div style="display:flex; justify-content:flex-end; gap:8px;">
@@ -220,6 +230,7 @@ let sendTimer = null;
 onMounted(() => { load(); loadMe(); });
 
 const avatarUrl = computed(() => avatarFullUrl(me.avatarUrl));
+const isAdmin = computed(() => (me.role || '').toUpperCase() === 'ADMIN');
 
 async function loadMe(){
   try{
@@ -419,6 +430,10 @@ function logout(){
 function goMyNotes(){
   profileVisible.value = false;
   router.push('/my-notes');
+}
+function goAdmin(){
+  profileVisible.value = false;
+  router.push('/admin');
 }
 function parsedTags(tags){
   if (Array.isArray(tags)) return tags;

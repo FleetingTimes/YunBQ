@@ -60,7 +60,7 @@ function updateSummary(val) {
 
 onMounted(async () => {
   try {
-    const { data } = await http.get('/api/account/me');
+    const { data } = await http.get('/account/me');
     isAdmin.value = data && data.role === 'ADMIN';
   } catch {
     isAdmin.value = false;

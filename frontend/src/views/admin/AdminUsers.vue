@@ -46,7 +46,7 @@ const q = ref('');
 async function fetchData() {
   loading.value = true;
   try {
-    const { data } = await http.get('/api/admin/users', { params: { page: page.value, size: size.value, q: q.value || undefined } });
+    const { data } = await http.get('/admin/users', { params: { page: page.value, size: size.value, q: q.value || undefined } });
     items.value = data.items || [];
     total.value = data.total || 0;
     if (props.updateSummary) props.updateSummary({ total: total.value });

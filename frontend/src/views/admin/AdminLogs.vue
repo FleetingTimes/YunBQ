@@ -49,7 +49,7 @@ const level = ref('');
 async function fetchData() {
   loading.value = true;
   try {
-    const { data } = await http.get('/api/admin/logs', { params: { page: page.value, size: size.value, level: level.value || undefined } });
+    const { data } = await http.get('/admin/logs', { params: { page: page.value, size: size.value, level: level.value || undefined } });
     items.value = data.items || [];
     total.value = data.total || 0;
     if (props.updateSummary) props.updateSummary({ total: total.value });

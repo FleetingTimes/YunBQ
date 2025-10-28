@@ -18,14 +18,11 @@ import { http } from '@/api/http';
 router.beforeEach(async (to, from) => {
   if (to.meta && to.meta.requiresAdmin) {
     try {
-      const { data } = await http.get('/api/account/me');
-      if (data && data.role === 'ADMIN') {
-        return true;
-      }
-      // 非管理员直接返回广场页
-      return { path: '/' };
+      // 直接调用后端管理员健康检查，确保与后端权限判定一致
+      await http.get('/admin/health');
+      return true;
     } catch (e) {
-      // 未登录或接口错误，返回广场页（全局 401 拦截器会清理并重定向）
+      // 未登录(401)或无权限(403)都返回广场页
       return { path: '/' };
     }
   }
