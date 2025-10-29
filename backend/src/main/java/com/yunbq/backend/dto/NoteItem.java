@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class NoteItem {
     private Long id;
     private Long userId;
+    private String authorName;
     private String content;
     private String tags;
     private String color;

@@ -44,7 +44,7 @@
 
 ## Notes Model
 `NoteItem` fields in list responses:
-- `id`, `userId`, `title`, `content`, `tags`
+- `id`, `userId`, `authorName`, `title`, `content`, `tags`
 - `archived`, `isPublic`, `createdAt`, `updatedAt`
 - `likeCount`, `likedByMe`
 

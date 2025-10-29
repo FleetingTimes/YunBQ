@@ -15,10 +15,12 @@ com\yunbq\backend\controller\PasswordResetController.class
 com\yunbq\backend\service\CaptchaService$Captcha.class
 com\yunbq\backend\service\PasswordResetService.class
 com\yunbq\backend\dto\NoteItem.class
+com\yunbq\backend\service\NoteService.class
 com\yunbq\backend\service\CaptchaService.class
 com\yunbq\backend\model\NoteLike.class
 com\yunbq\backend\mapper\UserMapper.class
 com\yunbq\backend\dto\AuthRequest.class
+com\yunbq\backend\service\NoteService$Parsed.class
 com\yunbq\backend\dto\RegisterRequest.class
 com\yunbq\backend\YunbqBackendApplication.class
 com\yunbq\backend\dto\PageResult.class

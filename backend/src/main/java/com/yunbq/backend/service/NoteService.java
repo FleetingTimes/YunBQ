@@ -7,9 +7,11 @@ import com.yunbq.backend.dto.NoteItem;
 import com.yunbq.backend.mapper.NoteMapper;
 import com.yunbq.backend.mapper.NoteLikeMapper;
 import com.yunbq.backend.mapper.NoteFavoriteMapper;
+import com.yunbq.backend.mapper.UserMapper;
 import com.yunbq.backend.model.Note;
 import com.yunbq.backend.model.NoteLike;
 import com.yunbq.backend.model.NoteFavorite;
+import com.yunbq.backend.model.User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +19,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Set;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,11 +29,13 @@ public class NoteService {
     private final NoteMapper noteMapper;
     private final NoteLikeMapper likeMapper;
     private final NoteFavoriteMapper favoriteMapper;
+    private final UserMapper userMapper;
 
-    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper) {
+    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper, UserMapper userMapper) {
         this.noteMapper = noteMapper;
         this.likeMapper = likeMapper;
         this.favoriteMapper = favoriteMapper;
+        this.userMapper = userMapper;
     }
 
     @Transactional
@@ -94,6 +100,16 @@ public class NoteService {
         Page<Note> np = noteMapper.selectPage(Page.of(page, size), qw);
         List<Note> records = np.getRecords();
         List<Long> ids = records.stream().map(Note::getId).collect(Collectors.toList());
+        // 作者昵称映射
+        Map<Long, String> authorNameMap = new HashMap<>();
+        List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
+        if (!authorIds.isEmpty()) {
+            List<User> users = userMapper.selectBatchIds(authorIds);
+            for (User u : users) {
+                String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
+                authorNameMap.put(u.getId(), name);
+            }
+        }
     
         Map<Long, Long> likeCountMap = new HashMap<>();
         Map<Long, Long> favoriteCountMap = new HashMap<>();
@@ -115,8 +131,8 @@ public class NoteService {
                 Long cnt = ((Number)m.get("cnt")).longValue();
                 favoriteCountMap.put(nid, cnt);
             }
-            List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
-            favoritedSet = favoritedIds.stream().collect(Collectors.toSet());
+            // 在收藏列表中，所有便签都应该是已收藏状态，无需额外查询
+            favoritedSet = new HashSet<>(ids);
         } else {
             likedSet = Set.of();
             favoritedSet = Set.of();
@@ -126,6 +142,7 @@ public class NoteService {
             NoteItem it = new NoteItem();
             it.setId(n.getId());
             it.setUserId(n.getUserId());
+            it.setAuthorName(authorNameMap.get(n.getUserId()));
             // 移除 title 映射
             it.setContent(n.getContent());
             it.setTags(n.getTags());
@@ -252,6 +269,16 @@ public class NoteService {
         Page<Note> np = noteMapper.selectPage(Page.of(page, size), qw);
         List<Note> records = np.getRecords();
         List<Long> ids = records.stream().map(Note::getId).collect(Collectors.toList());
+        // 作者昵称映射
+        Map<Long, String> authorNameMap = new HashMap<>();
+        List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
+        if (!authorIds.isEmpty()) {
+            List<User> users = userMapper.selectBatchIds(authorIds);
+            for (User u : users) {
+                String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
+                authorNameMap.put(u.getId(), name);
+            }
+        }
 
         Map<Long, Long> likeCountMap = new HashMap<>();
         Map<Long, Long> favoriteCountMap = new HashMap<>();
@@ -284,6 +311,7 @@ public class NoteService {
             NoteItem it = new NoteItem();
             it.setId(n.getId());
             it.setUserId(n.getUserId());
+            it.setAuthorName(authorNameMap.get(n.getUserId()));
             it.setContent(n.getContent());
             it.setTags(n.getTags());
             it.setColor(n.getColor());

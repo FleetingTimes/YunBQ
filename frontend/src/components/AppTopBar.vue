@@ -357,9 +357,8 @@ function logout(){
   me.avatarUrl = ''
   me.email = ''
   me.role = ''
-  // 保持在当前页（如广场），但触发路由替换以刷新依赖路由的组件
-  const to = route.fullPath || '/'
-  router.replace(to)
+  // 退出登录后自动跳转到广场
+  router.replace('/')
 }
 function goMyNotes(){
   profileVisible.value = false
