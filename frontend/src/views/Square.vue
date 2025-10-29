@@ -1,6 +1,6 @@
 <template>
   <div class="square-container">
-    <NotesTopBar @search="onSearch" />
+    <AppTopBar @search="onSearch" />
     <SquareBody :query="query" />
   </div>
   
@@ -9,7 +9,7 @@
 <script setup>
 import { ref, defineAsyncComponent } from 'vue'
 
-const NotesTopBar = defineAsyncComponent(() => import('./notes/NotesTopBar.vue'))
+const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const SquareBody = defineAsyncComponent(() => import('./square/SquareBody.vue'))
 
 const query = ref('')

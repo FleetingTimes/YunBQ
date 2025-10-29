@@ -1,13 +1,13 @@
 <template>
   <div class="container">
-    <NotesTopBar @search="onSearch" />
+<AppTopBar @search="onSearch" />
     <NotesBody :query="query" />
   </div>
 </template>
 
 <script setup>
 import { ref, defineAsyncComponent } from 'vue';
-const NotesTopBar = defineAsyncComponent(() => import('./notes/NotesTopBar.vue'));
+const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'));
 const NotesBody = defineAsyncComponent(() => import('./notes/NotesBody.vue'));
 const query = ref('');
 function onSearch(q){ query.value = q || ''; }
