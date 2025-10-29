@@ -3,7 +3,6 @@
     <AppTopBar @search="onSearch" />
     <div class="page-header">
       <h2>我的收藏</h2>
-      <el-button link @click="$router.push('/my-notes')">返回我的便签</el-button>
     </div>
     <DanmuWall :items="danmuItems" :rows="6" :speed-scale="1.35" />
     <div class="year-groups">
