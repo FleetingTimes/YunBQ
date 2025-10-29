@@ -274,10 +274,10 @@ onMounted(() => {
 .actions { display: flex; gap: 8px; }
 .grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
 .layout { display:flex; gap:12px; align-items:flex-start; }
-.side-nav { width:180px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; padding:12px; position:fixed; left:12px; top:12px; z-index:10; }
+.side-nav { width:180px; border:none; border-radius:12px; background: transparent; padding:12px; position:fixed; left:12px; top:12px; z-index:10; }
 .side-nav .nav-title { font-weight:600; margin-bottom:8px; }
 .side-nav .nav-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:row; flex-wrap:wrap; gap:8px; align-items:center; }
-.side-nav .nav-list a { display:block; padding:8px 10px; border-radius:8px; color:#303133; text-decoration:none; }
+.side-nav .nav-list a { display:block; padding:8px 10px; border-radius:8px; color:#303133; text-decoration:none; transition: background-color .15s ease; }
 .side-nav .nav-list a:hover { background:#f5f7ff; }
 .side-nav .nav-list a.active { background:#ecf5ff; color:#409eff; }
 .side-nav .nav-list li { display:flex; align-items:center; }
