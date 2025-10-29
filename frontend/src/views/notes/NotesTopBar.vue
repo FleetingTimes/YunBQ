@@ -405,8 +405,22 @@ function onHoverLeave(){
 /* 自定义悬浮：定位卡片贴着头像展开 */
 .profile-trigger { position: relative; display:inline-block; }
 .profile-trigger .profile-card { position: absolute; right: 0; top: calc(100% + 2px); z-index: 2000; }
-.profile-card { width: 320px; background: #fff; border: 1px solid var(--el-border-color-extra-light); border-radius: 10px; overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.10); }
-.profile-header { position: relative; padding: 12px; background: #fff; border-bottom: 1px solid var(--el-border-color-extra-light); }
+.profile-card {
+  width: 320px;
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+}
+.profile-header {
+  position: relative;
+  padding: 12px;
+  background: transparent;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
 .profile-header .admin-entry { position: absolute; right: 8px; top: 8px; }
 .profile-header .avatar-line { display:flex; align-items:center; gap:10px; }
 .profile-header .avatar-lg { width:56px; height:56px; border-radius:50%; object-fit:cover; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.15); background:#fff; }
