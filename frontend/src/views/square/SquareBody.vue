@@ -17,7 +17,7 @@
         </ul>
       </aside>
       <div class="content-scroll" ref="contentRef">
-        <div class="content-head"><span>热门</span><span class="slash">/</span><span>最近</span><span class="slash">/</span><span>网站便签</span></div>
+        <div class="content-head"><span>热门</span><span class="slash">/</span><span>最近</span><span class="slash">/</span><span>网站便签</span><span class="slash">/</span><span>Git便签</span></div>
         <div class="grid-two">
         <div class="card" id="hot">
           <div class="card-title">热门便签</div>
@@ -97,6 +97,26 @@
             <li v-if="!siteNotes.length" class="empty">暂无网站便签</li>
           </ul>
         </div>
+
+        <div class="card" id="git">
+          <div class="card-title">Git便签</div>
+          <div class="card-desc">常用 Git 命令与参考</div>
+          <ul class="note-list">
+            <li class="note-item" v-for="it in gitNotes" :key="it.id" @click="goGit(it)" role="button">
+              <div class="title">{{ it.title }}</div>
+              <div class="content">{{ snippet(it.content || '') }}</div>
+              <div class="meta">
+                <div class="left">
+                  <span class="author">命令</span>
+                </div>
+                <div class="right">
+                  <span class="time"></span>
+                </div>
+              </div>
+            </li>
+            <li v-if="!gitNotes.length" class="empty">暂无Git便签</li>
+          </ul>
+        </div>
       </div>
     </section>
   </div>
@@ -115,6 +135,7 @@ const sections = [
   { id: 'hot', label: '热门' },
   { id: 'recent', label: '最近' },
   { id: 'site', label: '网站便签' },
+  { id: 'git', label: 'git便签' },
 ]
 const activeId = ref('hot')
 const contentRef = ref(null)
@@ -211,6 +232,23 @@ function goNote(it){
 
 function goSite(it){
   if (it && it.url) {
+    const url = String(it.url)
+    window.open(url, '_blank', 'noopener')
+  }
+}
+
+const gitNotes = ref([
+  { id: 'git-init', title: 'git init', content: '初始化仓库，创建 .git 目录', url: 'https://git-scm.com/docs/git-init' },
+  { id: 'git-clone', title: 'git clone <url>', content: '克隆远程仓库到本地', url: 'https://git-scm.com/docs/git-clone' },
+  { id: 'git-status', title: 'git status', content: '查看工作区与暂存区的状态', url: 'https://git-scm.com/docs/git-status' },
+  { id: 'git-add', title: 'git add .', content: '添加所有更改到暂存区', url: 'https://git-scm.com/docs/git-add' },
+  { id: 'git-commit', title: 'git commit -m "msg"', content: '提交暂存内容并附加说明', url: 'https://git-scm.com/docs/git-commit' },
+  { id: 'git-pull', title: 'git pull', content: '拉取远程更新并合并', url: 'https://git-scm.com/docs/git-pull' },
+  { id: 'git-push', title: 'git push', content: '推送本地提交到远程仓库', url: 'https://git-scm.com/docs/git-push' }
+])
+
+function goGit(it){
+  if (it && it.url){
     const url = String(it.url)
     window.open(url, '_blank', 'noopener')
   }
