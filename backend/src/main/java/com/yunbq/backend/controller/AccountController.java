@@ -43,6 +43,7 @@ public class AccountController {
         resp.put("username", u.getUsername());
         resp.put("nickname", u.getNickname());
         resp.put("email", u.getEmail());
+        resp.put("signature", u.getSignature());
         resp.put("avatarUrl", u.getAvatarUrl());
         resp.put("role", u.getRole());
         return ResponseEntity.ok(resp);
@@ -173,6 +174,28 @@ public class AccountController {
                 "username", u.getUsername(),
                 "nickname", u.getNickname(),
                 "email", u.getEmail(),
+                "avatarUrl", u.getAvatarUrl()
+        ));
+    }
+
+    @PostMapping("/update-signature")
+    public ResponseEntity<?> updateSignature(@RequestBody Map<String,String> body){
+        Long uid = AuthUtil.currentUserId();
+        if (uid == null) return ResponseEntity.status(401).body(Map.of("message","未登录"));
+        String signature = body.getOrDefault("signature", "").trim();
+        if (signature.length() > 255) {
+            return ResponseEntity.badRequest().body(Map.of("message","个性签名最长 255 字符"));
+        }
+        User u = userMapper.selectById(uid);
+        if (u == null) return ResponseEntity.status(404).body(Map.of("message","用户不存在"));
+        u.setSignature(signature.isEmpty() ? null : signature);
+        userMapper.updateById(u);
+        return ResponseEntity.ok(Map.of(
+                "id", u.getId(),
+                "username", u.getUsername(),
+                "nickname", u.getNickname(),
+                "email", u.getEmail(),
+                "signature", u.getSignature(),
                 "avatarUrl", u.getAvatarUrl()
         ));
     }

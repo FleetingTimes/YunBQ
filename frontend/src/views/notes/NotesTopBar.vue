@@ -38,6 +38,10 @@
             <div style="font-weight:600;">{{ me.nickname || '未设置昵称' }}</div>
             <div style="color:#606266; font-size:12px;">用户名：{{ me.username }}</div>
             <div style="color:#606266; font-size:12px;">邮箱：{{ me.email || '未绑定' }}</div>
+            <div class="signature-line">
+              <span class="label">签名：</span>
+              <span class="signature-ellipsis">{{ me.signature || '未设置' }}</span>
+            </div>
           </div>
           </div>
         </div>
@@ -67,6 +71,16 @@
       <el-form :model="editForm" label-width="100px">
         <el-form-item label="昵称">
           <el-input v-model="editForm.nickname" placeholder="输入新昵称" />
+        </el-form-item>
+        <el-form-item label="个性签名">
+          <el-input
+            v-model="editForm.signature"
+            type="textarea"
+            :rows="2"
+            maxlength="255"
+            show-word-limit
+            placeholder="填写一句话签名，最多255字符"
+          />
         </el-form-item>
         <el-form-item label="邮箱">
           <div style="display:flex; align-items:center; gap:8px; width:100%;">
@@ -108,11 +122,11 @@ const emit = defineEmits(['search'])
 const router = useRouter()
 const route = useRoute()
 const q = ref('')
-const me = reactive({ username:'', nickname:'', avatarUrl:'', email:'', role:'' })
+const me = reactive({ username:'', nickname:'', avatarUrl:'', email:'', role:'', signature:'' })
 const profileVisible = ref(false)
 const editVisible = ref(false)
 const editLoading = ref(false)
-const editForm = reactive({ nickname:'', email:'', code:'' })
+const editForm = reactive({ nickname:'', email:'', code:'', signature:'' })
 const sendLoading = ref(false)
 const sendCountdown = ref(0)
 const sentOnce = ref(false)
@@ -140,6 +154,7 @@ async function loadMe(){
 
 function openEditInfo(){
   editForm.nickname = me.nickname || ''
+  editForm.signature = me.signature || ''
   editForm.email = me.email || ''
   editForm.code = ''
   editVisible.value = true
@@ -163,6 +178,11 @@ async function saveEditInfo(){
   try{
     if(editForm.nickname && editForm.nickname !== me.nickname){
       await http.post('/account/update-nickname', { nickname: editForm.nickname })
+    }
+    const sigTrim = (editForm.signature || '').trim()
+    const meSig = me.signature || ''
+    if(sigTrim !== meSig){
+      await http.post('/account/update-signature', { signature: sigTrim })
     }
     if(editForm.email && editForm.email !== me.email){
       if (!editForm.code || editForm.code.trim().length !== 6){
@@ -239,6 +259,14 @@ function goSquare(){
 </script>
 
 <style scoped>
+.signature-line { display:flex; align-items:flex-start; gap:4px; color:#606266; font-size:12px; }
+.signature-ellipsis {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+}
 .send-code-btn {
   position: relative;
   overflow: visible;

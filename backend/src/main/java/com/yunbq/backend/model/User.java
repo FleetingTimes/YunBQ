@@ -17,6 +17,7 @@ public class User {
     private String passwordHash;
     private String nickname;
     private String email;
+    private String signature;
     @TableField("avatar_url")
     private String avatarUrl;
     private String role;
