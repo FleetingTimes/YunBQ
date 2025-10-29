@@ -1,12 +1,16 @@
 <template>
   <div class="container" :style="{ '--filtersH': filtersHeight + 'px' }">
-    <div class="header">
-      <div class="brand">
+    <div class="header topbar">
+      <div class="brand" role="button" @click="$router.push('/')" title="返回广场">
         <img src="https://api.iconify.design/mdi/timeline-text.svg" alt="timeline" width="24" height="24" />
-        <h1>我的便签时间线</h1>
+        <h1>我的便签</h1>
       </div>
-      <div class="search">
-        <el-button @click="$router.push('/')">返回便签主页</el-button>
+      <div class="top-actions" aria-label="返回主页">
+        <el-tooltip content="返回便签主页" placement="bottom">
+          <el-button link class="icon-btn" @click="$router.push('/notes')">
+            <img src="https://api.iconify.design/mdi/home-outline.svg" alt="主页" width="22" height="22" />
+          </el-button>
+        </el-tooltip>
       </div>
     </div>
 
@@ -59,14 +63,13 @@
         </el-form-item>
           </div>
           <div class="top-right">
-            <el-form-item label="搜索" class="search-item aligned-340">
+            <el-form-item label="搜索">
               <el-input
                 v-model="filters.query"
-                clearable
-                placeholder="输入关键词"
-                :class="['search-input', { pulse: searchPulse }]"
                 size="small"
-                style="width:160px"
+                clearable
+                placeholder="搜索我的便签..."
+                style="width:200px"
                 @keyup.enter="triggerSearchPulse"
               >
                 <template #prefix>
@@ -209,6 +212,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { http, avatarFullUrl } from '@/api/http';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
@@ -216,6 +220,7 @@ const notes = ref([]);
 const me = reactive({ username:'', nickname:'', avatarUrl:'', signature:'' });
 const avatarUrl = computed(() => avatarFullUrl(me.avatarUrl));
 const authorName = computed(() => me.nickname || me.username || '我');
+const router = useRouter();
 // 签名展开/收起
 const signatureExpanded = ref(false);
 const signatureOverflow = ref(false);
@@ -302,6 +307,11 @@ function formatMD(t){
     return `${M}月${D}日 ${h}:${m}`;
   }catch{ return ''; }
 }
+
+function goMessages(){ router.push('/messages'); }
+function goLikes(){ router.push('/likes'); }
+function goFavorites(){ router.push('/favorites'); }
+function goHistory(){ router.push('/history'); }
 
 async function loadMe(){
   try{
@@ -612,6 +622,14 @@ function highlightHTML(s){
 </script>
 
 <style scoped>
+ .topbar { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+ .topbar .brand { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+ .topbar .brand h1 { font-size: 18px; margin: 0; color: #303133; }
+ .top-search { display: flex; justify-content: center; }
+ .top-search-input { --el-input-bg-color: #fff; --el-input-border-color: transparent; --el-input-hover-border-color: transparent; --el-input-focus-border-color: var(--el-color-primary); box-shadow: 0 8px 26px rgba(64,158,255,0.12), 0 2px 10px rgba(0,0,0,0.08); border-radius: 999px; padding-right: 4px; }
+ .top-actions { display: inline-flex; align-items: center; gap: 8px; }
+ .icon-btn { border-radius: 50%; padding: 6px; transition: transform .15s ease, filter .15s ease; }
+ .icon-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .note-card { background:#fff; border-radius:12px; padding:12px 12px 32px; box-shadow:0 4px 12px rgba(0,0,0,0.08); position:relative; }
 .note-card.editing { box-shadow:0 0 0 3px rgba(64,158,255,0.14), 0 4px 12px rgba(0,0,0,0.08); }
 .note-content { white-space:pre-wrap; line-height:1.7; color:#303133; margin:4px 0 6px; }

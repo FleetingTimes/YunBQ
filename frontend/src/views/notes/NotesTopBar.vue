@@ -1,19 +1,44 @@
 <template>
-  <div class="header">
+  <div class="header topbar">
     <div class="brand" @click="goSquare" style="cursor:pointer;">
       <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
       <h1>云便签</h1>
     </div>
-    <div class="search" style="display:flex; align-items:center; gap:8px;">
+    <div class="center-search">
       <el-input
         v-model="q"
         placeholder="搜索便签..."
         clearable
-        style="width:240px;"
+        class="top-search-input"
         @keyup.enter="emitSearch"
         @clear="emitSearch"
-      />
-      <el-button type="primary" @click="emitSearch">搜索</el-button>
+      >
+        <template #prefix>
+          <img src="https://api.iconify.design/mdi/magnify.svg" alt="search" width="18" height="18" />
+        </template>
+      </el-input>
+    </div>
+    <div class="right-actions" aria-label="快捷入口">
+      <el-tooltip content="消息" placement="bottom">
+        <el-button link class="icon-btn" @click="goMessages">
+          <img src="https://api.iconify.design/mdi/message-outline.svg" alt="消息" width="22" height="22" />
+        </el-button>
+      </el-tooltip>
+      <el-tooltip content="喜欢" placement="bottom">
+        <el-button link class="icon-btn" @click="goLikes">
+          <img src="https://api.iconify.design/mdi/heart.svg" alt="喜欢" width="22" height="22" />
+        </el-button>
+      </el-tooltip>
+      <el-tooltip content="收藏" placement="bottom">
+        <el-button link class="icon-btn" @click="goFavorites">
+          <img src="https://api.iconify.design/mdi/bookmark-outline.svg" alt="收藏" width="22" height="22" />
+        </el-button>
+      </el-tooltip>
+      <el-tooltip content="记录" placement="bottom">
+        <el-button link class="icon-btn" @click="goHistory">
+          <img src="https://api.iconify.design/mdi/history.svg" alt="记录" width="22" height="22" />
+        </el-button>
+      </el-tooltip>
       <template v-if="authed">
       <div class="profile-trigger" @mouseenter="onHoverEnter" @mouseleave="onHoverLeave">
         <div class="trigger-ref" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
@@ -349,6 +374,10 @@ function goNotes(){
   profileVisible.value = false
   router.push('/notes')
 }
+function goMessages(){ router.push('/messages') }
+function goLikes(){ router.push('/likes') }
+function goFavorites(){ router.push('/favorites') }
+function goHistory(){ router.push('/history') }
 function goLogin(){
   const redirect = encodeURIComponent(route.fullPath || '/')
   router.push(`/login?redirect=${redirect}`)
@@ -370,6 +399,14 @@ function onHoverLeave(){
 </script>
 
 <style scoped>
+.topbar { display: grid; grid-template-columns: 1fr minmax(260px, 520px) auto; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+.topbar .brand { display: inline-flex; align-items: center; gap: 8px; }
+.topbar .brand h1 { font-size: 18px; margin: 0; color: #303133; }
+.center-search { display: flex; justify-content: center; }
+.top-search-input { --el-input-bg-color: #fff; --el-input-border-color: transparent; --el-input-hover-border-color: transparent; --el-input-focus-border-color: var(--el-color-primary); box-shadow: 0 8px 26px rgba(64,158,255,0.12), 0 2px 10px rgba(0,0,0,0.08); border-radius: 999px; padding-right: 4px; max-width: 520px; }
+.right-actions { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.icon-btn { border-radius: 50%; padding: 6px; transition: transform .15s ease, filter .15s ease; }
+.icon-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .dialog-header { position: relative; }
 .edit-icon { position: absolute; right: 0; top: 0; transition: transform .15s ease, box-shadow .15s ease; }
 .edit-icon:hover { transform: scale(1.04); box-shadow: 0 4px 12px var(--el-color-primary-light-9); }
