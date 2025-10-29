@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div class="container">
     <header class="square-header">
       <div class="brand">
         <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="28" height="28" />
@@ -16,62 +16,96 @@
       </div>
     </section>
 
-    <section class="grid-two">
-      <div class="card">
-        <div class="card-title">热门便签</div>
-        <div class="card-desc">基于收藏、点赞与时效综合排序</div>
-        <ul class="note-list">
-          <li class="note-item" v-for="it in hotPageItems" :key="it.id" @click="goNote(it)" role="button">
-            <div class="title">{{ tagTitle(it) }}</div>
-            <div class="content">{{ snippet(it.content || it.title) }}</div>
-            <div class="meta">
-              <div class="left">
-                <span class="author">{{ displayAuthor(it) }}</span>
-              </div>
-              <div class="right">
-                <span class="time">{{ formatYMD(it.updatedAt || it.updated_at) }}</span>
-              </div>
-            </div>
+    <section class="layout">
+      <aside class="side-nav">
+        <div class="nav-title">导航</div>
+        <ul class="nav-list">
+          <li v-for="s in sections" :key="s.id" :class="{ break: s.id === 'site' }">
+            <a href="javascript:;" :class="{ active: activeId === s.id }" @click="scrollTo(s.id)">{{ s.label }}</a>
           </li>
-          <li v-if="!hotNotes.length" class="empty">暂无热门便签</li>
         </ul>
-        <el-pagination
-          v-if="hotNotes.length"
-          background
-          layout="prev, pager, next"
-          :total="hotNotes.length"
-          :page-size="pageSize"
-          v-model:current-page="pageHot"
-          style="margin-top:10px; display:flex; justify-content:center;"
-        />
-      </div>
-      <div class="card">
-        <div class="card-title">最近便签</div>
-        <div class="card-desc">最新公开更新</div>
-        <ul class="note-list">
-          <li class="note-item" v-for="it in recentPageItems" :key="it.id" @click="goNote(it)" role="button">
-            <div class="title">{{ tagTitle(it) }}</div>
-            <div class="content">{{ snippet(it.content || it.title) }}</div>
-            <div class="meta">
-              <div class="left">
-                <span class="author">{{ displayAuthor(it) }}</span>
+      </aside>
+      <div class="content-scroll" ref="contentRef">
+        <div class="content-head"><span>热门</span><span class="slash">/</span><span>最近</span><span class="slash">/</span><span>网站便签</span></div>
+        <div class="grid-two">
+        <div class="card" id="hot">
+          <div class="card-title">热门便签</div>
+          <div class="card-desc">基于收藏、点赞与时效综合排序</div>
+          <ul class="note-list">
+            <li class="note-item" v-for="it in hotPageItems" :key="it.id" @click="goNote(it)" role="button">
+              <div class="title">{{ tagTitle(it) }}</div>
+              <div class="content">{{ snippet(it.content || it.title) }}</div>
+              <div class="meta">
+                <div class="left">
+                  <span class="author">{{ displayAuthor(it) }}</span>
+                </div>
+                <div class="right">
+                  <span class="time">{{ formatYMD(it.updatedAt || it.updated_at) }}</span>
+                </div>
               </div>
-              <div class="right">
-                <span class="time">{{ formatYMD(it.updatedAt || it.updated_at) }}</span>
+            </li>
+            <li v-if="!hotNotes.length" class="empty">暂无热门便签</li>
+          </ul>
+          <el-pagination
+            v-if="hotNotes.length"
+            background
+            layout="prev, pager, next"
+            :total="hotNotes.length"
+            :page-size="pageSize"
+            v-model:current-page="pageHot"
+            style="margin-top:10px; display:flex; justify-content:center;"
+          />
+        </div>
+
+        <div class="card" id="recent">
+          <div class="card-title">最近便签</div>
+          <div class="card-desc">最新公开更新</div>
+          <ul class="note-list">
+            <li class="note-item" v-for="it in recentPageItems" :key="it.id" @click="goNote(it)" role="button">
+              <div class="title">{{ tagTitle(it) }}</div>
+              <div class="content">{{ snippet(it.content || it.title) }}</div>
+              <div class="meta">
+                <div class="left">
+                  <span class="author">{{ displayAuthor(it) }}</span>
+                </div>
+                <div class="right">
+                  <span class="time">{{ formatYMD(it.updatedAt || it.updated_at) }}</span>
+                </div>
               </div>
-            </div>
-          </li>
-          <li v-if="!recentNotes.length" class="empty">暂无最近便签</li>
-        </ul>
-        <el-pagination
-          v-if="recentNotes.length"
-          background
-          layout="prev, pager, next"
-          :total="recentNotes.length"
-          :page-size="pageSize"
-          v-model:current-page="pageRecent"
-          style="margin-top:10px; display:flex; justify-content:center;"
-        />
+            </li>
+            <li v-if="!recentNotes.length" class="empty">暂无最近便签</li>
+          </ul>
+          <el-pagination
+            v-if="recentNotes.length"
+            background
+            layout="prev, pager, next"
+            :total="recentNotes.length"
+            :page-size="pageSize"
+            v-model:current-page="pageRecent"
+            style="margin-top:10px; display:flex; justify-content:center;"
+          />
+        </div>
+        </div>
+
+        <div class="card" id="site">
+          <div class="card-title">网站便签</div>
+          <div class="card-desc">推荐站点</div>
+          <ul class="note-list">
+            <li class="note-item" v-for="it in siteNotes" :key="it.id" @click="goSite(it)" role="button">
+              <div class="title">{{ it.title }}</div>
+              <div class="content">{{ snippet(it.content || '') }}</div>
+              <div class="meta">
+                <div class="left">
+                  <span class="author">站点</span>
+                </div>
+                <div class="right">
+                  <span class="time"></span>
+                </div>
+              </div>
+            </li>
+            <li v-if="!siteNotes.length" class="empty">暂无网站便签</li>
+          </ul>
+        </div>
       </div>
     </section>
   </div>
@@ -83,6 +117,16 @@ import { http } from '@/api/http'
 
 const hotNotes = ref([])
 const recentNotes = ref([])
+const siteNotes = ref([
+  { id: 'site-emby', title: 'emby.wiki', content: 'Emby 指南与更新', url: 'https://emby.wiki' }
+])
+const sections = [
+  { id: 'hot', label: '热门' },
+  { id: 'recent', label: '最近' },
+  { id: 'site', label: '网站便签' },
+]
+const activeId = ref('hot')
+const contentRef = ref(null)
 const pageSize = 4
 const pageHot = ref(1)
 const pageRecent = ref(1)
@@ -174,6 +218,13 @@ function goNote(it){
   window.location.hash = `#/search?q=${encodeURIComponent(q)}`
 }
 
+function goSite(it){
+  if (it && it.url) {
+    const url = String(it.url)
+    window.open(url, '_blank', 'noopener')
+  }
+}
+
 async function loadHot(){
   try{
     const { data } = await http.get('/notes/hot', { params: { size: 16 }, suppress401Redirect: true })
@@ -192,6 +243,37 @@ async function loadRecent(){
 }
 
 onMounted(() => { loadHot(); loadRecent(); })
+
+// 滚动控制与激活态
+function scrollTo(id){
+  const container = contentRef.value
+  if (!container) return
+  const el = container.querySelector('#' + id)
+  if (!el) return
+  const top = el.offsetTop
+  container.scrollTo({ top, behavior: 'smooth' })
+  activeId.value = id
+}
+
+function handleScroll(){
+  const container = contentRef.value
+  if (!container) return
+  const scrollTop = container.scrollTop
+  const nodes = sections.map(s => ({ id: s.id, el: container.querySelector('#' + s.id) })).filter(x => x.el)
+  // 选取当前滚动位置最近的 section
+  let current = 'hot'
+  let minDelta = Infinity
+  for (const n of nodes){
+    const delta = Math.abs(n.el.offsetTop - scrollTop)
+    if (delta < minDelta){ minDelta = delta; current = n.id }
+  }
+  activeId.value = current
+}
+
+onMounted(() => {
+  const container = contentRef.value
+  if (container){ container.addEventListener('scroll', handleScroll, { passive: true }) }
+})
 </script>
 
 <style scoped>
@@ -203,7 +285,22 @@ onMounted(() => { loadHot(); loadRecent(); })
 .hero h2 { font-size: 24px; margin: 0 0 8px; }
 .hero p { color: #606266; margin: 0 0 16px; }
 .hero-actions { display: flex; gap: 12px; justify-content: center; }
-.grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.layout { display:flex; gap:12px; align-items:flex-start; }
+.side-nav { width:180px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; padding:12px; position:fixed; left:12px; top:12px; z-index:10; }
+.side-nav .nav-title { font-weight:600; margin-bottom:8px; }
+.side-nav .nav-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:row; flex-wrap:wrap; gap:8px; align-items:center; }
+.side-nav .nav-list a { display:block; padding:8px 10px; border-radius:8px; color:#303133; text-decoration:none; }
+.side-nav .nav-list a:hover { background:#f5f7ff; }
+.side-nav .nav-list a.active { background:#ecf5ff; color:#409eff; }
+.side-nav .nav-list li { display:flex; align-items:center; }
+.side-nav .nav-list li + li::before { content:'/'; color:#909399; margin:0 4px; }
+.side-nav .nav-list li.break { flex-basis:100%; margin-top:6px; }
+.side-nav .nav-list li.break::before { content: none; }
+.content-scroll { flex:1; max-height:70vh; overflow:auto; scroll-behavior:smooth; display:flex; flex-direction:column; gap:12px; }
+.content-scroll .card { scroll-margin-top:8px; }
+.content-head { display:flex; align-items:center; gap:6px; font-weight:600; color:#303133; margin: 4px 0 4px; }
+.content-head .slash { color:#909399; }
 .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; background: #fff; }
 .card-title { font-weight: 600; margin-bottom: 6px; }
 .card-desc { color: #606266; margin-bottom: 8px; }
@@ -211,7 +308,7 @@ onMounted(() => { loadHot(); loadRecent(); })
  .note-item { background:#fff; border:1px solid #ebeef5; border-radius:12px; padding:14px; height:140px; box-shadow:0 4px 12px rgba(0,0,0,0.06); cursor:pointer; transition: transform .15s ease, box-shadow .15s ease; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; }
  .note-item:hover { transform: translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.08); }
  .note-item .title { color:#303133; font-size:15px; font-weight:600; line-height:1.6; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient: vertical; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; }
- .note-item .content { color:#303133; font-size:14px; line-height:1.7; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient: vertical; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; }
+ .note-item .content { color:#303133; font-size:14px; line-height:1.7; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient: vertical; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; }
  .note-item .meta { display:flex; justify-content:space-between; align-items:center; margin-top:8px; color:#606266; font-size:12px; }
  .note-item .meta .left { display:flex; align-items:center; gap:6px; min-width:0; flex:1; }
  .note-item .meta .right { display:flex; align-items:center; gap:6px; color:#909399; flex:none; }
@@ -223,4 +320,9 @@ onMounted(() => { loadHot(); loadRecent(); })
 .note-list .meta { color: #606266; font-size: 12px; display: flex; gap: 10px; }
 .note-list .empty { color: #909399; background: #fff; border: 1px dashed #e5e7eb; }
 @media (max-width: 720px){ .grid-two { grid-template-columns: 1fr; } }
+@media (max-width: 960px){
+  .layout { flex-direction: column; }
+  .side-nav { width: 100%; position: static; left: auto; top: auto; }
+  .content-scroll { max-height: none; margin-left: 0; }
+}
 </style>
