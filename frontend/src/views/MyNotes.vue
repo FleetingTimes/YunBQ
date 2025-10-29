@@ -10,6 +10,24 @@
       </div>
     </div>
 
+    <!-- 个人资料摘要（显示在过滤栏上方） -->
+    <div class="profile-summary">
+      <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-lg" width="260" height="260" loading="lazy" />
+      <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" class="avatar-lg" width="260" height="260" />
+      <div class="text">
+        <div class="nickname">{{ me.nickname || me.username || '未设置昵称' }}</div>
+        <div
+          class="signature"
+          :class="[ signatureExpanded ? 'signature-full' : 'signature-ellipsis-3' ]"
+          :title="me.signature || '未设置'"
+          ref="signatureRef"
+        >
+          {{ me.signature || '未设置' }}
+        </div>
+        <a v-if="signatureOverflow" class="sig-toggle" @click="toggleSignature">{{ signatureExpanded ? '收起' : '展开' }}</a>
+      </div>
+    </div>
+
     <!-- 过滤与排序栏 -->
     <div class="filters" :class="{ 'is-stuck': isStuck }" ref="filtersRef">
       <el-form :inline="true" label-width="80px" class="filters-form">
@@ -190,13 +208,44 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
-import { http } from '@/api/http';
+import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { http, avatarFullUrl } from '@/api/http';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
 const notes = ref([]);
-const me = reactive({ username:'', nickname:'' });
+const me = reactive({ username:'', nickname:'', avatarUrl:'', signature:'' });
+const avatarUrl = computed(() => avatarFullUrl(me.avatarUrl));
 const authorName = computed(() => me.nickname || me.username || '我');
+// 签名展开/收起
+const signatureExpanded = ref(false);
+const signatureOverflow = ref(false);
+const signatureRef = ref(null);
+function toggleSignature(){ signatureExpanded.value = !signatureExpanded.value; }
+function checkSignatureOverflow(){
+  const el = signatureRef.value;
+  if (!el) { signatureOverflow.value = false; return; }
+  nextTick(() => {
+    const wasExpanded = signatureExpanded.value;
+    // 强制切到折叠状态测量可见高度
+    el.classList.add('signature-ellipsis-3');
+    el.classList.remove('signature-full');
+    const collapsedH = el.getBoundingClientRect().height;
+    // 强制切到展开状态测量完整高度
+    el.classList.add('signature-full');
+    el.classList.remove('signature-ellipsis-3');
+    const expandedH = el.getBoundingClientRect().height;
+    // 还原原始状态
+    if (!wasExpanded){
+      el.classList.add('signature-ellipsis-3');
+      el.classList.remove('signature-full');
+    }
+    signatureOverflow.value = expandedH > collapsedH + 1;
+  });
+}
+watch(() => me.signature, () => { signatureExpanded.value = false; checkSignatureOverflow(); });
+onMounted(() => { checkSignatureOverflow(); window.addEventListener('resize', checkSignatureOverflow); });
+onUnmounted(() => { window.removeEventListener('resize', checkSignatureOverflow); });
+watch(signatureExpanded, () => { nextTick(checkSignatureOverflow); });
 
 // 过滤与排序状态
 const filters = reactive({
@@ -708,4 +757,15 @@ function highlightHTML(s){
 }
 .backtop-btn:hover{ transform: translateY(-2px); box-shadow: 0 12px 28px rgba(64,158,255,0.38), 0 4px 10px rgba(0,0,0,0.14); }
 .backtop-btn:active{ transform: translateY(0); filter: brightness(0.96); }
+/* 个人资料摘要（头像 + 文本）样式 */
+.profile-summary { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; background: transparent; border-radius:12px; padding:12px; box-shadow:none; margin-bottom:12px; }
+.profile-summary .avatar-lg { width:260px; height:260px; max-width:260px; max-height:260px; display:block; border-radius:50%; object-fit:cover; overflow:hidden; flex-shrink:0; border:3px solid #fff; box-shadow:0 4px 12px rgba(0,0,0,0.12); background:#fff; }
+.profile-summary .text { display:flex; flex-direction:column; align-items:center; text-align:center; min-width:0; max-width:360px; gap:6px; }
+.profile-summary .nickname { font-weight:700; color:#303133; font-size:20px; letter-spacing:0.3px; line-height:1.2; }
+.profile-summary .nickname::after { content:''; display:block; width:28px; height:3px; border-radius:3px; background:#409eff; opacity:0.85; margin:6px auto 0; }
+.profile-summary .signature { color:#606266; font-size:14px; font-style:italic; line-height:1.6; opacity:0.9; }
+.signature-ellipsis-3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; word-break: break-word; white-space: pre-line; }
+.signature-full { -webkit-line-clamp: unset; display: block; overflow: visible; white-space: pre-line; }
+.sig-toggle { color: var(--el-color-primary); font-size:13px; cursor:pointer; user-select:none; margin-top:4px; }
+.signature-ellipsis { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: break-word; white-space: pre-line; }
 </style>
