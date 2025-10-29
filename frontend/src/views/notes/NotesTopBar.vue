@@ -23,16 +23,34 @@
         </div>
         <div class="profile-card" v-show="profileVisible" @mouseenter="onHoverEnter" @mouseleave="onHoverLeave">
           <div class="profile-header">
-            <div class="admin-entry" v-if="isAdmin">
+            <!-- 管理员：右上齿轮；右下添加便签 -->
+            <div class="top-actions" v-if="isAdmin" style="position:absolute; right:10px; top:10px; display:flex; gap:8px; z-index:1;">
               <el-tooltip content="系统管理" placement="left">
                 <el-button circle size="small" @click="goAdmin" title="系统管理">
                   <img src="https://api.iconify.design/mdi/cog-outline.svg?color=%23409eff" alt="" aria-hidden="true" width="18" height="18" />
                 </el-button>
               </el-tooltip>
             </div>
+            <div class="add-entry-bottom" v-if="isAdmin">
+              <el-tooltip content="添加便签" placement="left">
+                <el-button circle size="small" @click="goNotes" title="添加便签">
+                  <img src="https://api.iconify.design/mdi/note-plus-outline.svg?color=%23409eff" alt="add" aria-hidden="true" width="18" height="18" />
+                </el-button>
+              </el-tooltip>
+            </div>
+            <!-- 普通用户右上角添加便签入口 -->
+            <div class="add-entry" v-if="!isAdmin">
+              <el-tooltip content="添加便签" placement="left">
+                <el-button circle size="small" @click="goNotes" title="添加便签">
+                  <img src="https://api.iconify.design/mdi/note-plus-outline.svg?color=%23409eff" alt="add" aria-hidden="true" width="18" height="18" />
+                </el-button>
+              </el-tooltip>
+            </div>
             <div class="avatar-line">
-              <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-lg" />
-              <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" class="avatar-lg" />
+              <div class="avatar-wrap">
+                <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-lg" />
+                <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" class="avatar-lg" />
+              </div>
               <div class="name-box">
                 <div class="nickname">{{ me.nickname || '未设置昵称' }}</div>
               </div>
@@ -326,6 +344,11 @@ function goAdmin(){
   profileVisible.value = false
   router.push('/admin')
 }
+function goNotes(){
+  // 跳转到 notes 页面
+  profileVisible.value = false
+  router.push('/notes')
+}
 function goLogin(){
   const redirect = encodeURIComponent(route.fullPath || '/')
   router.push(`/login?redirect=${redirect}`)
@@ -421,8 +444,11 @@ function onHoverLeave(){
   background: transparent;
   border-bottom: 1px solid var(--el-border-color-extra-light);
 }
-.profile-header .admin-entry { position: absolute; right: 8px; top: 8px; }
+.profile-header .top-actions { position: absolute; right: 8px; top: 8px; display:flex; gap:8px; }
+.profile-header .add-entry { position: absolute; right: 8px; top: 8px; }
+.profile-header .add-entry-bottom { position: absolute; right: 8px; bottom: 8px; }
 .profile-header .avatar-line { display:flex; align-items:center; gap:10px; }
+.profile-header .avatar-wrap { position: relative; display: inline-block; }
 .profile-header .avatar-lg { width:56px; height:56px; border-radius:50%; object-fit:cover; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.15); background:#fff; }
 .profile-header .name-box { display:flex; flex-direction:column; }
 .profile-header .nickname { font-weight:700; color:#303133; }
