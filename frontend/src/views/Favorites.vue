@@ -156,4 +156,9 @@ function sampleDanmu(){
 .year-group { margin-bottom: 16px; }
 .year-header { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:#ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.06); position: sticky; top: 6px; z-index: 10; }
 .year-title { font-size:22px; font-weight:700; color:#303133; letter-spacing:0.5px; }
+/* 隐藏便签卡片上的公开/私有标签，仅保留作者标签 */
+:deep(.meta.bottom-left .el-tag--success),
+:deep(.meta.bottom-left .el-tag--info) {
+  display: none !important;
+}
 </style>

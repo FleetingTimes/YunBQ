@@ -1,5 +1,5 @@
 <template>
-  <div class="note-card" :style="noteCardStyle(note)" :data-note-id="note.id"
+  <div ref="rootRef" class="note-card" :style="noteCardStyle(note)" :data-note-id="note.id"
     @mousedown="enableLongPressActions && startPress($event)"
     @mouseup="enableLongPressActions && cancelPress()"
     @mouseleave="enableLongPressActions && cancelPress()"
@@ -38,7 +38,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   note: { type: Object, required: true },
@@ -49,13 +49,36 @@ const props = defineProps({
 
 const showActions = ref(false)
 const pressTimer = ref(null)
+const rootRef = ref(null)
+
+function onDocClick(e){
+  // 点击卡片外部时关闭动作层
+  if (showActions.value){
+    const el = rootRef.value
+    if (el && !el.contains(e.target)){
+      closeActions()
+    }
+  }
+}
 
 function startPress(){
   cancelPress()
-  pressTimer.value = setTimeout(() => { showActions.value = true }, 600)
+  pressTimer.value = setTimeout(() => {
+    showActions.value = true
+    // 在动作层打开后监听文档点击，支持点击外部关闭
+    document.addEventListener('click', onDocClick, true)
+  }, 600)
 }
 function cancelPress(){ if (pressTimer.value){ clearTimeout(pressTimer.value); pressTimer.value = null } }
-function closeActions(){ showActions.value = false }
+function closeActions(){
+  showActions.value = false
+  document.removeEventListener('click', onDocClick, true)
+}
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick, true)
+  cancelPress()
+})
 
 function parsedTags(tags){
   if (Array.isArray(tags)) return tags

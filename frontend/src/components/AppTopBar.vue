@@ -373,10 +373,22 @@ function goNotes(){
   profileVisible.value = false
   router.push('/notes')
 }
-function goMessages(){ router.push('/messages') }
-function goLikes(){ router.push('/likes') }
-function goFavorites(){ router.push('/favorites') }
-function goHistory(){ router.push('/history') }
+function goMessages(){
+  if (!authed.value){ ElMessage.warning('当前用户未登录'); return }
+  router.push('/messages')
+}
+function goLikes(){
+  if (!authed.value){ ElMessage.warning('当前用户未登录'); return }
+  router.push('/likes')
+}
+function goFavorites(){
+  if (!authed.value){ ElMessage.warning('当前用户未登录'); return }
+  router.push('/favorites')
+}
+function goHistory(){
+  if (!authed.value){ ElMessage.warning('当前用户未登录'); return }
+  router.push('/history')
+}
 function goLogin(){
   const redirect = encodeURIComponent(route.fullPath || '/')
   router.push(`/login?redirect=${redirect}`)

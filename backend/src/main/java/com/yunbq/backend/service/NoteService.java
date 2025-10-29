@@ -131,8 +131,9 @@ public class NoteService {
                 Long cnt = ((Number)m.get("cnt")).longValue();
                 favoriteCountMap.put(nid, cnt);
             }
-            // 在收藏列表中，所有便签都应该是已收藏状态，无需额外查询
-            favoritedSet = new HashSet<>(ids);
+            // 仅在“我的便签”列表中，根据当前用户的收藏记录计算收藏态
+            List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
+            favoritedSet = favoritedIds.stream().collect(java.util.stream.Collectors.toSet());
         } else {
             likedSet = Set.of();
             favoritedSet = Set.of();
