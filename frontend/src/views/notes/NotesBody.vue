@@ -77,7 +77,8 @@ const danmuItems = computed(() => notes.value.map((n, idx) => {
   const h = rgb ? null : hueFromNote(n, idx)
   const cached = danmuCache.value[n.id] || {
     row: (idx % danmuRows) + 1,
-    delay: Math.random() * 8,
+    // 让延迟覆盖整个周期范围，避免初期扎堆、后续稀疏
+    delay: Math.random() * 15,
     duration: 15,
   }
   danmuCache.value[n.id] = cached
@@ -109,7 +110,8 @@ function danmuItemsForRow(row) { return danmuItems.value.filter(i => i.row === r
 function danmuStyle(it) {
   return {
     animationDuration: (it.duration * danmuSpeedScale) + 's',
-    animationDelay: it.delay + 's',
+    // 使用负延迟，将弹幕均匀分布到动画周期的不同相位，从一开始就平滑流动
+    animationDelay: (-it.delay) + 's',
     background: it.bg,
     color: it.fg,
     border: it.border
