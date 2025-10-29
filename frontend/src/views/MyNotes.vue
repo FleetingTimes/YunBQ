@@ -328,7 +328,7 @@ async function loadMe(){
 
 async function loadNotes(){
   try{
-    const { data } = await http.get('/notes', { params: { size: 100, page: 1 } });
+    const { data } = await http.get('/notes', { params: { size: 100, page: 1, mineOnly: true } });
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? []);
     notes.value = (items || []).map(it => ({
       ...it,

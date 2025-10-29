@@ -8,7 +8,7 @@
       @itemClick="toggleLikeById"
     />
 
-    <div class="grid">
+    <div class="grid" v-if="props.showComposer">
       <div class="sticky composer p-2 rot-2">
         <div class="title">新建便签</div>
         <el-input v-model="draft.tags" placeholder="标签（用逗号分隔）" style="margin-bottom:6px;" />
@@ -39,7 +39,7 @@ import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
 import DanmuWall from '@/components/DanmuWall.vue'
 
-const props = defineProps({ query: { type: String, default: '' } })
+const props = defineProps({ query: { type: String, default: '' }, showComposer: { type: Boolean, default: true } })
 
 const router = useRouter()
 const notes = ref([])
@@ -57,7 +57,7 @@ watch(() => props.query, () => { load() })
 
 async function load(){
   try{
-    const { data } = await http.get('/notes', { params: { q: props.query } })
+    const { data } = await http.get('/notes', { params: { q: props.query }, suppress401Redirect: true })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     notes.value = (items || []).map(it => ({
       ...it,

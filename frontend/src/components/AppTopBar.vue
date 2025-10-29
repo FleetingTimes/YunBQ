@@ -246,16 +246,27 @@ const authed = computed(() => !!(me.username))
 
 function emitSearch(){
   emit('search', q.value)
+  const qp = encodeURIComponent(q.value || '')
+  router.push(`/search?q=${qp}`)
 }
 
 onMounted(() => { loadMe() })
 
 async function loadMe(){
   try{
-    const { data } = await http.get('/account/me')
+    // 在未登录时可能返回 401，抑制全局拦截器重定向
+    const { data } = await http.get('/account/me', { suppress401Redirect: true })
     Object.assign(me, data)
   }catch(e){
-    if (e?.response?.status === 401) router.replace('/')
+    // 未登录或 token 失效时，顶栏保持未登录状态即可，避免干扰当前页面跳转
+    // 受保护页面的跳转由全局路由守卫处理（redirect 到登录）
+    if (e?.response?.status === 401) {
+      me.username = ''
+      me.nickname = ''
+      me.avatarUrl = ''
+      me.email = ''
+      me.role = ''
+    }
   }
 }
 

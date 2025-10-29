@@ -22,8 +22,12 @@ http.interceptors.response.use(
         localStorage.removeItem('token');
         sessionStorage.removeItem('token');
       } catch (_) {}
-      // 使用 hash 路由，统一跳转首页（广场页）
-      window.location.hash = '#/';
+      // 某些请求（如 /account/me）允许在未登录时静默处理，不触发重定向
+      const suppress = err?.config?.suppress401Redirect;
+      if (!suppress) {
+        // 使用 hash 路由，统一跳转首页（广场页）
+        window.location.hash = '#/';
+      }
     }
     return Promise.reject(err);
   }

@@ -84,17 +84,35 @@ public class NoteService {
         noteMapper.deleteById(id);
     }
 
-    public Page<NoteItem> list(Long userId, int page, int size, String q, Boolean archived, Boolean isPublic) {
+    public Page<NoteItem> list(Long userId, int page, int size, String q, Boolean archived, Boolean isPublic, Boolean mineOnly) {
         QueryWrapper<Note> qw = new QueryWrapper<>();
-        qw.eq("user_id", userId);
+
+        // 范围控制：
+        // - 未登录：仅公开便签
+        // - 已登录：默认 公开便签 + 我的全部便签；若 mineOnly=true，则仅我的便签
+        boolean onlyMine = Boolean.TRUE.equals(mineOnly);
+        if (userId == null) {
+            qw.eq("is_public", true);
+        } else if (onlyMine) {
+            qw.eq("user_id", userId);
+            if (isPublic != null) qw.eq("is_public", isPublic);
+        } else {
+            // 默认范围：公开 OR 我的
+            qw.and(w -> w.eq("user_id", userId).or().eq("is_public", true));
+            // 如果明确传了 isPublic=false，则仅我的私有
+            if (Boolean.FALSE.equals(isPublic)) {
+                qw.eq("user_id", userId).eq("is_public", false);
+            } else if (Boolean.TRUE.equals(isPublic)) {
+                // 仅公开（含他人公开 + 我公开）
+                qw.and(w -> w.eq("is_public", true).or().eq("user_id", userId));
+            }
+        }
+
         if (q != null && !q.isBlank()) {
             qw.and(w -> w.like("content", q).or().like("tags", q));
         }
         if (archived != null) {
             qw.eq("archived", archived);
-        }
-        if (isPublic != null) {
-            qw.eq("is_public", isPublic);
         }
         qw.orderByDesc("updated_at");
         Page<Note> np = noteMapper.selectPage(Page.of(page, size), qw);

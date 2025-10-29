@@ -28,9 +28,10 @@ public class NoteController {
                                            @RequestParam(defaultValue = "10") int size,
                                            @RequestParam(required = false) String q,
                                            @RequestParam(required = false) Boolean archived,
-                                           @RequestParam(required = false) Boolean isPublic) {
+                                           @RequestParam(required = false) Boolean isPublic,
+                                           @RequestParam(required = false) Boolean mineOnly) {
         Long uid = AuthUtil.currentUserId();
-        Page<NoteItem> p = noteService.list(uid, page, size, q, archived, isPublic);
+        Page<NoteItem> p = noteService.list(uid, page, size, q, archived, isPublic, mineOnly);
         PageResult<NoteItem> resp = new PageResult<>();
         resp.setItems(p.getRecords());
         resp.setTotal(p.getTotal());

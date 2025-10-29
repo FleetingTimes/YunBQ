@@ -42,6 +42,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/captcha/**").permitAll()
                 .requestMatchers("/api/debug/**").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
+                // 允许匿名访问公开便签的查询接口
+                .requestMatchers(HttpMethod.GET, "/api/notes").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/notes/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
@@ -79,8 +82,15 @@ public class SecurityConfig {
         } else if (origins != null && !origins.isEmpty()) {
             config.setAllowedOrigins(origins);
         } else {
-            // fallback for dev
-            config.setAllowedOrigins(java.util.List.of("http://localhost:5500", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175"));
+            // fallback for dev：补充常用端口（5176/5180）
+            config.setAllowedOrigins(java.util.List.of(
+                "http://localhost:5500",
+                "http://localhost:5173",
+                "http://localhost:5174",
+                "http://localhost:5175",
+                "http://localhost:5176",
+                "http://localhost:5180"
+            ));
         }
         // methods
         var methods = corsProperties.getAllowedMethods();
