@@ -26,7 +26,7 @@ function onSearch(q){ query.value = q || ''; load() }
 onMounted(() => { load() })
 
 function normalizeNote(it){
-  const favorited = Boolean(it.favorited ?? it.bookmarked ?? it.starred ?? it.favored ?? it.isFavorite ?? it.favorite ?? false)
+  const favorited = Boolean(it.favoritedByMe ?? it.favorited ?? it.bookmarked ?? it.starred ?? it.favored ?? it.isFavorite ?? it.favorite ?? false)
   return {
     id: it.id,
     content: String(it.content ?? it.text ?? ''),
@@ -34,15 +34,16 @@ function normalizeNote(it){
     color: String(it.color ?? '#ffd966'),
     likeCount: Number(it.likeCount ?? it.like_count ?? 0),
     liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
+    favoriteCount: Number(it.favoriteCount ?? it.favorite_count ?? 0),
     favorited,
   }
 }
 
 async function load(){
   try{
-    const { data } = await http.get('/notes', { params: { q: query.value } })
+    const { data } = await http.get('/notes/favorites', { params: { q: query.value } })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
-    const mapped = (items || []).map(normalizeNote).filter(n => n.favorited)
+    const mapped = (items || []).map(normalizeNote)
     danmuItems.value = mapped.length ? mapped : sampleDanmu()
   }catch(e){
     danmuItems.value = sampleDanmu()

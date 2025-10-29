@@ -6,8 +6,10 @@ import com.yunbq.backend.dto.NoteRequest;
 import com.yunbq.backend.dto.NoteItem;
 import com.yunbq.backend.mapper.NoteMapper;
 import com.yunbq.backend.mapper.NoteLikeMapper;
+import com.yunbq.backend.mapper.NoteFavoriteMapper;
 import com.yunbq.backend.model.Note;
 import com.yunbq.backend.model.NoteLike;
+import com.yunbq.backend.model.NoteFavorite;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,10 +24,12 @@ import java.util.stream.Collectors;
 public class NoteService {
     private final NoteMapper noteMapper;
     private final NoteLikeMapper likeMapper;
+    private final NoteFavoriteMapper favoriteMapper;
 
-    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper) {
+    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper) {
         this.noteMapper = noteMapper;
         this.likeMapper = likeMapper;
+        this.favoriteMapper = favoriteMapper;
     }
 
     @Transactional
@@ -91,19 +95,31 @@ public class NoteService {
         List<Note> records = np.getRecords();
         List<Long> ids = records.stream().map(Note::getId).collect(Collectors.toList());
     
-        Map<Long, Long> countMap = new HashMap<>();
+        Map<Long, Long> likeCountMap = new HashMap<>();
+        Map<Long, Long> favoriteCountMap = new HashMap<>();
         final Set<Long> likedSet;
+        final Set<Long> favoritedSet;
         if (!ids.isEmpty()) {
-            List<Map<String,Object>> counts = likeMapper.countByNoteIds(ids);
-            for (Map<String,Object> m : counts) {
+            List<Map<String,Object>> likeCounts = likeMapper.countByNoteIds(ids);
+            for (Map<String,Object> m : likeCounts) {
                 Long nid = ((Number)m.get("noteId")).longValue();
                 Long cnt = ((Number)m.get("cnt")).longValue();
-                countMap.put(nid, cnt);
+                likeCountMap.put(nid, cnt);
             }
             List<Long> likedIds = likeMapper.findLikedNoteIdsByUser(userId, ids);
             likedSet = likedIds.stream().collect(Collectors.toSet());
+
+            List<Map<String,Object>> favCounts = favoriteMapper.countByNoteIds(ids);
+            for (Map<String,Object> m : favCounts) {
+                Long nid = ((Number)m.get("noteId")).longValue();
+                Long cnt = ((Number)m.get("cnt")).longValue();
+                favoriteCountMap.put(nid, cnt);
+            }
+            List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
+            favoritedSet = favoritedIds.stream().collect(Collectors.toSet());
         } else {
             likedSet = Set.of();
+            favoritedSet = Set.of();
         }
     
         List<NoteItem> items = records.stream().map(n -> {
@@ -118,8 +134,10 @@ public class NoteService {
             it.setIsPublic(n.getIsPublic());
             it.setCreatedAt(n.getCreatedAt());
             it.setUpdatedAt(n.getUpdatedAt());
-            it.setLikeCount(countMap.getOrDefault(n.getId(), 0L));
+            it.setLikeCount(likeCountMap.getOrDefault(n.getId(), 0L));
             it.setLikedByMe(likedSet.contains(n.getId()));
+            it.setFavoriteCount(favoriteCountMap.getOrDefault(n.getId(), 0L));
+            it.setFavoritedByMe(favoritedSet.contains(n.getId()));
             return it;
         }).collect(Collectors.toList());
     
@@ -170,6 +188,120 @@ public class NoteService {
         long count = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId));
         boolean likedByMe = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId).eq("user_id", userId)) > 0;
         return Map.of("count", count, "likedByMe", likedByMe);
+    }
+
+    // 收藏相关
+    @Transactional
+    public Map<String, Object> favorite(Long userId, Long noteId) {
+        Note n = noteMapper.selectById(noteId);
+        if (n == null) throw new RuntimeException("笔记不存在");
+        // 私有便签仅作者本人可收藏；公开便签任何登录用户可收藏
+        if (!Boolean.TRUE.equals(n.getIsPublic()) && !n.getUserId().equals(userId)) {
+            throw new RuntimeException("私有便签仅作者可操作");
+        }
+        QueryWrapper<NoteFavorite> qw = new QueryWrapper<>();
+        qw.eq("note_id", noteId).eq("user_id", userId);
+        Long exists = favoriteMapper.selectCount(qw);
+        if (exists == null || exists == 0) {
+            NoteFavorite f = new NoteFavorite();
+            f.setNoteId(noteId);
+            f.setUserId(userId);
+            f.setCreatedAt(LocalDateTime.now());
+            favoriteMapper.insert(f);
+        }
+        long count = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId));
+        return Map.of("count", count, "favoritedByMe", true);
+    }
+
+    @Transactional
+    public Map<String, Object> unfavorite(Long userId, Long noteId) {
+        Note n = noteMapper.selectById(noteId);
+        if (n == null) throw new RuntimeException("笔记不存在");
+        if (!Boolean.TRUE.equals(n.getIsPublic()) && !n.getUserId().equals(userId)) {
+            throw new RuntimeException("私有便签仅作者可操作");
+        }
+        favoriteMapper.delete(new QueryWrapper<NoteFavorite>().eq("note_id", noteId).eq("user_id", userId));
+        long count = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId));
+        return Map.of("count", count, "favoritedByMe", false);
+    }
+
+    public Map<String, Object> favoriteInfo(Long userId, Long noteId) {
+        Note n = noteMapper.selectById(noteId);
+        if (n == null) throw new RuntimeException("笔记不存在");
+        long count = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId));
+        boolean favoritedByMe = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId).eq("user_id", userId)) > 0;
+        return Map.of("count", count, "favoritedByMe", favoritedByMe);
+    }
+
+    public Page<NoteItem> listFavorited(Long userId, int page, int size, String q) {
+        // 先取用户已收藏的 note_id 集合，再按条件筛选便签并分页
+        List<Long> favIds = favoriteMapper.selectList(new QueryWrapper<NoteFavorite>().eq("user_id", userId))
+                .stream().map(NoteFavorite::getNoteId).collect(Collectors.toList());
+        if (favIds == null || favIds.isEmpty()) {
+            Page<NoteItem> empty = Page.of(page, size);
+            empty.setTotal(0);
+            empty.setRecords(java.util.Collections.emptyList());
+            return empty;
+        }
+        QueryWrapper<Note> qw = new QueryWrapper<>();
+        qw.in("id", favIds);
+        if (q != null && !q.isBlank()) {
+            qw.and(w -> w.like("content", q).or().like("tags", q));
+        }
+        qw.orderByDesc("updated_at");
+        Page<Note> np = noteMapper.selectPage(Page.of(page, size), qw);
+        List<Note> records = np.getRecords();
+        List<Long> ids = records.stream().map(Note::getId).collect(Collectors.toList());
+
+        Map<Long, Long> likeCountMap = new HashMap<>();
+        Map<Long, Long> favoriteCountMap = new HashMap<>();
+        final Set<Long> likedSet;
+        final Set<Long> favoritedSet;
+        if (!ids.isEmpty()) {
+            List<Map<String,Object>> likeCounts = likeMapper.countByNoteIds(ids);
+            for (Map<String,Object> m : likeCounts) {
+                Long nid = ((Number)m.get("noteId")).longValue();
+                Long cnt = ((Number)m.get("cnt")).longValue();
+                likeCountMap.put(nid, cnt);
+            }
+            List<Long> likedIds = likeMapper.findLikedNoteIdsByUser(userId, ids);
+            likedSet = likedIds.stream().collect(Collectors.toSet());
+
+            List<Map<String,Object>> favCounts = favoriteMapper.countByNoteIds(ids);
+            for (Map<String,Object> m : favCounts) {
+                Long nid = ((Number)m.get("noteId")).longValue();
+                Long cnt = ((Number)m.get("cnt")).longValue();
+                favoriteCountMap.put(nid, cnt);
+            }
+            List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
+            favoritedSet = favoritedIds.stream().collect(Collectors.toSet());
+        } else {
+            likedSet = Set.of();
+            favoritedSet = Set.of();
+        }
+
+        List<NoteItem> items = records.stream().map(n -> {
+            NoteItem it = new NoteItem();
+            it.setId(n.getId());
+            it.setUserId(n.getUserId());
+            it.setContent(n.getContent());
+            it.setTags(n.getTags());
+            it.setColor(n.getColor());
+            it.setArchived(n.getArchived());
+            it.setIsPublic(n.getIsPublic());
+            it.setCreatedAt(n.getCreatedAt());
+            it.setUpdatedAt(n.getUpdatedAt());
+            it.setLikeCount(likeCountMap.getOrDefault(n.getId(), 0L));
+            it.setLikedByMe(likedSet.contains(n.getId()));
+            it.setFavoriteCount(favoriteCountMap.getOrDefault(n.getId(), 0L));
+            it.setFavoritedByMe(favoritedSet.contains(n.getId()));
+            return it;
+        }).collect(Collectors.toList());
+
+        Page<NoteItem> ip = Page.of(np.getCurrent(), np.getSize());
+        ip.setTotal(np.getTotal());
+        ip.setRecords(items);
+        return ip;
     }
 
     // ========= 解析工具 =========

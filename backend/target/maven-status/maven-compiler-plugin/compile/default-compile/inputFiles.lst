@@ -18,8 +18,10 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\Admin
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\PasswordResetService.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\util\AuthUtil.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\PasswordResetController.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NoteFavoriteMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\BackgroundController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\AuthRequest.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\NoteFavorite.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\UserSummary.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\NoteRequest.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\config\DbMigrationRunner.java

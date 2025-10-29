@@ -45,5 +45,34 @@ public class DbMigrationRunner implements CommandLineRunner {
         } catch (Exception ignored) {
             // 不阻塞启动
         }
+
+        // 新增：创建 note_favorites 表（若不存在）
+        try {
+            Integer tableExists = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = 'note_favorites'",
+                Integer.class,
+                currentSchema
+            );
+            if (tableExists == null || tableExists == 0) {
+                jdbc.execute("CREATE TABLE note_favorites (\n" +
+                        "  id BIGINT PRIMARY KEY AUTO_INCREMENT,\n" +
+                        "  note_id BIGINT NOT NULL,\n" +
+                        "  user_id BIGINT NOT NULL,\n" +
+                        "  created_at DATETIME NOT NULL,\n" +
+                        "  UNIQUE KEY uniq_note_user_fav (note_id, user_id),\n" +
+                        "  INDEX idx_note_fav (note_id),\n" +
+                        "  INDEX idx_user_fav (user_id)\n" +
+                        ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                // 外键约束可能因权限或时序问题失败，留给 schema.sql 或手工执行
+                try {
+                    jdbc.execute("ALTER TABLE note_favorites ADD CONSTRAINT fk_favorites_note FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE");
+                } catch (Exception ignored2) {}
+                try {
+                    jdbc.execute("ALTER TABLE note_favorites ADD CONSTRAINT fk_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE");
+                } catch (Exception ignored3) {}
+            }
+        } catch (Exception ignored) {
+            // 不阻塞启动
+        }
     }
 }

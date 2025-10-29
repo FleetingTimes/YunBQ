@@ -135,6 +135,12 @@
               @touchstart.stop
               @touchend.stop
             >
+            <div class="action-icon" :title="n.liked ? '取消喜欢' : '喜欢'" @click.stop="toggleLike(n)">
+              <img :src="n.liked ? 'https://api.iconify.design/mdi/heart.svg?color=%23e25555' : 'https://api.iconify.design/mdi/heart-outline.svg'" alt="like" width="20" height="20" />
+            </div>
+            <div class="action-icon" :title="n.favorited ? '取消收藏' : '收藏'" @click.stop="toggleFavorite(n)">
+              <img :src="n.favorited ? 'https://api.iconify.design/mdi/bookmark.svg?color=%23409eff' : 'https://api.iconify.design/mdi/bookmark-outline.svg'" alt="favorite" width="20" height="20" />
+            </div>
             <div class="action-icon" title="编辑" @click.stop="editNote(n)">
               <img src="https://api.iconify.design/mdi/pencil.svg" alt="edit" width="20" height="20" />
             </div>
@@ -329,6 +335,8 @@ async function loadNotes(){
       isPublic: it.isPublic ?? it.is_public ?? false,
       likeCount: Number(it.likeCount ?? it.like_count ?? 0),
       liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
+      favoriteCount: Number(it.favoriteCount ?? it.favorite_count ?? 0),
+      favorited: Boolean(it.favoritedByMe ?? it.favorited_by_me ?? it.favorited ?? false),
       showActions: false,
       editing: false,
       contentEdit: it.content,
@@ -589,6 +597,37 @@ function stripTagsFromText(s){
   if (!s || typeof s !== 'string') return '';
   // 移除以#开头的标签以及其后的逗号（若有），并规范空白
   return s.replace(/\s*#([\p{L}\w-]+)\s*(,\s*)?/gu, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+// 喜欢与收藏
+async function toggleLike(n){
+  if (n.likeLoading) return;
+  n.likeLoading = true;
+  try{
+    const url = n.liked ? `/notes/${n.id}/unlike` : `/notes/${n.id}/like`;
+    const { data } = await http.post(url);
+    n.likeCount = Number(data?.count ?? data?.like_count ?? (n.likeCount || 0));
+    n.liked = Boolean((data?.likedByMe ?? data?.liked_by_me ?? n.liked));
+  }catch(e){
+    ElMessage.error('操作失败');
+  }finally{
+    n.likeLoading = false;
+  }
+}
+
+async function toggleFavorite(n){
+  if (n.favoriteLoading) return;
+  n.favoriteLoading = true;
+  try{
+    const url = n.favorited ? `/notes/${n.id}/unfavorite` : `/notes/${n.id}/favorite`;
+    const { data } = await http.post(url);
+    n.favoriteCount = Number(data?.count ?? data?.favorite_count ?? (n.favoriteCount || 0));
+    n.favorited = Boolean((data?.favoritedByMe ?? data?.favorited_by_me ?? n.favorited));
+  }catch(e){
+    ElMessage.error('操作失败');
+  }finally{
+    n.favoriteLoading = false;
+  }
 }
 
 // 轻量高亮：在编辑态对正文中的 #标签 做背景高亮

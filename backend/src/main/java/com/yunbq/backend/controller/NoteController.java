@@ -76,4 +76,37 @@ public class NoteController {
         Long uid = AuthUtil.currentUserId();
         return ResponseEntity.ok(noteService.likeInfo(uid, id));
     }
+
+    // 收藏接口
+    @PostMapping("/{id}/favorite")
+    public ResponseEntity<Map<String,Object>> favorite(@PathVariable Long id) {
+        Long uid = AuthUtil.currentUserId();
+        return ResponseEntity.ok(noteService.favorite(uid, id));
+    }
+
+    @PostMapping("/{id}/unfavorite")
+    public ResponseEntity<Map<String,Object>> unfavorite(@PathVariable Long id) {
+        Long uid = AuthUtil.currentUserId();
+        return ResponseEntity.ok(noteService.unfavorite(uid, id));
+    }
+
+    @GetMapping("/{id}/favorites")
+    public ResponseEntity<Map<String,Object>> favoriteInfo(@PathVariable Long id) {
+        Long uid = AuthUtil.currentUserId();
+        return ResponseEntity.ok(noteService.favoriteInfo(uid, id));
+    }
+
+    @GetMapping("/favorites")
+    public ResponseEntity<PageResult<NoteItem>> listFavorited(@RequestParam(defaultValue = "1") int page,
+                                                   @RequestParam(defaultValue = "10") int size,
+                                                   @RequestParam(required = false) String q) {
+        Long uid = AuthUtil.currentUserId();
+        Page<NoteItem> p = noteService.listFavorited(uid, page, size, q);
+        PageResult<NoteItem> resp = new PageResult<>();
+        resp.setItems(p.getRecords());
+        resp.setTotal(p.getTotal());
+        resp.setPage(p.getCurrent());
+        resp.setSize(p.getSize());
+        return ResponseEntity.ok(resp);
+    }
 }

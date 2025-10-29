@@ -80,7 +80,7 @@ public class SecurityConfig {
             config.setAllowedOrigins(origins);
         } else {
             // fallback for dev
-            config.setAllowedOrigins(java.util.List.of("http://localhost:5500", "http://localhost:5173", "http://localhost:5174"));
+            config.setAllowedOrigins(java.util.List.of("http://localhost:5500", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175"));
         }
         // methods
         var methods = corsProperties.getAllowedMethods();

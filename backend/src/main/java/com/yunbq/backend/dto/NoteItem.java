@@ -19,4 +19,6 @@ public class NoteItem {
     // extra fields
     private Long likeCount;
     private Boolean likedByMe;
+    private Long favoriteCount;
+    private Boolean favoritedByMe;
 }
