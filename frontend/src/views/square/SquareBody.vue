@@ -7,15 +7,6 @@
       </div>
     </header>
 
-    <section class="hero">
-      <h2>记录灵感，分享片段</h2>
-      <p>在广场探索大家公开的便签，或登录后开始创作。</p>
-      <div class="hero-actions">
-        <el-button type="primary" @click="$router.push('/notes')">进入便签</el-button>
-        <el-button @click="$router.push('/my-notes')">我的便签</el-button>
-      </div>
-    </section>
-
     <section class="layout">
       <aside class="side-nav">
         <div class="nav-title">导航</div>
@@ -281,10 +272,6 @@ onMounted(() => {
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand h1 { font-size: 20px; margin: 0; }
 .actions { display: flex; gap: 8px; }
-.hero { text-align: center; padding: 48px 12px; background: linear-gradient(135deg, #f0f7ff, #ffffff); border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 20px; }
-.hero h2 { font-size: 24px; margin: 0 0 8px; }
-.hero p { color: #606266; margin: 0 0 16px; }
-.hero-actions { display: flex; gap: 12px; justify-content: center; }
 .grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
 .layout { display:flex; gap:12px; align-items:flex-start; }
 .side-nav { width:180px; border:1px solid #e5e7eb; border-radius:12px; background:#fff; padding:12px; position:fixed; left:12px; top:12px; z-index:10; }
