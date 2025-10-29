@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -30,12 +31,14 @@ public class NoteService {
     private final NoteLikeMapper likeMapper;
     private final NoteFavoriteMapper favoriteMapper;
     private final UserMapper userMapper;
+    private final NoteCacheService noteCache;
 
-    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper, UserMapper userMapper) {
+    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper, UserMapper userMapper, NoteCacheService noteCache) {
         this.noteMapper = noteMapper;
         this.likeMapper = likeMapper;
         this.favoriteMapper = favoriteMapper;
         this.userMapper = userMapper;
+        this.noteCache = noteCache;
     }
 
     @Transactional
@@ -53,6 +56,8 @@ public class NoteService {
         n.setCreatedAt(LocalDateTime.now());
         n.setUpdatedAt(LocalDateTime.now());
         noteMapper.insert(n);
+        // 便签新增，失效热门与最近缓存
+        try { noteCache.evictHotAll(); noteCache.evictRecentAll(); } catch (Exception ignored) {}
         return n;
     }
 
@@ -72,6 +77,8 @@ public class NoteService {
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
         n.setUpdatedAt(LocalDateTime.now());
         noteMapper.updateById(n);
+        // 便签更新，失效热门与最近缓存
+        try { noteCache.evictHotAll(); noteCache.evictRecentAll(); } catch (Exception ignored) {}
         return n;
     }
 
@@ -82,6 +89,8 @@ public class NoteService {
             throw new RuntimeException("笔记不存在或无权限");
         }
         noteMapper.deleteById(id);
+        // 便签删除，失效热门与最近缓存
+        try { noteCache.evictHotAll(); noteCache.evictRecentAll(); } catch (Exception ignored) {}
     }
 
     public Page<NoteItem> list(Long userId, int page, int size, String q, Boolean archived, Boolean isPublic, Boolean mineOnly) {
@@ -183,6 +192,201 @@ public class NoteService {
         return ip;
     }
 
+    // 最近公开便签：按更新时间倒序，仅公开且未归档，返回前 size 条
+    public Page<NoteItem> recentPublic(Long userId, int size) {
+        if (size <= 0) size = 10;
+        // 先尝试读取缓存（不含用户态）
+        List<NoteItem> cached = (noteCache == null) ? null : noteCache.getRecent(size);
+        List<Long> ids;
+        List<NoteItem> baseItems;
+        if (cached != null && !cached.isEmpty()) {
+            baseItems = cached;
+            ids = cached.stream().map(NoteItem::getId).collect(Collectors.toList());
+        } else {
+            QueryWrapper<Note> qw = new QueryWrapper<>();
+            qw.eq("is_public", 1).eq("archived", 0).orderByDesc("updated_at");
+            Page<Note> np = noteMapper.selectPage(Page.of(1, size), qw);
+            List<Note> records = np.getRecords();
+            ids = records.stream().map(Note::getId).collect(Collectors.toList());
+
+            Map<Long, String> authorNameMap = new HashMap<>();
+            List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
+            if (!authorIds.isEmpty()) {
+                List<User> users = userMapper.selectBatchIds(authorIds);
+                for (User u : users) {
+                    String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
+                    authorNameMap.put(u.getId(), name);
+                }
+            }
+
+            Map<Long, Long> likeCountMap = new HashMap<>();
+            Map<Long, Long> favoriteCountMap = new HashMap<>();
+            if (!ids.isEmpty()) {
+                List<Map<String,Object>> likeCounts = likeMapper.countByNoteIds(ids);
+                for (Map<String,Object> m : likeCounts) {
+                    Long nid = ((Number)m.get("noteId")).longValue();
+                    Long cnt = ((Number)m.get("cnt")).longValue();
+                    likeCountMap.put(nid, cnt);
+                }
+                List<Map<String,Object>> favCounts = favoriteMapper.countByNoteIds(ids);
+                for (Map<String,Object> m : favCounts) {
+                    Long nid = ((Number)m.get("noteId")).longValue();
+                    Long cnt = ((Number)m.get("cnt")).longValue();
+                    favoriteCountMap.put(nid, cnt);
+                }
+            }
+
+            baseItems = records.stream().map(n -> {
+                NoteItem it = new NoteItem();
+                it.setId(n.getId());
+                it.setUserId(n.getUserId());
+                it.setAuthorName(authorNameMap.get(n.getUserId()));
+                it.setContent(n.getContent());
+                it.setTags(n.getTags());
+                it.setColor(n.getColor());
+                it.setArchived(n.getArchived());
+                it.setIsPublic(n.getIsPublic());
+                it.setCreatedAt(n.getCreatedAt());
+                it.setUpdatedAt(n.getUpdatedAt());
+                it.setLikeCount(likeCountMap.getOrDefault(n.getId(), 0L));
+                it.setFavoriteCount(favoriteCountMap.getOrDefault(n.getId(), 0L));
+                return it;
+            }).collect(Collectors.toList());
+            // 写入缓存（不包含用户 liked/favorited 标记）
+            try { if (noteCache != null) noteCache.setRecent(size, baseItems); } catch (Exception ignored) {}
+        }
+
+        // 用户态补充
+        final Set<Long> likedSet;
+        final Set<Long> favoritedSet;
+        if (userId != null && userId > 0 && !ids.isEmpty()) {
+            List<Long> likedIds = likeMapper.findLikedNoteIdsByUser(userId, ids);
+            likedSet = likedIds.stream().collect(Collectors.toSet());
+            List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
+            favoritedSet = favoritedIds.stream().collect(Collectors.toSet());
+        } else {
+            likedSet = Set.of();
+            favoritedSet = Set.of();
+        }
+        List<NoteItem> items = baseItems.stream().map(it -> {
+            it.setLikedByMe(likedSet.contains(it.getId()));
+            it.setFavoritedByMe(favoritedSet.contains(it.getId()));
+            return it;
+        }).collect(Collectors.toList());
+
+        Page<NoteItem> ip = Page.of(1, size);
+        ip.setTotal(items.size());
+        ip.setRecords(items);
+        return ip;
+    }
+
+    // 热门公开便签：按综合热度排序（收藏、点赞、时效加权），仅公开且未归档
+    public Page<NoteItem> hotPublic(Long userId, int size, int days) {
+        if (size <= 0) size = 10;
+        if (days <= 0) days = 30;
+        // 先读取缓存（不含用户态）
+        List<NoteItem> cached = (noteCache == null) ? null : noteCache.getHot(size);
+        List<Long> ids;
+        List<NoteItem> baseItems;
+        if (cached != null && !cached.isEmpty()) {
+            baseItems = cached;
+            ids = cached.stream().map(NoteItem::getId).collect(Collectors.toList());
+        } else {
+            LocalDateTime since = LocalDateTime.now().minus(days, ChronoUnit.DAYS);
+            // 先取最近 N 天的公开便签（最多 300 条）
+            QueryWrapper<Note> qw = new QueryWrapper<>();
+            qw.eq("is_public", 1).eq("archived", 0).ge("updated_at", since).orderByDesc("updated_at");
+            Page<Note> np = noteMapper.selectPage(Page.of(1, 300), qw);
+            List<Note> records = np.getRecords();
+            if (records.isEmpty()) {
+                Page<NoteItem> empty = Page.of(1, size);
+                empty.setTotal(0);
+                empty.setRecords(java.util.Collections.emptyList());
+                return empty;
+            }
+            ids = records.stream().map(Note::getId).collect(Collectors.toList());
+
+            Map<Long, String> authorNameMap = new HashMap<>();
+            List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
+            if (!authorIds.isEmpty()) {
+                List<User> users = userMapper.selectBatchIds(authorIds);
+                for (User u : users) {
+                    String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
+                    authorNameMap.put(u.getId(), name);
+                }
+            }
+
+            Map<Long, Long> likeCountMap = new HashMap<>();
+            Map<Long, Long> favoriteCountMap = new HashMap<>();
+            List<Map<String,Object>> likeCounts = likeMapper.countByNoteIds(ids);
+            for (Map<String,Object> m : likeCounts) {
+                Long nid = ((Number)m.get("noteId")).longValue();
+                Long cnt = ((Number)m.get("cnt")).longValue();
+                likeCountMap.put(nid, cnt);
+            }
+            List<Map<String,Object>> favCounts = favoriteMapper.countByNoteIds(ids);
+            for (Map<String,Object> m : favCounts) {
+                Long nid = ((Number)m.get("noteId")).longValue();
+                Long cnt = ((Number)m.get("cnt")).longValue();
+                favoriteCountMap.put(nid, cnt);
+            }
+
+            // 计算综合热度分：收藏权重 1.0，点赞权重 0.5，时效加权 0.2~1.0
+            Map<Long, Double> scoreMap = new HashMap<>();
+            for (Note n : records) {
+                long like = likeCountMap.getOrDefault(n.getId(), 0L);
+                long fav = favoriteCountMap.getOrDefault(n.getId(), 0L);
+                long hours = ChronoUnit.HOURS.between(n.getUpdatedAt(), LocalDateTime.now());
+                double decay = Math.max(0.2, 1.0 - (hours / (24.0 * days))); // 越新加权越高
+                double score = fav * 1.0 + like * 0.5 + decay;
+                scoreMap.put(n.getId(), score);
+            }
+            List<Note> sorted = records.stream()
+                    .sorted((a, b) -> Double.compare(scoreMap.getOrDefault(b.getId(), 0.0), scoreMap.getOrDefault(a.getId(), 0.0)))
+                    .limit(size)
+                    .collect(Collectors.toList());
+            baseItems = sorted.stream().map(n -> {
+                NoteItem it = new NoteItem();
+                it.setId(n.getId());
+                it.setUserId(n.getUserId());
+                it.setAuthorName(authorNameMap.get(n.getUserId()));
+                it.setContent(n.getContent());
+                it.setTags(n.getTags());
+                it.setColor(n.getColor());
+                it.setArchived(n.getArchived());
+                it.setIsPublic(n.getIsPublic());
+                it.setCreatedAt(n.getCreatedAt());
+                it.setUpdatedAt(n.getUpdatedAt());
+                it.setLikeCount(likeCountMap.getOrDefault(n.getId(), 0L));
+                it.setFavoriteCount(favoriteCountMap.getOrDefault(n.getId(), 0L));
+                return it;
+            }).collect(Collectors.toList());
+            try { if (noteCache != null) noteCache.setHot(size, baseItems); } catch (Exception ignored) {}
+        }
+
+        // 用户态补充
+        final Set<Long> likedSet;
+        final Set<Long> favoritedSet;
+        if (userId != null && userId > 0 && !ids.isEmpty()) {
+            List<Long> likedIds = likeMapper.findLikedNoteIdsByUser(userId, ids);
+            likedSet = likedIds.stream().collect(Collectors.toSet());
+            List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
+            favoritedSet = favoritedIds.stream().collect(Collectors.toSet());
+        } else {
+            likedSet = Set.of();
+            favoritedSet = Set.of();
+        }
+        List<NoteItem> items = baseItems.stream().map(it -> {
+            it.setLikedByMe(likedSet.contains(it.getId()));
+            it.setFavoritedByMe(favoritedSet.contains(it.getId()));
+            return it;
+        }).collect(Collectors.toList());
+
+        Page<NoteItem> ip = Page.of(1, size);
+        ip.setTotal(items.size());
+        ip.setRecords(items);
+        return ip;
+    }
     // 点赞相关
     @Transactional
     public Map<String, Object> like(Long userId, Long noteId) {
@@ -203,6 +407,8 @@ public class NoteService {
             likeMapper.insert(l);
         }
         long count = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId));
+        // 点赞变化影响热门，失效热门缓存
+        try { if (noteCache != null) noteCache.evictHotAll(); } catch (Exception ignored) {}
         return Map.of("count", count, "likedByMe", true);
     }
 
@@ -215,6 +421,7 @@ public class NoteService {
         }
         likeMapper.delete(new QueryWrapper<NoteLike>().eq("note_id", noteId).eq("user_id", userId));
         long count = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId));
+        try { if (noteCache != null) noteCache.evictHotAll(); } catch (Exception ignored) {}
         return Map.of("count", count, "likedByMe", false);
     }
 
@@ -246,6 +453,8 @@ public class NoteService {
             favoriteMapper.insert(f);
         }
         long count = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId));
+        // 收藏变化影响热门，失效热门缓存
+        try { if (noteCache != null) noteCache.evictHotAll(); } catch (Exception ignored) {}
         return Map.of("count", count, "favoritedByMe", true);
     }
 
@@ -258,6 +467,7 @@ public class NoteService {
         }
         favoriteMapper.delete(new QueryWrapper<NoteFavorite>().eq("note_id", noteId).eq("user_id", userId));
         long count = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId));
+        try { if (noteCache != null) noteCache.evictHotAll(); } catch (Exception ignored) {}
         return Map.of("count", count, "favoritedByMe", false);
     }
 
@@ -350,6 +560,8 @@ public class NoteService {
         ip.setRecords(items);
         return ip;
     }
+
+    // 已移除：标签统计接口实现
 
     // ========= 解析工具 =========
     private static class Parsed {

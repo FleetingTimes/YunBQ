@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/notes")
@@ -103,6 +104,33 @@ public class NoteController {
                                                    @RequestParam(required = false) String q) {
         Long uid = AuthUtil.currentUserId();
         Page<NoteItem> p = noteService.listFavorited(uid, page, size, q);
+        PageResult<NoteItem> resp = new PageResult<>();
+        resp.setItems(p.getRecords());
+        resp.setTotal(p.getTotal());
+        resp.setPage(p.getCurrent());
+        resp.setSize(p.getSize());
+        return ResponseEntity.ok(resp);
+    }
+
+    // 最近公开便签（匿名可访问）
+    @GetMapping("/recent")
+    public ResponseEntity<PageResult<NoteItem>> recent(@RequestParam(defaultValue = "10") int size) {
+        Long uid = AuthUtil.currentUserId();
+        Page<NoteItem> p = noteService.recentPublic(uid, size);
+        PageResult<NoteItem> resp = new PageResult<>();
+        resp.setItems(p.getRecords());
+        resp.setTotal(p.getTotal());
+        resp.setPage(p.getCurrent());
+        resp.setSize(p.getSize());
+        return ResponseEntity.ok(resp);
+    }
+
+    // 热门公开便签（按综合热度排序，匿名可访问）
+    @GetMapping("/hot")
+    public ResponseEntity<PageResult<NoteItem>> hot(@RequestParam(defaultValue = "10") int size,
+                                                    @RequestParam(defaultValue = "30") int days) {
+        Long uid = AuthUtil.currentUserId();
+        Page<NoteItem> p = noteService.hotPublic(uid, size, days);
         PageResult<NoteItem> resp = new PageResult<>();
         resp.setItems(p.getRecords());
         resp.setTotal(p.getTotal());
