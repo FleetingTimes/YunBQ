@@ -23,9 +23,15 @@
                - 去除父级项前的斜杠分隔，避免视觉干扰。 -->
           <!-- 恢复：为有子项的父级 li 添加 has-children 类，使子导航纵向呈现 -->
           <li v-for="s in sections" :key="s.id" :class="{ break: s.id === 'site', 'has-children': s.children && s.children.length }">
-            <a href="javascript:;" :class="{ active: activeId === s.id }" @click="scrollTo(s.id)">{{ s.label }}</a>
-            <!-- 子导航渲染：仅当存在 children 时显示 -->
-            <ul v-if="s.children && s.children.length" class="sub-nav-list">
+            <!-- 修改：父项点击行为改为展开/折叠子导航而非滚动
+                 说明：
+                 - 默认子导航折叠（不展示）；
+                 - 点击父项时切换展开状态，并将 activeId 设为父项以高亮；
+                 - 非父项（无 children）仍按原逻辑滚动到对应内容区。 -->
+            <a href="javascript:;" :class="{ active: activeId === s.id }" @click="onParentClick(s)">{{ s.label }}</a>
+            <!-- 子导航渲染：仅当存在 children 时显示；默认折叠，展开时展示
+                 使用 v-show 控制显隐以保留子元素结构，避免频繁销毁/重建 -->
+            <ul v-if="s.children && s.children.length" class="sub-nav-list" v-show="isExpanded(s.id)">
               <li v-for="c in s.children" :key="c.id">
                 <a href="javascript:;" :class="{ active: activeId === c.id }" @click="scrollTo(c.id)">{{ c.label }}</a>
               </li>
@@ -40,11 +46,18 @@
           <span>热门·最近</span><span class="slash">/</span>
           <!-- 更新：网站便签改为聚合便签，数据来源为标签“聚合” -->
           <span>聚合便签</span><span class="slash">/</span>
-          <span>Git便签</span><span class="slash">/</span><span>git影音</span><span class="slash">/</span><span>git工具</span><span class="slash">/</span>
+          <!-- 撤销：顶部内容导航不再展示父项“Git便签”，仅保留其子项文案提示
+               原因：父导航内容区已取消分组容器，回退为直接显示子卡片；
+               因此顶部文案与侧边导航保持“仅子项”一致，避免层级冗余。 -->
+          <span>git影音</span><span class="slash">/</span><span>git工具</span><span class="slash">/</span>
           <span>知识便签</span><span class="slash">/</span>
-          <span>影视便签</span><span class="slash">/</span>
-          <!-- 顶部内容导航：新增音乐便签及其子项，保持与侧边导航统一的树状层级提示（文本提示，不影响侧边导航与滚动逻辑） -->
-          <span>音乐便签</span><span class="slash">/</span><span>在线音乐</span><span class="slash">/</span><span>音乐下载</span><span class="slash">/</span>
+          <!-- 更新：顶部内容导航显示影视便签的五个子项文案
+               说明：与侧边导航子项保持一致，便于用户快速了解影视便签的内容分类 -->
+          <span>在线影视</span><span class="slash">/</span><span>影视软件</span><span class="slash">/</span><span>短视频</span><span class="slash">/</span><span>短视频下载</span><span class="slash">/</span><span>在线动漫</span><span class="slash">/</span>
+          <!-- 撤销：顶部内容导航不再展示父项“音乐便签”，仅保留其子项文案提示
+               原因：父导航内容区已取消分组容器，回退为直接显示子卡片；
+               因此顶部文案与侧边导航保持“仅子项”一致。 -->
+          <span>在线音乐</span><span class="slash">/</span><span>音乐下载</span><span class="slash">/</span>
           <span>工具便签</span><span class="slash">/</span>
           <!-- 顶部内容导航：在 AI 便签后追加子类“AI·绘图”用于位置提示（不影响侧边导航与滚动逻辑） -->
           <span>AI便签</span><span class="slash">/</span><span>AI·绘图</span>
@@ -119,19 +132,12 @@
              - 仅更换数据过滤标签与区块标题，不改变样式与交互。 -->
         <SiteNoteList id="site" title="聚合便签" subtitle="推荐站点" tag="聚合" />
 
-        <!-- 使用通用站点便签组件：抽象样式与数据逻辑，传入标签为“git” -->
-        <SiteNoteList id="git" title="Git便签" subtitle="常用 Git 命令与参考" tag="git" />
-        <!-- 新增：子区块“git影音”
-             说明：
-             - 锚点 id 为 git-media，对应侧边子导航；
-             - 通过标签“git影音”严格过滤此类便签；
-             - 视觉样式与父区块一致，仅标题/副标题不同。 -->
+        <!-- 撤销：移除 Git 父分组容器（div#git），恢复子卡片直接渲染
+             目的：回退到“父导航不显示内容区，仅展示子卡片”的设计；
+             实现：删除包裹容器，保留子卡片组件，使滚动与锚点仍按子项工作。 -->
+        <!-- 子区块“git影音” → 严格过滤标签“git影音” -->
         <SiteNoteList id="git-media" title="Git · 影音" subtitle="与 Git 相关的影音资源" tag="git影音" />
-        <!-- 新增：子区块“git工具”
-             说明：
-             - 锚点 id 为 git-tool，对应侧边子导航；
-             - 通过标签“git工具”严格过滤；
-             - 视觉样式与父区块一致。 -->
+        <!-- 子区块“git工具” → 严格过滤标签“git工具” -->
         <SiteNoteList id="git-tool" title="Git · 工具" subtitle="Git 配套工具与插件" tag="git工具" />
 
         <!-- 新增：站点类的“知识便签”区
@@ -141,27 +147,44 @@
              - 列表样式与网站/Git 区一致，保持统一视觉。 -->
         <SiteNoteList id="knowledge" title="知识便签" subtitle="站点知识精选" tag="知识" />
 
-        <!-- 新增：站点类的“影视便签”区
+        <!-- 新增：站点类的"影视便签"区
              说明：
-             - 标签约定为“影视”；
+             - 标签约定为"影视"；
              - 复用通用组件 SiteNoteList，统一来源切换、分页与移动端行为。 -->
         <SiteNoteList id="movie" title="影视便签" subtitle="影视站点资源" tag="影视" />
+
+        <!-- 新增：影视便签子卡片区域
+             说明：
+             - 为"影视便签"添加四个子卡片：在线影视、影视软件、短视频、短视频下载；
+             - 每个子卡片使用 SiteNoteList 组件，通过不同标签过滤对应内容；
+             - 锚点 id 与侧边导航子项对应，支持滚动定位与高亮；
+             - 样式继承影视便签区的统一视觉效果。 -->
+        <!-- 子区块：在线影视（标签"在线影视"） -->
+        <SiteNoteList id="movie-online" title="影视 · 在线影视" subtitle="在线影视平台与资源" tag="在线影视" />
+        <!-- 子区块：影视软件（标签"影视软件"） -->
+        <SiteNoteList id="movie-software" title="影视 · 影视软件" subtitle="影视播放与编辑软件" tag="影视软件" />
+        <!-- 子区块：短视频（标签"短视频"） -->
+        <SiteNoteList id="movie-short" title="影视 · 短视频" subtitle="短视频平台与工具" tag="短视频" />
+        <!-- 子区块：短视频下载（标签"短视频下载"） -->
+        <SiteNoteList id="movie-download" title="影视 · 短视频下载" subtitle="短视频下载工具与方法" tag="短视频下载" />
+        <!-- 新增：在线动漫子卡片
+             说明：
+             - 为影视便签添加在线动漫分类卡片，锚点 id 为 movie-anime；
+             - 通过标签"在线动漫"过滤对应内容；
+             - 样式继承影视便签区的统一视觉效果。 -->
+        <SiteNoteList id="movie-anime" title="影视 · 在线动漫" subtitle="在线动漫平台与资源" tag="在线动漫" />
 
         <!-- 新增：站点类的“音乐便签”区
              说明：
              - 父区块用于展示标签为“音乐”的总览；
              - 子区块“在线音乐/音乐下载”分别严格过滤对应标签；
              - 与侧边导航的树状结构保持锚点一致（music / music-online / music-download）。 -->
-        <SiteNoteList id="music" title="音乐便签" subtitle="音乐站点资源" tag="音乐" />
-        <!-- 子区块：在线音乐（与侧边子导航 music-online 对应）
-             说明：
-             - 通过标签“在线音乐”严格过滤；
-             - 样式与父区块保持一致，仅标题与副标题不同。 -->
+        <!-- 撤销：移除 音乐 父分组容器（div#music），恢复子卡片直接渲染
+             目的：回退到“父导航不显示内容区，仅展示子卡片”的设计；
+             实现：删除包裹容器，保留子卡片组件，使滚动与锚点仍按子项工作。 -->
+        <!-- 子区块：在线音乐（标签“在线音乐”） -->
         <SiteNoteList id="music-online" title="音乐 · 在线音乐" subtitle="在线音乐平台与工具" tag="在线音乐" />
-        <!-- 子区块：音乐下载（与侧边子导航 music-download 对应）
-             说明：
-             - 通过标签“音乐下载”严格过滤；
-             - 样式与父区块保持一致，仅标题与副标题不同。 -->
+        <!-- 子区块：音乐下载（标签“音乐下载”） -->
         <SiteNoteList id="music-download" title="音乐 · 音乐下载" subtitle="音乐下载与资源" tag="音乐下载" />
 
         <!-- 新增：站点类的“工具便签”区
@@ -216,17 +239,32 @@ const sections = [
   // - 子导航以树状缩进显示，便于用户快速定位到子卡片；
   // - 锚点 id 分别为 git-media / git-tool，与右侧内容区卡片的 id 对应；
   // - 滚动定位与高亮通过现有 scrollTo/activeId 逻辑自动生效。
+  // 撤销：移除父项别名映射（aliasTargets），仅保留子项锚点用于滚动与高亮
   { id: 'git', label: 'git便签', children: [
     { id: 'git-media', label: 'git影音' },
     { id: 'git-tool', label: 'git工具' }
   ] },
   { id: 'knowledge', label: '知识便签' },
-  { id: 'movie', label: '影视便签' },
+  // 更新：为影视便签添加四个子导航（在线影视/影视软件/短视频/短视频下载）
+  // 说明：
+  // - 子导航以树状缩进显示，便于用户快速定位到子卡片；
+  // - 锚点 id 分别为 movie-online / movie-software / movie-short / movie-download，与右侧内容区卡片的 id 对应；
+  // - 滚动定位与高亮通过现有 scrollTo/activeId 逻辑自动生效。
+  { id: 'movie', label: '影视便签', children: [
+    { id: 'movie-online', label: '在线影视' },
+    { id: 'movie-software', label: '影视软件' },
+    { id: 'movie-short', label: '短视频' },
+    { id: 'movie-download', label: '短视频下载' },
+    // 新增：在线动漫子导航
+    // 说明：为影视便签添加动漫分类，锚点 id 为 movie-anime，与内容区卡片对应
+    { id: 'movie-anime', label: '在线动漫' }
+  ] },
   // 新增：站点类“音乐便签”，并包含两个子导航（在线音乐/音乐下载）
   // 说明：
   // - 顶层音乐便签用于展示总览（标签“音乐”）；
   // - 子导航以树状缩进显示，锚点 id 用于滚动定位与高亮；
   // - 子卡片分别过滤标签“在线音乐”和“音乐下载”。
+  // 撤销：移除父项别名映射（aliasTargets），仅保留子项锚点用于滚动与高亮
   { id: 'music', label: '音乐便签', children: [
     { id: 'music-online', label: '在线音乐' },
     { id: 'music-download', label: '音乐下载' }
@@ -236,6 +274,28 @@ const sections = [
 ]
 const activeId = ref('hot')
 const contentRef = ref(null)
+// 新增：子导航展开状态集合
+// 说明：
+// - 使用一个 Set 存储已展开的父项 id；默认不含任何父项，表示全部折叠；
+// - 选择 Set 是为了 O(1) 的查找与插入/删除，适合频繁切换；
+// - 通过辅助方法 isExpanded/toggleExpanded 提供模板友好的接口。
+const expandedIds = ref(new Set())
+function isExpanded(id){ return expandedIds.value.has(id) }
+function toggleExpanded(id){
+  const set = expandedIds.value
+  if (set.has(id)) set.delete(id)
+  else set.add(id)
+}
+// 父项点击：若有子项则展开/折叠并高亮父项；否则按原逻辑滚动
+function onParentClick(s){
+  if (s && Array.isArray(s.children) && s.children.length){
+    toggleExpanded(s.id)
+    // 高亮父项以反馈当前上下文，滚动交由用户点击子项控制
+    activeId.value = s.id
+    return
+  }
+  scrollTo(s?.id)
+}
 const pageSize = 4
 const pageHot = ref(1)
 const pageRecent = ref(1)
