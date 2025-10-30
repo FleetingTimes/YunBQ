@@ -17,7 +17,18 @@
         </ul>
       </aside>
       <div class="content-scroll" ref="contentRef">
-        <div class="content-head"><span>热门</span><span class="slash">/</span><span>最近</span><span class="slash">/</span><span>网站便签</span><span class="slash">/</span><span>Git便签</span></div>
+        <!-- 内容导航提示：同步展示区块名称，新增“知识/影视/工具/AI 便签” -->
+        <div class="content-head">
+          <span>热门</span><span class="slash">/</span>
+          <span>最近</span><span class="slash">/</span>
+          <!-- 更新：网站便签改为聚合便签，数据来源为标签“聚合” -->
+          <span>聚合便签</span><span class="slash">/</span>
+          <span>Git便签</span><span class="slash">/</span>
+          <span>知识便签</span><span class="slash">/</span>
+          <span>影视便签</span><span class="slash">/</span>
+          <span>工具便签</span><span class="slash">/</span>
+          <span>AI便签</span>
+        </div>
         <div class="grid-two">
         <div class="card" id="hot">
           <div class="card-title">热门便签</div>
@@ -79,11 +90,42 @@
         </div>
         </div>
 
-        <!-- 使用通用站点便签组件：抽象样式与数据逻辑，传入标签为“网站” -->
-        <SiteNoteList id="site" title="网站便签" subtitle="推荐站点" tag="网站" />
+        <!-- 使用通用站点便签组件：抽象样式与数据逻辑，传入标签为“网站”
+             启用来源切换模式为“公开/聚合”（聚合=公开+我的，登录后可用） -->
+        <!-- 改造：站点类“聚合便签”（仅标签含“聚合”的便签）
+             说明：
+             - 使用通用组件 SiteNoteList，并将标签过滤改为“聚合”；
+             - 保持来源切换为“公开/我的”，未登录时仅显示公开；
+             - 仅更换数据过滤标签与区块标题，不改变样式与交互。 -->
+        <SiteNoteList id="site" title="聚合便签" subtitle="推荐站点" tag="聚合" />
 
         <!-- 使用通用站点便签组件：抽象样式与数据逻辑，传入标签为“git” -->
         <SiteNoteList id="git" title="Git便签" subtitle="常用 Git 命令与参考" tag="git" />
+
+        <!-- 新增：站点类的“知识便签”区
+             说明：
+             - 复用通用组件 SiteNoteList；
+             - 通过标签严格过滤（大小写不敏感），此处约定标签为“知识”；
+             - 列表样式与网站/Git 区一致，保持统一视觉。 -->
+        <SiteNoteList id="knowledge" title="知识便签" subtitle="站点知识精选" tag="知识" />
+
+        <!-- 新增：站点类的“影视便签”区
+             说明：
+             - 标签约定为“影视”；
+             - 复用通用组件 SiteNoteList，统一来源切换、分页与移动端行为。 -->
+        <SiteNoteList id="movie" title="影视便签" subtitle="影视站点资源" tag="影视" />
+
+        <!-- 新增：站点类的“工具便签”区
+             说明：
+             - 标签约定为“工具”；
+             - 使用与网站/Git/知识一致的视觉与交互。 -->
+        <SiteNoteList id="tool" title="工具便签" subtitle="常用工具站点" tag="工具" />
+
+        <!-- 新增：站点类的“AI便签”区
+             说明：
+             - 标签约定为“AI”；
+             - 展示 AI 工具与教程类站点。 -->
+        <SiteNoteList id="ai" title="AI便签" subtitle="AI 工具与教程" tag="AI" />
       </div>
     </section>
   </div>
@@ -108,11 +150,17 @@ function refreshAuth(){
   try{ tokenRef.value = String(getToken() || '') }catch{ tokenRef.value = '' }
 }
 // 网站区已改用通用组件 SiteNoteList，父组件不再维护网站来源/数据。
+// 导航区块列表：新增“知识/影视/工具/AI 便签”，用于侧边导航与滚动定位
 const sections = [
   { id: 'hot', label: '热门' },
   { id: 'recent', label: '最近' },
-  { id: 'site', label: '网站便签' },
+  // 更新：导航同步改为“聚合便签”，与上方内容导航保持一致
+  { id: 'site', label: '聚合便签' },
   { id: 'git', label: 'git便签' },
+  { id: 'knowledge', label: '知识便签' },
+  { id: 'movie', label: '影视便签' },
+  { id: 'tool', label: '工具便签' },
+  { id: 'ai', label: 'AI便签' },
 ]
 const activeId = ref('hot')
 const contentRef = ref(null)
@@ -574,6 +622,45 @@ onMounted(() => {
  #git .note-item .meta { margin-top: 6px; font-size: 11px; }
  @media (max-width: 960px){ #git .note-list { grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; } }
  @media (max-width: 640px){ #git .note-list { grid-template-columns: 1fr; gap: 6px; } }
+
+ /* 知识便签区样式对齐网站/Git 便签区（仅作用于 #knowledge 区块）
+    说明：
+    - 统一列数、间距与卡片尺寸，保证一致的阅读体验；
+    - 使用区块 id #knowledge 限定作用范围，避免影响其他列表。 */
+ #knowledge .note-list { grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px; }
+ #knowledge .note-item { padding: 10px; height: 110px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); }
+ #knowledge .note-item .title { font-size: 14px; line-height: 1.5; }
+ #knowledge .note-item .content { font-size: 12px; line-height: 1.5; }
+ #knowledge .note-item .meta { margin-top: 6px; font-size: 11px; }
+ @media (max-width: 960px){ #knowledge .note-list { grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; } }
+ @media (max-width: 640px){ #knowledge .note-list { grid-template-columns: 1fr; gap: 6px; } }
+
+ /* 影视便签区样式：与网站/Git/知识一致（仅作用于 #movie 区块） */
+ #movie .note-list { grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px; }
+ #movie .note-item { padding: 10px; height: 110px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); }
+ #movie .note-item .title { font-size: 14px; line-height: 1.5; }
+ #movie .note-item .content { font-size: 12px; line-height: 1.5; }
+ #movie .note-item .meta { margin-top: 6px; font-size: 11px; }
+ @media (max-width: 960px){ #movie .note-list { grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; } }
+ @media (max-width: 640px){ #movie .note-list { grid-template-columns: 1fr; gap: 6px; } }
+
+ /* 工具便签区样式：与网站/Git/知识一致（仅作用于 #tool 区块） */
+ #tool .note-list { grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px; }
+ #tool .note-item { padding: 10px; height: 110px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); }
+ #tool .note-item .title { font-size: 14px; line-height: 1.5; }
+ #tool .note-item .content { font-size: 12px; line-height: 1.5; }
+ #tool .note-item .meta { margin-top: 6px; font-size: 11px; }
+ @media (max-width: 960px){ #tool .note-list { grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; } }
+ @media (max-width: 640px){ #tool .note-list { grid-template-columns: 1fr; gap: 6px; } }
+
+ /* AI 便签区样式：与网站/Git/知识一致（仅作用于 #ai 区块） */
+ #ai .note-list { grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px; }
+ #ai .note-item { padding: 10px; height: 110px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); }
+ #ai .note-item .title { font-size: 14px; line-height: 1.5; }
+ #ai .note-item .content { font-size: 12px; line-height: 1.5; }
+ #ai .note-item .meta { margin-top: 6px; font-size: 11px; }
+ @media (max-width: 960px){ #ai .note-list { grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; } }
+ @media (max-width: 640px){ #ai .note-list { grid-template-columns: 1fr; gap: 6px; } }
 @media (max-width: 720px){ .grid-two { grid-template-columns: 1fr; } }
 @media (max-width: 960px){
   .layout { flex-direction: column; }

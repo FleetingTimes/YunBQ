@@ -8,6 +8,7 @@
       <template v-if="isLoggedIn && showToggle">
         <el-radio-group v-model="source" size="small" @change="onSourceChange">
           <el-radio-button label="public">公开</el-radio-button>
+          <!-- 撤销聚合模式：恢复固定“我的”选项，仅登录可用 -->
           <el-radio-button label="mine">我的</el-radio-button>
         </el-radio-group>
       </template>
@@ -58,6 +59,7 @@
 <script setup>
 // 通用列表组件脚本逻辑：提供来源切换、数据请求与严格标签过滤。
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { http } from '@/api/http'
 import { getToken } from '@/utils/auth'
 // 站点便签工具函数：统一解析站点信息与跳转逻辑，严格标签过滤
@@ -73,7 +75,7 @@ import { snippet, siteName, siteDesc, hasTag, openSite } from '@/utils/siteNoteU
  * - pageSize：分页的每页条数（客户端分页），默认 12。
  * - showPagination：是否显示底部分页控件，默认 true。
  * - authorLabel：列表项左侧标签文案，默认 '站点'。
- */
+*/
 const props = defineProps({
   id: { type: String, required: true },
   title: { type: String, required: true },
@@ -109,9 +111,15 @@ function open(it){ openSite(it) }
  * 加载便签列表：与网站/Git 区一致，按来源请求并在前端严格过滤标签。
  * - 通过 q=tag 做粗筛；最终严格以标签为准（大小写不敏感）。
  */
+/**
+ * 加载便签列表：按来源请求并在前端进行严格标签过滤（大小写不敏感）。
+ * - public：仅公开；
+ * - mine：仅我的（需登录）。
+ */
 async function load(){
   try{
     isLoading.value = true
+    // 单一来源：公开或我的
     const params = { page: 1, size: 100, q: props.tag }
     if (source.value === 'mine' && isLoggedIn.value){
       Object.assign(params, { mineOnly: true })
@@ -120,8 +128,6 @@ async function load(){
     }
     const { data } = await http.get('/notes', { params, suppress401Redirect: true })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
-    // 严格标签过滤（大小写不敏感）
-    // 过滤后得到完整列表，交由客户端分页切片
     notes.value = (items || []).filter(n => hasTag(n, props.tag, true))
     // 每次重新加载时将页码重置为 1，并同步页码输入
     page.value = 1
@@ -131,9 +137,11 @@ async function load(){
 }
 
 // 来源切换：未登录时强制回退为 public。
+/**
+ * 来源切换：仅登录时允许“我的”；未登录强制回退“公开”。
+ */
 function onSourceChange(){
-  const src = isLoggedIn.value ? source.value : 'public'
-  source.value = src
+  if (!isLoggedIn.value && source.value !== 'public') source.value = 'public'
   load()
 }
 
@@ -146,6 +154,36 @@ onMounted(() => {
 
 // 登录态变化时重置来源为公开并重载。
 watch(isLoggedIn, () => { source.value = 'public'; load() })
+
+// 登录态刷新监听：确保退出登录后无需手动刷新即可隐藏控件并回退公开来源
+// 1) hash 与可见性变化：在同页退出/登录后刷新 token
+// 2) 兜底轻量轮询：每 1s 检查一次 token（避免某些场景下无事件触发）
+// 3) 路由变化：导航时也刷新一次（更稳妥）
+let authPoller = null
+function setupAuthListeners(){
+  const onHashChange = () => refreshAuth()
+  const onVisibilityChange = () => { if (!document.hidden) refreshAuth() }
+  window.addEventListener('hashchange', onHashChange)
+  window.addEventListener('visibilitychange', onVisibilityChange)
+  // 轮询兜底
+  authPoller = setInterval(refreshAuth, 1000)
+  // 路由变化时刷新
+  try{
+    const route = useRoute()
+    watch(() => route.fullPath, () => refreshAuth())
+  }catch{}
+  // 存储事件（跨标签页退出登录可感知）；同页更新不触发，但作为补充
+  const onStorage = (e) => { if (e.key === 'token') refreshAuth() }
+  window.addEventListener('storage', onStorage)
+  // 清理函数注册在 onUnmounted 中
+  onUnmounted(() => {
+    window.removeEventListener('hashchange', onHashChange)
+    window.removeEventListener('visibilitychange', onVisibilityChange)
+    window.removeEventListener('storage', onStorage)
+    if (authPoller){ clearInterval(authPoller); authPoller = null }
+  })
+}
+onMounted(setupAuthListeners)
 
 // 客户端分页：对过滤后的完整列表进行切片
 const total = computed(() => notes.value.length)
