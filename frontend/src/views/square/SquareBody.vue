@@ -10,24 +10,44 @@
     <section class="layout">
       <aside class="side-nav">
         <div class="nav-title">导航</div>
+        <!-- 侧边导航：支持子导航
+             说明：
+             - 基于 sections 数据结构，允许某个项（如 AI 便签）包含 children；
+             - 子导航以缩进列表展示，并可独立高亮与滚动定位；
+             - 样式上父级仍使用斜杠分隔，子级使用更轻的分隔符避免干扰。 -->
         <ul class="nav-list">
-          <li v-for="s in sections" :key="s.id" :class="{ break: s.id === 'site' }">
+          <!-- 更新：支持父项下方显示子导航（如 AI 便签下的“绘图”）
+               说明：
+               - 为有子项的父级 li 增加类名 has-children；
+               - 通过样式让 has-children 的 a 与子列表纵向排列；
+               - 去除父级项前的斜杠分隔，避免视觉干扰。 -->
+          <!-- 恢复：为有子项的父级 li 添加 has-children 类，使子导航纵向呈现 -->
+          <li v-for="s in sections" :key="s.id" :class="{ break: s.id === 'site', 'has-children': s.children && s.children.length }">
             <a href="javascript:;" :class="{ active: activeId === s.id }" @click="scrollTo(s.id)">{{ s.label }}</a>
+            <!-- 子导航渲染：仅当存在 children 时显示 -->
+            <ul v-if="s.children && s.children.length" class="sub-nav-list">
+              <li v-for="c in s.children" :key="c.id">
+                <a href="javascript:;" :class="{ active: activeId === c.id }" @click="scrollTo(c.id)">{{ c.label }}</a>
+              </li>
+            </ul>
           </li>
         </ul>
       </aside>
       <div class="content-scroll" ref="contentRef">
         <!-- 内容导航提示：同步展示区块名称，新增“知识/影视/工具/AI 便签” -->
         <div class="content-head">
-          <span>热门</span><span class="slash">/</span>
-          <span>最近</span><span class="slash">/</span>
+          <!-- 文案合并：顶部内容导航合并为“热门·最近”以与侧边导航一致 -->
+          <span>热门·最近</span><span class="slash">/</span>
           <!-- 更新：网站便签改为聚合便签，数据来源为标签“聚合” -->
           <span>聚合便签</span><span class="slash">/</span>
-          <span>Git便签</span><span class="slash">/</span>
+          <span>Git便签</span><span class="slash">/</span><span>git影音</span><span class="slash">/</span><span>git工具</span><span class="slash">/</span>
           <span>知识便签</span><span class="slash">/</span>
           <span>影视便签</span><span class="slash">/</span>
+          <!-- 顶部内容导航：新增音乐便签及其子项，保持与侧边导航统一的树状层级提示（文本提示，不影响侧边导航与滚动逻辑） -->
+          <span>音乐便签</span><span class="slash">/</span><span>在线音乐</span><span class="slash">/</span><span>音乐下载</span><span class="slash">/</span>
           <span>工具便签</span><span class="slash">/</span>
-          <span>AI便签</span>
+          <!-- 顶部内容导航：在 AI 便签后追加子类“AI·绘图”用于位置提示（不影响侧边导航与滚动逻辑） -->
+          <span>AI便签</span><span class="slash">/</span><span>AI·绘图</span>
         </div>
         <div class="grid-two">
         <div class="card" id="hot">
@@ -101,6 +121,18 @@
 
         <!-- 使用通用站点便签组件：抽象样式与数据逻辑，传入标签为“git” -->
         <SiteNoteList id="git" title="Git便签" subtitle="常用 Git 命令与参考" tag="git" />
+        <!-- 新增：子区块“git影音”
+             说明：
+             - 锚点 id 为 git-media，对应侧边子导航；
+             - 通过标签“git影音”严格过滤此类便签；
+             - 视觉样式与父区块一致，仅标题/副标题不同。 -->
+        <SiteNoteList id="git-media" title="Git · 影音" subtitle="与 Git 相关的影音资源" tag="git影音" />
+        <!-- 新增：子区块“git工具”
+             说明：
+             - 锚点 id 为 git-tool，对应侧边子导航；
+             - 通过标签“git工具”严格过滤；
+             - 视觉样式与父区块一致。 -->
+        <SiteNoteList id="git-tool" title="Git · 工具" subtitle="Git 配套工具与插件" tag="git工具" />
 
         <!-- 新增：站点类的“知识便签”区
              说明：
@@ -115,17 +147,36 @@
              - 复用通用组件 SiteNoteList，统一来源切换、分页与移动端行为。 -->
         <SiteNoteList id="movie" title="影视便签" subtitle="影视站点资源" tag="影视" />
 
+        <!-- 新增：站点类的“音乐便签”区
+             说明：
+             - 父区块用于展示标签为“音乐”的总览；
+             - 子区块“在线音乐/音乐下载”分别严格过滤对应标签；
+             - 与侧边导航的树状结构保持锚点一致（music / music-online / music-download）。 -->
+        <SiteNoteList id="music" title="音乐便签" subtitle="音乐站点资源" tag="音乐" />
+        <!-- 子区块：在线音乐（与侧边子导航 music-online 对应）
+             说明：
+             - 通过标签“在线音乐”严格过滤；
+             - 样式与父区块保持一致，仅标题与副标题不同。 -->
+        <SiteNoteList id="music-online" title="音乐 · 在线音乐" subtitle="在线音乐平台与工具" tag="在线音乐" />
+        <!-- 子区块：音乐下载（与侧边子导航 music-download 对应）
+             说明：
+             - 通过标签“音乐下载”严格过滤；
+             - 样式与父区块保持一致，仅标题与副标题不同。 -->
+        <SiteNoteList id="music-download" title="音乐 · 音乐下载" subtitle="音乐下载与资源" tag="音乐下载" />
+
         <!-- 新增：站点类的“工具便签”区
              说明：
              - 标签约定为“工具”；
              - 使用与网站/Git/知识一致的视觉与交互。 -->
         <SiteNoteList id="tool" title="工具便签" subtitle="常用工具站点" tag="工具" />
 
-        <!-- 新增：站点类的“AI便签”区
+        <!-- 新增：子区块“AI · 绘图”
              说明：
-             - 标签约定为“AI”；
-             - 展示 AI 工具与教程类站点。 -->
+             - 为站点类子便签添加独立卡片，锚点 id 对应侧边子导航（ai-draw）；
+             - 通过标签严格过滤（约定标签为“绘图”）；
+             - 放置在 AI 便签之后，形成父子层级的顺序关系。 -->
         <SiteNoteList id="ai" title="AI便签" subtitle="AI 工具与教程" tag="AI" />
+        <SiteNoteList id="ai-draw" title="AI · 绘图" subtitle="AI 绘图工具与案例" tag="绘图" />
       </div>
     </section>
   </div>
@@ -151,16 +202,37 @@ function refreshAuth(){
 }
 // 网站区已改用通用组件 SiteNoteList，父组件不再维护网站来源/数据。
 // 导航区块列表：新增“知识/影视/工具/AI 便签”，用于侧边导航与滚动定位
+// 导航配置：
+// - 合并“热门/最近”为单一项“热门·最近”，同时映射至两个内容锚点（hot/recent），以便滚动与高亮在两卡片附近都归属该项；
+// - 在 AI 项下保留子项“AI·绘图”树状展示；
+// - 其他项保持不变。
 const sections = [
-  { id: 'hot', label: '热门' },
-  { id: 'recent', label: '最近' },
+  // 合并项：热门·最近（别名锚点映射至 hot 与 recent）
+  { id: 'hot-recent', label: '热门·最近', aliasTargets: ['hot','recent'] },
   // 更新：导航同步改为“聚合便签”，与上方内容导航保持一致
   { id: 'site', label: '聚合便签' },
-  { id: 'git', label: 'git便签' },
+  // 更新：为 Git 便签添加两个子导航（git影音 / git工具）
+  // 说明：
+  // - 子导航以树状缩进显示，便于用户快速定位到子卡片；
+  // - 锚点 id 分别为 git-media / git-tool，与右侧内容区卡片的 id 对应；
+  // - 滚动定位与高亮通过现有 scrollTo/activeId 逻辑自动生效。
+  { id: 'git', label: 'git便签', children: [
+    { id: 'git-media', label: 'git影音' },
+    { id: 'git-tool', label: 'git工具' }
+  ] },
   { id: 'knowledge', label: '知识便签' },
   { id: 'movie', label: '影视便签' },
+  // 新增：站点类“音乐便签”，并包含两个子导航（在线音乐/音乐下载）
+  // 说明：
+  // - 顶层音乐便签用于展示总览（标签“音乐”）；
+  // - 子导航以树状缩进显示，锚点 id 用于滚动定位与高亮；
+  // - 子卡片分别过滤标签“在线音乐”和“音乐下载”。
+  { id: 'music', label: '音乐便签', children: [
+    { id: 'music-online', label: '在线音乐' },
+    { id: 'music-download', label: '音乐下载' }
+  ] },
   { id: 'tool', label: '工具便签' },
-  { id: 'ai', label: 'AI便签' },
+  { id: 'ai', label: 'AI便签', children: [ { id: 'ai-draw', label: 'AI·绘图' } ] },
 ]
 const activeId = ref('hot')
 const contentRef = ref(null)
@@ -512,25 +584,54 @@ onMounted(() => {
 // 网站区使用通用组件，父组件无需重置网站来源或数据。
 
 // 滚动控制与激活态
+// 滚动控制：
+// - 支持“别名锚点”（aliasTargets）：当点击合并项（如热门·最近）时，默认滚动到其第一个锚点（hot）；
+// - 其余项按原逻辑滚动到自身 id 对应的内容区块。
 function scrollTo(id){
   const container = contentRef.value
   if (!container) return
-  const el = container.querySelector('#' + id)
+  // 查找当前 section，若存在别名锚点，则优先使用第一个别名作为滚动目标
+  const s = sections.find(x => x.id === id)
+  const targetId = (s && Array.isArray(s.aliasTargets) && s.aliasTargets.length) ? s.aliasTargets[0] : id
+  const el = container.querySelector('#' + targetId)
   if (!el) return
   const top = el.offsetTop
   container.scrollTo({ top, behavior: 'smooth' })
   activeId.value = id
 }
 
+// 滚动高亮：
+// - 普通项：直接以自身 id 对应的内容锚点参与计算；
+// - 合并项（有 aliasTargets）：其别名锚点（如 hot/recent）都映射为该项的 id，
+//   因此在热门或最近附近滚动时，都会高亮“热门·最近”。
 function handleScroll(){
   const container = contentRef.value
   if (!container) return
   const scrollTop = container.scrollTop
-  const nodes = sections.map(s => ({ id: s.id, el: container.querySelector('#' + s.id) })).filter(x => x.el)
-  // 选取当前滚动位置最近的 section
-  let current = 'hot'
+  const nodes = []
+  for (const s of sections){
+    // 自身锚点（若有对应内容区块 id）
+    const elTop = container.querySelector('#' + s.id)
+    if (elTop) nodes.push({ id: s.id, el: elTop })
+    // 子项锚点（保持既有子导航支持）
+    if (s.children && s.children.length){
+      for (const c of s.children){
+        const elChild = container.querySelector('#' + c.id)
+        if (elChild) nodes.push({ id: c.id, el: elChild })
+      }
+    }
+    // 别名锚点：将别名的内容锚点映射到当前 section 的 id
+    if (Array.isArray(s.aliasTargets)){
+      for (const a of s.aliasTargets){
+        const elAlias = container.querySelector('#' + a)
+        if (elAlias) nodes.push({ id: s.id, el: elAlias })
+      }
+    }
+  }
+  const validNodes = nodes.filter(x => x.el)
+  let current = sections[0]?.id || 'hot-recent'
   let minDelta = Infinity
-  for (const n of nodes){
+  for (const n of validNodes){
     const delta = Math.abs(n.el.offsetTop - scrollTop)
     if (delta < minDelta){ minDelta = delta; current = n.id }
   }
@@ -552,14 +653,41 @@ onMounted(() => {
 .layout { display:flex; gap:12px; align-items:flex-start; }
 .side-nav { width:180px; border:none; border-radius:12px; background: transparent; padding:12px; position:fixed; left:12px; top:12px; z-index:10; }
 .side-nav .nav-title { font-weight:600; margin-bottom:8px; }
-.side-nav .nav-list { list-style:none; margin:0; padding:0; display:flex; flex-direction:row; flex-wrap:wrap; gap:8px; align-items:center; }
+/* 统一侧边导航为树状纵向布局
+   说明：
+   - 改为块级纵向排列，移除斜杠分隔；
+   - 在列表左侧绘制竖虚线作为树干；
+   - 每个项前绘制短横线与树干连接，形成父子层级的统一视觉。 */
+.side-nav .nav-list { list-style:none; margin:0; padding:0 0 0 16px; display:block; position:relative; }
+.side-nav .nav-list::before { content:""; position:absolute; left:8px; top:0; bottom:0; width:0; border-left:1px dashed #dcdfe6; }
 .side-nav .nav-list a { display:block; padding:8px 10px; border-radius:8px; color:#303133; text-decoration:none; transition: background-color .15s ease; }
 .side-nav .nav-list a:hover { background:#f5f7ff; }
 .side-nav .nav-list a.active { background:#ecf5ff; color:#409eff; }
-.side-nav .nav-list li { display:flex; align-items:center; }
-.side-nav .nav-list li + li::before { content:'/'; color:#909399; margin:0 4px; }
-.side-nav .nav-list li.break { flex-basis:100%; margin-top:6px; }
-.side-nav .nav-list li.break::before { content: none; }
+.side-nav .nav-list li { display:block; align-items:unset; position:relative; padding-left:12px; margin:4px 0; }
+/* 列表项连接树干：替代原有斜杠分隔符 */
+.side-nav .nav-list li::before { content:""; position:absolute; left:0; top:50%; width:8px; border-top:1px solid #dcdfe6; transform: translateY(-50%); }
+/* 分组断点：扩大间距以区分（原先 break 用于换行，现在用于加间距） */
+.side-nav .nav-list li.break { margin-top:10px; }
+.side-nav .nav-list li.break::before { content: ""; }
+/* 恢复父级 has-children 行为：
+   - 将父级 li 改为块级，使子导航纵向呈现并排版在父项下方；
+   - 移除父级项前的斜杠分隔，避免视觉干扰。 */
+.side-nav .nav-list li.has-children { display:block; }
+.side-nav .nav-list li.has-children::before { content: none; }
+/* 撤销样式：移除 has-children 的纵向布局与分隔符调整，恢复默认导航排列 */
+/* 子导航样式：缩进显示，分隔符更轻
+   说明：
+   - 子导航与父导航区分开，采用更小的字体与内边距；
+   - 去除父级的斜杠分隔，改用更轻的分隔符（或不显示分隔）。 */
+.sub-nav-list { list-style:none; margin:4px 0 0 16px; padding:0; display:block; position:relative; }
+/* 树状结构：在子导航左侧绘制一条竖线，增强父子层级感 */
+.sub-nav-list::before { content:""; position:absolute; left:6px; top:4px; bottom:4px; width:0; border-left:1px dashed #dcdfe6; }
+.sub-nav-list li { display:block; margin:4px 0; padding-left:12px; position:relative; }
+/* 每个子项前绘制短横线与竖线连接，模拟树状分支 */
+.sub-nav-list li::before { content:""; position:absolute; left:0; top:50%; width:8px; border-top:1px solid #dcdfe6; transform: translateY(-50%); }
+.sub-nav-list a { display:block; padding:6px 8px; border-radius:6px; color:#606266; text-decoration:none; transition: background-color .15s ease; font-size: 13px; }
+.sub-nav-list a:hover { background:#f6f8fe; }
+.sub-nav-list a.active { background:#eef5ff; color:#409eff; }
 .content-scroll { flex:1; max-height:70vh; overflow:auto; scroll-behavior:smooth; display:flex; flex-direction:column; gap:12px; }
 .content-scroll .card { scroll-margin-top:8px; }
 .content-head { display:flex; align-items:center; gap:6px; font-weight:600; color:#303133; margin: 4px 0 4px; }
@@ -567,6 +695,7 @@ onMounted(() => {
 .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; background: #fff; }
 .card-title { font-weight: 600; margin-bottom: 6px; }
 .card-desc { color: #606266; margin-bottom: 8px; }
+/* 撤销分组样式：删除 ai-group 的分组视觉，恢复为两个独立卡片 */
  .note-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
  .note-item { background:#fff; border:1px solid #ebeef5; border-radius:12px; padding:14px; height:140px; box-shadow:0 4px 12px rgba(0,0,0,0.06); cursor:pointer; transition: transform .15s ease, box-shadow .15s ease; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; }
  .note-item:hover { transform: translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.08); }
