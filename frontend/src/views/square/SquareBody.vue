@@ -13,6 +13,7 @@
            - 通过 v-model:activeId 绑定当前高亮项；
            - 监听 select 事件并调用 scrollTo，实现滚动到内容区块；
            - sections 数据结构保持不变，aliasTargets 的滚动映射由父组件 scrollTo 处理。 -->
+      <!-- 撤销：恢复默认粘性布局的侧边栏 -->
       <SideNav :sections="sections" v-model:activeId="activeId" @select="scrollTo" />
       <div class="content-scroll" ref="contentRef">
         <!-- 需求：隐藏顶部内容导航提示区域（红框圈住的横向标签文案）。
@@ -591,12 +592,20 @@ function scrollTo(id){
   // 适用于顶部阴影更强、装饰元素更厚重或页面缩放≥125%时，保证滚动后更充足的可视留白且无遮挡。
   // 注：偏移综合考虑页面标题（square-header）、全局顶栏（.topbar）与容器上内边距，确保滚动后无遮挡显示。
   const extra = 52
-  // 综合偏移：页面标题高度 + 顶部栏高度 + 容器上内边距 + 安全间距
-  const offset = titleH + topbarH + containerPadTop + extra
-  // 最终滚动目标位置：卡片顶部减去综合偏移，确保无遮挡显示
-  const top = Math.max(0, el.offsetTop - offset)
-  // 改为容器滚动：避免 scroll-margin-top 造成的固定空隙
-  container.scrollTo({ top, behavior: 'smooth' })
+  // 回退滚动模式：如果容器不再溢出（移除 max-height 后），使用整页滚动
+  const containerCanScroll = container.scrollHeight > (container.clientHeight + 1)
+  if (containerCanScroll){
+    // 容器滚动：综合偏移 = 标题 + 顶栏 + 容器上内边距 + 安全间距
+    const offset = titleH + topbarH + containerPadTop + extra
+    const top = Math.max(0, el.offsetTop - offset)
+    container.scrollTo({ top, behavior: 'smooth' })
+  }else{
+    // 整页滚动：使用元素相对文档的绝对位置，并忽略容器内边距
+    const rectTop = el.getBoundingClientRect().top + window.scrollY
+    const offset = titleH + topbarH + /* 页面级滚动不计容器内边距 */ 0 + extra
+    const top = Math.max(0, rectTop - offset)
+    window.scrollTo({ top, behavior: 'smooth' })
+  }
   activeId.value = id
 }
 
@@ -607,7 +616,9 @@ function scrollTo(id){
 function handleScroll(){
   const container = contentRef.value
   if (!container) return
-  const scrollTop = container.scrollTop
+  // 判断滚动模式：容器可滚动则读取容器滚动量，否则读取窗口滚动量
+  const containerCanScroll = container.scrollHeight > (container.clientHeight + 1)
+  const scrollTop = containerCanScroll ? container.scrollTop : window.scrollY
   const nodes = []
   for (const s of sections){
     // 自身锚点（若有对应内容区块 id）
@@ -632,7 +643,9 @@ function handleScroll(){
   let current = sections[0]?.id || 'hot-recent'
   let minDelta = Infinity
   for (const n of validNodes){
-    const delta = Math.abs(n.el.offsetTop - scrollTop)
+    // 计算与当前滚动位置的距离：容器模式用 offsetTop；页面模式用绝对位置
+    const pos = containerCanScroll ? n.el.offsetTop : (n.el.getBoundingClientRect().top + window.scrollY)
+    const delta = Math.abs(pos - scrollTop)
     if (delta < minDelta){ minDelta = delta; current = n.id }
   }
   activeId.value = current
@@ -651,7 +664,13 @@ onMounted(() => {
         ticking = false
       })
     }
-    container.addEventListener('scroll', onScroll, { passive: true }) 
+    // 根据滚动模式绑定事件：容器滚动或页面滚动
+    const containerCanScroll = container.scrollHeight > (container.clientHeight + 1)
+    if (containerCanScroll){
+      container.addEventListener('scroll', onScroll, { passive: true })
+    }else{
+      window.addEventListener('scroll', onScroll, { passive: true })
+    }
     // 初始化并监听窗口尺寸变化：将实际标题和内容提示高度写入 CSS 变量，供 scroll-margin-top 使用
     // 顶部提示已移除，取消写入 CSS 变量，仅通过 scrollTo 精确控制偏移
     const updateAnchorOffset = () => {}
@@ -724,7 +743,12 @@ onMounted(() => {
 .sub-nav-list a { display:block; padding:6px 8px; border-radius:6px; color:#606266; text-decoration:none; transition: background-color .15s ease; font-size: 13px; }
 .sub-nav-list a:hover { background:#f6f8fe; }
 .sub-nav-list a.active { background:#eef5ff; color:#409eff; }
-.content-scroll { flex:1; max-height:70vh; overflow:auto; scroll-behavior:smooth; display:flex; flex-direction:column; gap:12px; }
+/* 右侧内容容器：移除 max-height 限制，允许随页面自然延展
+   说明：
+   - 之前设置为 max-height: 70vh，导致底部留出 30% 视口的空白；
+   - 按“方案B”，移除该限制，使页面使用整页滚动，消除底栏上方的大间隙；
+   - 保留 overflow:auto 以兼容某些宽高布局情况下容器仍可能产生内部滚动。 */
+.content-scroll { flex:1; /* max-height: none */ overflow:auto; scroll-behavior:smooth; display:flex; flex-direction:column; gap:12px; }
 /*
   隐藏右侧内容区滚动条（跨浏览器），但仍保留滚动功能。
   说明：

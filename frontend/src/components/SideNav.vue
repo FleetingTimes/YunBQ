@@ -7,6 +7,7 @@
        - 事件：
          * select(id) 当点击子项或无子项的父项时触发，由父组件决定滚动或其他行为；
        - 样式：本组件包含自身样式，不依赖父组件 scoped 样式。 -->
+  <!-- 撤销：恢复默认粘性布局，不再固定到页面左侧 -->
   <aside class="side-nav">
     <div class="nav-title">导航</div>
     <ul class="nav-list">
@@ -52,6 +53,8 @@ const modelActiveId = computed({
   set(v){ emit('update:activeId', v) }
 })
 
+// 撤销：不再切换定位 class，统一使用默认样式
+
 // 父项点击：有子项 → 展开/折叠并高亮父项；无子项 → 触发选择事件
 function onParentClick(s){
   if (s && Array.isArray(s.children) && s.children.length){
@@ -76,7 +79,17 @@ function onChildClick(id){
   width: 220px; 
   flex: none; 
   position: sticky; 
-  top: 16px; 
+  /* 垂直偏移（向下移动）
+     说明：当侧边栏采用粘性定位 position: sticky 时，
+     通过 top 控制它在滚动容器顶部的贴附位置。
+     将该值改为更大可使侧栏整体“向下”移动。
+     可通过父容器声明 CSS 变量 --side-nav-offset-y 自定义此值。 */
+  top: var(--side-nav-offset-y, 16px); 
+  /* 水平偏移（向右移动）
+     说明：sticky 元素相对其所在的布局列对齐；
+     使用 margin-left 可以为侧栏在该列中增加向右的空隙。
+     可通过父容器声明 CSS 变量 --side-nav-offset-x 自定义此值。 */
+  margin-left: var(--side-nav-offset-x, 0px);
   align-self: flex-start; 
   /* 设置最大高度为视窗高度减去顶部偏移和底栏高度，确保不被底栏遮挡 */
   max-height: calc(100vh - 32px - 48px); 
@@ -87,6 +100,7 @@ function onChildClick(id){
   /* 隐藏滚动条 - IE/Edge */
   -ms-overflow-style: none;
 }
+/* 撤销：移除 fixed-left 固定定位样式，保持粘性定位 */
 .nav-title { font-weight: 600; color: #303133; margin-bottom: 8px; }
 .nav-list { list-style: none; margin: 0; padding: 0; }
 .nav-list li { display: block; margin: 6px 0; }
@@ -117,5 +131,6 @@ function onChildClick(id){
     max-height: none; 
     overflow-y: visible; 
   } 
+  /* 移动端：普通文档流布局，无需特殊处理 */
 }
 </style>

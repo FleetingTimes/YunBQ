@@ -35,5 +35,14 @@ function onSearch(q){ query.value = q || '' }
    --square-header-height: 12px;
    /* 将上下内边距设为 0，确保总高度尽量接近 20px（可按需改回 4px/6px/8px） */
    --square-header-padding-block: 0px;
+
+   /* 左侧侧边栏偏移配置
+      需求：将导航栏“向下、向右”移动一些以避开顶部元素或贴边区域。
+      用法：SideNav.vue 中读取以下变量以控制定位与间距：
+      - --side-nav-offset-y → 作用于 position: sticky 的 top（向下移动）
+      - --side-nav-offset-x → 作用于 margin-left（向右移动）
+      默认值分别为 16px/0px；此处设置为 36px/12px 以获得更舒适的间距。 */
+   --side-nav-offset-y: 36px;  /* 垂直向下偏移（粘性顶部距离） */
+   --side-nav-offset-x: 12px;  /* 水平向右偏移（列内左右空隙） */
   }
 </style>
