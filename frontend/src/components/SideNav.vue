@@ -13,9 +13,19 @@
     <ul class="nav-list">
       <li v-for="s in sections" :key="s.id" :class="{ break: s.id === 'site', 'has-children': s.children && s.children.length }">
         <!-- 父项点击：有子项则切换展开并高亮父项；无子项则触发选择事件 -->
-        <a href="javascript:;" :class="{ active: modelActiveId === s.id }" @click="onParentClick(s)">{{ s.label }}</a>
+        <!-- 父项高亮规则（折叠场景优化）：
+             说明：
+             - 当父项自身被选中（modelActiveId === s.id）时高亮；
+             - 当其子项被选中（modelActiveId 命中某个子项 id）时也高亮父项，
+               以便在“收起状态”下仍能看到导航的反馈。 -->
+        <a href="javascript:;" :class="{ active: modelActiveId === s.id || hasActiveChild(s) }" @click="onParentClick(s)">{{ s.label }}</a>
         <!-- 子导航：仅当存在 children 时渲染；默认折叠，展开后展示 -->
-        <ul v-if="s.children && s.children.length" class="sub-nav-list" v-show="isExpanded(s.id)">
+        <!-- 子导航显示规则（折叠场景优化）：
+             说明：
+             - 原逻辑仅在 isExpanded(s.id) 为真时显示子导航；
+             - 增强：当某个子项处于活跃状态（滚动联动选中）时，即使父项未手动展开，
+               也临时显示子导航，避免“右侧滚动到子卡片但左侧无显示反馈”的问题。 -->
+        <ul v-if="s.children && s.children.length" class="sub-nav-list" v-show="isExpanded(s.id) || hasActiveChild(s)">
           <li v-for="c in s.children" :key="c.id">
             <a href="javascript:;" :class="{ active: modelActiveId === c.id }" @click="onChildClick(c.id)">{{ c.label }}</a>
           </li>
@@ -32,7 +42,7 @@
 // - 内部维护 expandedIds（Set）以管理父项的展开/折叠状态；
 // - 点击子项或无子项的父项时，向父组件发出 select 事件；
 // - 父组件可根据 id 决定滚动、过滤或其他行为（例如 aliasTargets 映射在父组件处理）。
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps({
   // 导航配置：数组项包含 id/label/children，可选 aliasTargets 由父处理
@@ -45,7 +55,21 @@ const emit = defineEmits(['update:activeId', 'select'])
 // 本地展开状态：使用 Set 以获得 O(1) 插入/删除/查询性能
 const expandedIds = ref(new Set())
 function isExpanded(id){ return expandedIds.value.has(id) }
-function toggleExpanded(id){ const set = expandedIds.value; set.has(id) ? set.delete(id) : set.add(id) }
+// 展开/折叠（互斥）
+// 说明：
+// - 修改为“始终保持只展开一个父项”的互斥策略；
+// - 若点击的父项已处于展开状态，则折叠为“全部收起”（无任何父项展开）；
+// - 若点击其他父项，则仅展开该父项并折叠其他父项。
+function toggleExpanded(id){
+  const set = expandedIds.value
+  if (set.has(id)){
+    // 已展开 → 折叠为“全部收起”
+    expandedIds.value = new Set()
+  }else{
+    // 互斥展开：仅保留当前父项为展开状态
+    expandedIds.value = new Set([id])
+  }
+}
 
 // 代理 v-model:activeId（避免直接修改 props）
 const modelActiveId = computed({
@@ -54,6 +78,30 @@ const modelActiveId = computed({
 })
 
 // 撤销：不再切换定位 class，统一使用默认样式
+
+// 折叠场景增强：判断某个父项是否包含当前活跃子项
+// 说明：
+// - 当 modelActiveId 命中某个子项 id 时，返回 true；
+// - 用于在模板中高亮父项与临时显示子导航，解决“收起时无反馈”。
+function hasActiveChild(section){
+  try{
+    return Array.isArray(section?.children) && section.children.some(c => c.id === modelActiveId.value)
+  }catch{ return false }
+}
+
+// 折叠场景增强：当活跃项切换为某父项的子项时，自动展开该父项
+// 说明：
+// - 结合上面的临时显示规则，自动展开可保留更一致的交互体验；
+// - 展开仅针对包含当前活跃子项的父；不主动折叠其它父项，避免频繁抖动。
+watch(modelActiveId, (val) => {
+  try{
+    const sec = props.sections.find(s => Array.isArray(s.children) && s.children.some(c => c.id === val))
+    if (sec){
+      // 自动展开包含当前活跃子项的父项，同时保持互斥（只展开这一个）
+      expandedIds.value = new Set([sec.id])
+    }
+  }catch{ /* 忽略异常以保证渲染稳定 */ }
+})
 
 // 父项点击：有子项 → 展开/折叠并高亮父项；无子项 → 触发选择事件
 function onParentClick(s){
