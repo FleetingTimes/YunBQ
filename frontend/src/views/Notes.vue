@@ -54,7 +54,14 @@ const sectionsNotes = sideNavSections;
 /* 添加便签页容器：全宽铺满、取消左右内边距，使侧边栏靠页面左边 */
 .notes-container { width: 100%; margin: 0; padding: 0; }
 /* 顶栏包裹：限制最大宽度并居中，保持与全局 container 一致的视觉 */
-.topbar-wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+.topbar-wrap { 
+  /* 居中与宽度限制（与全局 container 一致） */
+  max-width: 1080px; margin: 0 auto; padding: 0 16px; 
+  /* 页面级吸顶：
+     说明：添加便签页的主体可能在不同布局下滚动，为确保顶栏始终固定在视窗顶部，
+     将顶栏包裹容器设置为粘性定位，并提升层级避免遮挡。 */
+  position: sticky; top: 0; background: #ffffff; z-index: 1000;
+}
 /* 页面布局：左侧侧边栏 + 右侧内容区 */
 .layout { display:flex; align-items:flex-start; gap:16px; }
 /* 右侧内容区：恢复为原先的视觉宽度（与全局 .container 接近）

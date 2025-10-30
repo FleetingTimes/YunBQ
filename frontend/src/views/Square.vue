@@ -1,7 +1,8 @@
 <template>
   <!-- 统一顶栏结构：顶栏置于广场容器之外，采用一致的 topbar-wrap 包裹以保证宽度与边距统一 -->
   <div class="topbar-wrap">
-    <AppTopBar @search="onSearch" />
+    <!-- 传递 solid 状态：当顶栏底部接触到内容卡片区域时，切换为纯白背景 -->
+    <AppTopBar :solid="topbarSolid" @search="onSearch" />
   </div>
   <div class="square-container">
     <!-- 回退：移除页面级顶栏吸顶与内容渐隐遮罩，恢复原始布局与滚动行为 -->
@@ -11,19 +12,57 @@
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent } from 'vue'
+import { ref, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const SquareBody = defineAsyncComponent(() => import('./square/SquareBody.vue'))
 
 const query = ref('')
 function onSearch(q){ query.value = q || '' }
+
+// 顶栏背景切换：默认透明；当滚动使顶栏底部接触到内容区域时，切换为纯白
+// 说明：
+// - 通过检测页面容器（.square-container）相对视窗的顶部位置与顶栏高度来判断接触；
+// - 当 container 顶部的可见位置 <= 顶栏高度，视为“顶栏底部接触到内容区域”，置 solid=true；
+// - 该方案无需修改内容组件，鲁棒且性能开销低。
+const topbarSolid = ref(false)
+
+function updateTopbarSolid(){
+  try{
+    const topbar = document.querySelector('.topbar')
+    const h = (topbar?.getBoundingClientRect()?.height) || 56
+    const containerTop = document.querySelector('.square-container')?.getBoundingClientRect()?.top ?? 0
+    topbarSolid.value = containerTop <= h
+  }catch{ /* 忽略异常以保证滚动过程中渲染稳定 */ }
+}
+
+onMounted(() => {
+  // 初始计算一次（避免进入页面时出现闪烁）
+  updateTopbarSolid()
+  // 监听滚动与视窗尺寸变化，保持状态同步
+  window.addEventListener('scroll', updateTopbarSolid, { passive: true })
+  window.addEventListener('resize', updateTopbarSolid)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', updateTopbarSolid)
+  window.removeEventListener('resize', updateTopbarSolid)
+})
 </script>
 
 <style scoped>
   /* 统一顶栏包裹：限定最大宽度为 1080px、居中显示，并保留左右 16px 安全边距
      说明：这使顶栏在所有页面显示为一致宽度，不受容器（如 .container/.square-container）影响 */
-  .topbar-wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  .topbar-wrap { 
+    /* 统一宽度与居中 */
+    max-width: 1080px; margin: 0 auto; padding: 0 16px; 
+    /* 页面级吸顶（sticky 受滚动容器影响）：
+       说明：
+       - 将包裹顶栏的外层容器设置为粘性定位，确保在各页面主滚动容器下也能生效；
+       - 设置层级，防止滚动时被内容遮挡；
+       - 背景交由顶栏组件控制（透明/纯白）以适配广场页的动态切换。 */
+    position: sticky; top: 0; z-index: 1000; /* 背景透明，交由 AppTopBar 根据 solid 控制 */
+  }
   /* 页面容器样式
      说明：
      - 在容器上声明 CSS 变量以配置子组件（SquareBody）里的广场标题区高度；

@@ -37,7 +37,14 @@ watch(() => route.query.q, (nv) => {
 </script>
 
 <style scoped>
-.topbar-wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+.topbar-wrap { 
+  /* 统一宽度与居中显示 */
+  max-width: 1080px; margin: 0 auto; padding: 0 16px; 
+  /* 页面级吸顶：
+     - 将顶栏外层容器设为粘性定位，确保在本页的滚动上下文中也能固定于顶部；
+     - 设置背景与层级，避免与下方内容发生视觉冲突。 */
+  position: sticky; top: 0; background: #ffffff; z-index: 1000;
+}
 .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 /* 回退说明：
    - 移除了页面级 :deep(.topbar) 吸顶与层级覆写；

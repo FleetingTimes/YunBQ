@@ -1,5 +1,10 @@
 <template>
-  <div class="header topbar">
+  <!-- 顶栏根节点：根据 solid 状态切换背景透明/纯白
+       说明：
+       - 默认透明（solid=false）：与页面背景融合；
+       - 触发接触内容区域（solid=true）：切换为纯白，避免与卡片内容叠加影响可读性；
+       - 具体触发逻辑由页面（如广场页）控制并以 prop 传入。 -->
+  <div class="header topbar" :class="{ solid }">
     <div class="brand" @click="goSquare" style="cursor:pointer;">
       <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
       <h1>云便签</h1>
@@ -215,6 +220,12 @@
 </template>
 
 <script setup>
+// 顶栏组件：支持吸顶与可控背景模式
+// 说明：
+// - 通过 props.solid 控制背景：false=透明，true=纯白；
+// - 页面（如广场页）可在滚动时判断与内容区域的接触程度并切换该状态；
+// - 组件内部不绑定滚动逻辑，保持通用性。
+const { solid = false } = defineProps({ solid: { type: Boolean, default: false } })
 import { reactive, ref, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { http, avatarFullUrl } from '@/api/http'
@@ -421,23 +432,38 @@ function onHoverLeave(){
 </script>
 
 <style scoped>
-/* 顶栏吸顶（保持透明，不做其它视觉改动）
+/* 顶栏吸顶与背景切换
    说明：
-   - 仅开启吸顶：position: sticky; top: 0;
-   - 保持透明：不添加背景、毛玻璃或阴影；
-   - 提升层级：避免被页面内容覆盖；
-   - 其它样式保持原状。 */
-/* 回退：取消顶栏吸顶，仅保留最初的基础样式
-   说明：
-   - 移除 position: sticky / top / z-index 等粘性定位相关属性；
-   - 恢复滚动时顶栏随页面正常滚动的行为；
-   - 保留网格布局与边框样式，避免引入新的视觉差异。 */
-.topbar { display: grid; grid-template-columns: 1fr minmax(260px, 520px) auto; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-/* 吸顶说明（仅启用粘性定位，不做额外修改）：
-   - position: sticky; top: 0; 让顶栏在滚动时固定在页面顶部；
-   - 保持现有样式，不增加背景、阴影或层级设置；
-   - 若滚动时出现与下方内容视觉重叠，这是透明背景的正常表现，
-     后续可在页面中按需添加占位或设置 z-index 进行优化（此处不改动）。 */
+   - 吸顶：position: sticky; top: 0; 保持顶栏在视窗顶部；
+   - 背景：默认透明（避免遮挡）；当 .solid 类存在时变为纯白（提升可读性）；
+   - 层级：统一设置 z-index，避免被页面内容覆盖。 */
+.topbar {
+  /* 布局：左中右三段（品牌 / 搜索 / 操作） */
+  display: grid;
+  grid-template-columns: 1fr minmax(260px, 520px) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e5e7eb;
+  /* 吸顶：粘性定位 + 顶部距离 */
+  position: sticky;
+  top: 0;
+  /* 覆盖层级 */
+  z-index: 1000;
+  /* 默认背景透明：在未接触内容区域时，避免与页面背景产生突兀分割 */
+  background: transparent;
+}
+/* 接触内容区域：切换为纯白背景以提升可读性 */
+.topbar.solid { 
+  /* 接触内容时改为纯白背景，提高可读性 */
+  background: #ffffff; 
+  /* 仅在纯白状态下添加轻微阴影，增强层次感但不过度抢眼 */
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+/* 说明：
+   - 若页面存在父容器设置了 overflow 或独立滚动容器，
+     sticky 将受最近的可滚动祖先影响；通常页面主体滚动为 body，无需特殊处理。
+   - 若需要半透明或毛玻璃效果，可改为 background: rgba(255,255,255,0.65) 并添加 backdrop-filter。 */
 /* 回退：移除品牌悬停增强效果，保留基础布局在文件后部定义 */
 
 /* 回退：移除搜索输入的毛玻璃态与深度选择器覆写，保留基础样式在文件后部定义 */
