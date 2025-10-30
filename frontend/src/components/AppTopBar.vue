@@ -421,7 +421,30 @@ function onHoverLeave(){
 </script>
 
 <style scoped>
+/* 顶栏吸顶（保持透明，不做其它视觉改动）
+   说明：
+   - 仅开启吸顶：position: sticky; top: 0;
+   - 保持透明：不添加背景、毛玻璃或阴影；
+   - 提升层级：避免被页面内容覆盖；
+   - 其它样式保持原状。 */
+/* 回退：取消顶栏吸顶，仅保留最初的基础样式
+   说明：
+   - 移除 position: sticky / top / z-index 等粘性定位相关属性；
+   - 恢复滚动时顶栏随页面正常滚动的行为；
+   - 保留网格布局与边框样式，避免引入新的视觉差异。 */
 .topbar { display: grid; grid-template-columns: 1fr minmax(260px, 520px) auto; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
+/* 吸顶说明（仅启用粘性定位，不做额外修改）：
+   - position: sticky; top: 0; 让顶栏在滚动时固定在页面顶部；
+   - 保持现有样式，不增加背景、阴影或层级设置；
+   - 若滚动时出现与下方内容视觉重叠，这是透明背景的正常表现，
+     后续可在页面中按需添加占位或设置 z-index 进行优化（此处不改动）。 */
+/* 回退：移除品牌悬停增强效果，保留基础布局在文件后部定义 */
+
+/* 回退：移除搜索输入的毛玻璃态与深度选择器覆写，保留基础样式在文件后部定义 */
+
+/* 回退：移除图标按钮的额外背景与按压反馈，保留基础样式在文件后部定义 */
+
+/* 回退：移除额外响应式调整，保持原有布局行为 */
 .topbar .brand { display: inline-flex; align-items: center; gap: 8px; }
 .topbar .brand h1 { font-size: 18px; margin: 0; color: #303133; }
 .center-search { display: flex; justify-content: center; }

@@ -1,6 +1,11 @@
 <template>
-  <div class="container">
+  <!-- 统一顶栏结构：将顶栏放置在页面容器之外，并使用 topbar-wrap 控制宽度与左右安全边距
+       这样每个页面的顶栏都以一致的 1080px 最大宽度居中显示，不受各页面内部 .container/.square-container 的宽度与内边距影响 -->
+  <div class="topbar-wrap">
     <AppTopBar @search="onSearch" />
+  </div>
+  <div class="container">
+    <!-- 回退：移除页面级顶栏吸顶与内容渐隐遮罩，恢复原始布局与滚动行为 -->
     <div class="page-header">
       <h2>搜索结果</h2>
     </div>
@@ -32,5 +37,10 @@ watch(() => route.query.q, (nv) => {
 </script>
 
 <style scoped>
+.topbar-wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
 .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+/* 回退说明：
+   - 移除了页面级 :deep(.topbar) 吸顶与层级覆写；
+   - 移除了内容区域的顶部渐隐遮罩；
+   - 恢复到最初的布局展示，避免对顶栏组件产生间接影响。 */
 </style>

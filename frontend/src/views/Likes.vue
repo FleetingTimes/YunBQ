@@ -1,6 +1,10 @@
 <template>
-  <div class="container">
+  <!-- 统一顶栏结构：将顶栏置于页面容器之外，采用 topbar-wrap 保持一致宽度与边距 -->
+  <div class="topbar-wrap">
     <AppTopBar @search="onSearch" />
+  </div>
+  <div class="container">
+    <!-- 回退：移除页面级顶栏吸顶与内容渐隐遮罩，恢复原始布局与滚动行为 -->
     <div class="page-header">
       <h2>我喜欢的</h2>
     </div>
@@ -150,6 +154,7 @@ function sampleDanmu(){
 </script>
 
 <style scoped>
+.topbar-wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
 .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 .year-group { margin-bottom: 16px; }
 .year-header { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:#ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.06); position: sticky; top: 6px; z-index: 10; }
@@ -159,4 +164,6 @@ function sampleDanmu(){
 :deep(.meta.bottom-left .el-tag--info) {
   display: none !important;
 }
+/* 回退说明：移除页面级 :deep(.topbar) 吸顶覆写及 .content-fade 渐隐遮罩，
+   保持原有样式与滚动行为，避免对顶栏组件造成间接影响。 */
 </style>

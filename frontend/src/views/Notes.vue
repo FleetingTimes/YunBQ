@@ -13,6 +13,7 @@
     <div class="topbar-wrap">
       <AppTopBar @search="onSearch" />
     </div>
+    <!-- 回退：移除页面级顶栏吸顶与内容渐隐遮罩，恢复原始布局与滚动行为 -->
     <section class="layout">
       <!-- 通用侧边栏：父子导航 + 默认折叠；
            说明：添加便签页的侧边导航仅用于页面结构与视觉一致性，不进行标签快捷填充或滚动锚点。 -->
@@ -60,6 +61,9 @@ const sectionsNotes = sideNavSections;
    - 设置最大宽度 1080px，并加入左右 16px 内边距
    - 这样可以在保证左侧导航贴边的同时，右侧编辑区不显得过宽 */
 .content-scroll { flex: 1 1 auto; min-width:0; max-width:1080px; padding: 0 16px; }
+
+/* 回退说明：移除了页面级 :deep(.topbar) 吸顶覆写与内容区的渐隐遮罩，
+   保持添加便签页原始样式与滚动展示，不影响顶栏组件与其它页面。 */
 
 @media (max-width: 960px){
   .layout { display:block; }

@@ -42,3 +42,5 @@ body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSyste
 .auth-title { display:flex; align-items:center; gap:10px; margin-bottom: 12px; }
 .auth-title h2 { margin:0; font-size: 20px; letter-spacing: 1px; }
 .auth-actions { display:flex; gap:8px; align-items:center; margin-top: 8px; }
+/* 回退说明：移除全局顶栏占位工具类与变量（topbar-spacer），
+   恢复页面原始布局，不再对顶栏进行内容避让。 */

@@ -13,7 +13,15 @@ export const sideNavSections = [
   // 说明：
   // - 仅更新展示文案（label），不改变 id（仍为 'knowledge'），以保持锚点滚动与组件引用稳定；
   // - 调整顺序：将“云盘集”置于“git集”之前，侧边导航优先展示云盘。
-  { id: 'knowledge', label: '云盘集' },
+  // 云盘集：新增子导航“云盘搜索 / 云盘工具”，并设置父项滚动映射到首子项
+  // 说明：
+  // - 为父项添加 children，使侧边栏展示树状子导航；
+  // - 增加 aliasTargets:['knowledge-search']，点击父项时滚动到首子卡片；
+  // - 子项 id 命名遵循约定 <parent>-<child>，便于内容区锚点一致与维护。
+  { id: 'knowledge', label: '云盘集', aliasTargets: ['knowledge-search'], children: [
+    { id: 'knowledge-search', label: '云盘搜索' },
+    { id: 'knowledge-tool', label: '云盘工具' }
+  ] },
   // Git 集：将原“git便签”改为“git集”，子导航保持不变
   // 说明：
   // - 仅修改 label 文案，不改变 id 及子项结构；
