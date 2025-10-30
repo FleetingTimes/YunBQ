@@ -21,11 +21,12 @@
           <span>热门·最近</span><span class="slash">/</span>
           <!-- 更新：网站便签改为聚合便签，数据来源为标签“聚合” -->
           <span>聚合便签</span><span class="slash">/</span>
-          <!-- 撤销：顶部内容导航不再展示父项“Git便签”，仅保留其子项文案提示
+          <!-- 顺序调整：将“云盘集”置于 git 子项之前，保持与侧边导航一致 -->
+          <span>云盘集</span><span class="slash">/</span>
+          <!-- 顶部内容导航不展示父项“git集”，仅保留其子项文案提示（git影音 / git工具）
                原因：父导航内容区已取消分组容器，回退为直接显示子卡片；
                因此顶部文案与侧边导航保持“仅子项”一致，避免层级冗余。 -->
           <span>git影音</span><span class="slash">/</span><span>git工具</span><span class="slash">/</span>
-          <span>知识便签</span><span class="slash">/</span>
           <!-- 更新：顶部内容导航显示影视便签的五个子项文案
                说明：与侧边导航子项保持一致，便于用户快速了解影视便签的内容分类 -->
           <span>在线影视</span><span class="slash">/</span><span>影视软件</span><span class="slash">/</span><span>短视频</span><span class="slash">/</span><span>短视频下载</span><span class="slash">/</span><span>在线动漫</span><span class="slash">/</span>
@@ -33,9 +34,12 @@
                原因：父导航内容区已取消分组容器，回退为直接显示子卡片；
                因此顶部文案与侧边导航保持“仅子项”一致。 -->
           <span>在线音乐</span><span class="slash">/</span><span>音乐下载</span><span class="slash">/</span>
-          <span>工具便签</span><span class="slash">/</span>
-          <!-- 顶部内容导航：在 AI 便签后追加子类“AI·绘图”用于位置提示（不影响侧边导航与滚动逻辑） -->
-          <span>AI便签</span><span class="slash">/</span><span>AI·绘图</span>
+          <!-- 新增：顶部内容提示增加“图书集”，与侧边导航保持一致 -->
+          <span>图书集</span><span class="slash">/</span>
+          <!-- 文案更新：侧边导航改为“工具集”，顶部同步更新为“工具集” -->
+          <span>工具集</span><span class="slash">/</span>
+          <!-- 顶部内容导航：更新“AI便签”为“AI集”，子类文案改为“AI绘图”，与侧边导航一致 -->
+          <span>AI集</span><span class="slash">/</span><span>AI绘图</span>
         </div>
         <div class="grid-two">
         <div class="card" id="hot">
@@ -107,26 +111,27 @@
              - 仅更换数据过滤标签与区块标题，不改变样式与交互。 -->
         <SiteNoteList id="site" title="聚合便签" subtitle="推荐站点" tag="聚合" />
 
+        <!-- 云盘集区块：调整位置至git区块之前，与侧边导航顺序保持一致
+             说明：
+             - 移动到git卡片之前，确保内容区顺序与导航栏"云盘集 → git集"的顺序一致；
+             - id 仍为 "knowledge"，确保侧边导航锚点滚动稳定；
+             - tag 仍为 "知识"，暂不调整数据来源标签，避免影响过滤行为。 -->
+        <SiteNoteList id="knowledge" title="云盘集" subtitle="站点知识精选" tag="知识" />
+
         <!-- 撤销：移除 Git 父分组容器（div#git），恢复子卡片直接渲染
-             目的：回退到“父导航不显示内容区，仅展示子卡片”的设计；
+             目的：回退到"父导航不显示内容区，仅展示子卡片"的设计；
              实现：删除包裹容器，保留子卡片组件，使滚动与锚点仍按子项工作。 -->
-        <!-- 子区块“git影音” → 严格过滤标签“git影音” -->
+        <!-- 子区块"git影音" → 严格过滤标签"git影音" -->
         <SiteNoteList id="git-media" title="Git · 影音" subtitle="与 Git 相关的影音资源" tag="git影音" />
-        <!-- 子区块“git工具” → 严格过滤标签“git工具” -->
+        <!-- 子区块"git工具" → 严格过滤标签"git工具" -->
         <SiteNoteList id="git-tool" title="Git · 工具" subtitle="Git 配套工具与插件" tag="git工具" />
 
-        <!-- 新增：站点类的“知识便签”区
+        <!-- 更新：站点类的"影视集"区（原"影视便签"）
              说明：
-             - 复用通用组件 SiteNoteList；
-             - 通过标签严格过滤（大小写不敏感），此处约定标签为“知识”；
-             - 列表样式与网站/Git 区一致，保持统一视觉。 -->
-        <SiteNoteList id="knowledge" title="知识便签" subtitle="站点知识精选" tag="知识" />
-
-        <!-- 新增：站点类的"影视便签"区
-             说明：
-             - 标签约定为"影视"；
-             - 复用通用组件 SiteNoteList，统一来源切换、分页与移动端行为。 -->
-        <SiteNoteList id="movie" title="影视便签" subtitle="影视站点资源" tag="影视" />
+             - 仅更新展示文案为"影视集"，保持标签与数据筛选逻辑不变；
+             - 标签约定仍为"影视"，复用通用组件 SiteNoteList 的严格过滤；
+             - 来源切换、分页与移动端行为保持一致。 -->
+        <!-- 撤销：移除"影视集"父卡片区（id="movie"）。父导航点击将滚动到首子项 movie-online。 -->
 
         <!-- 新增：影视便签子卡片区域
              说明：
@@ -162,19 +167,41 @@
         <!-- 子区块：音乐下载（标签“音乐下载”） -->
         <SiteNoteList id="music-download" title="音乐 · 音乐下载" subtitle="音乐下载与资源" tag="音乐下载" />
 
-        <!-- 新增：站点类的“工具便签”区
+        <!-- 新增：图书集父区块与两个子区块
              说明：
-             - 标签约定为“工具”；
-             - 使用与网站/Git/知识一致的视觉与交互。 -->
-        <SiteNoteList id="tool" title="工具便签" subtitle="常用工具站点" tag="工具" />
+             - 父区块“图书集”展示标签为“图书”的总览内容；
+             - 子区块“在线图书 / 图书下载”分别严格过滤对应标签；
+             - 锚点 id 与侧边导航子项一致（book-online / book-download），用于滚动定位与高亮。 -->
+        <!-- 撤销：移除“图书集”父卡片区（id="book"）。父导航点击将滚动到首子项 book-online。 -->
+        <!-- 子区块：在线图书（标签“在线图书”） -->
+        <SiteNoteList id="book-online" title="图书 · 在线图书" subtitle="在线阅读与图书平台" tag="在线图书" />
+        <!-- 子区块：图书下载（标签“图书下载”） -->
+        <SiteNoteList id="book-download" title="图书 · 图书下载" subtitle="图书下载与资源" tag="图书下载" />
 
-        <!-- 新增：子区块“AI · 绘图”
+        <!-- 更新：工具区
+             说明：
+             - 父区块“工具集”用于展示“工具”标签的总览；
+             - 子区块新增“文件工具 / 影音工具 / 其他工具”，分别严格过滤对应标签；
+             - id 与侧边导航子项一致（tool-file / tool-media / tool-other），用于滚动定位与高亮。 -->
+        <!-- 撤销：移除“工具集”父卡片区（id="tool"）。父导航点击将滚动到首子项 tool-file。 -->
+        <!-- 子区块：文件工具（标签“文件工具”） -->
+        <SiteNoteList id="tool-file" title="工具 · 文件工具" subtitle="文件处理与转换工具" tag="文件工具" />
+        <!-- 子区块：影音工具（标签“影音工具”） -->
+        <SiteNoteList id="tool-media" title="工具 · 影音工具" subtitle="音视频处理与播放相关工具" tag="影音工具" />
+        <!-- 子区块：其他工具（标签“其他工具”） -->
+        <SiteNoteList id="tool-other" title="工具 · 其他工具" subtitle="其他常用站点工具" tag="其他工具" />
+
+        <!-- 更新：子区块“AI绘图”（原文案“AI · 绘图”）
              说明：
              - 为站点类子便签添加独立卡片，锚点 id 对应侧边子导航（ai-draw）；
-             - 通过标签严格过滤（约定标签为“绘图”）；
+             - 数据来源标签改为“AI绘图”（原为“绘图”），确保与侧边导航文案一致；
+             - 组件内部将以 props.tag 严格过滤，大小写不敏感（见 SiteNoteList 说明）。
              - 放置在 AI 便签之后，形成父子层级的顺序关系。 -->
-        <SiteNoteList id="ai" title="AI便签" subtitle="AI 工具与教程" tag="AI" />
-        <SiteNoteList id="ai-draw" title="AI · 绘图" subtitle="AI 绘图工具与案例" tag="绘图" />
+        <!-- 父区块标题更新：将“AI便签”改为“AI集”，仅更新文案，id 不变 -->
+        <!-- 撤销：移除“AI集”父卡片区（id="ai"）。父导航点击将滚动到首子项 ai-draw。 -->
+        <!-- 子区块标题更新：移除中间点，改为“AI绘图”，仅更新文案，id 不变
+             数据标签同步：将 tag 从“绘图”修改为“AI绘图”，以匹配后端与内容标签。 -->
+        <SiteNoteList id="ai-draw" title="AI绘图" subtitle="AI 绘图工具与案例" tag="AI绘图" />
       </div>
     </section>
   </div>
