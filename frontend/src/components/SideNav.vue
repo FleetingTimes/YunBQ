@@ -71,8 +71,22 @@ function onChildClick(id){
 </script>
 
 <style scoped>
-/* 侧边栏总体布局：窄列、粘性定位、竖向导航 */
-.side-nav { width: 220px; flex: none; position: sticky; top: 16px; align-self: flex-start; }
+/* 侧边栏总体布局：窄列、粘性定位、竖向导航，支持滚动 */
+.side-nav { 
+  width: 220px; 
+  flex: none; 
+  position: sticky; 
+  top: 16px; 
+  align-self: flex-start; 
+  /* 设置最大高度为视窗高度减去顶部偏移和底栏高度，确保不被底栏遮挡 */
+  max-height: calc(100vh - 32px - 48px); 
+  /* 当内容超出最大高度时启用滚动，但隐藏滚动条 */
+  overflow-y: auto; 
+  /* 隐藏滚动条 - Firefox */
+  scrollbar-width: none;
+  /* 隐藏滚动条 - IE/Edge */
+  -ms-overflow-style: none;
+}
 .nav-title { font-weight: 600; color: #303133; margin-bottom: 8px; }
 .nav-list { list-style: none; margin: 0; padding: 0; }
 .nav-list li { display: block; margin: 6px 0; }
@@ -90,5 +104,18 @@ function onChildClick(id){
 .sub-nav-list a:hover { background: #f6f8fe; }
 .sub-nav-list a.active { background: #eef5ff; color: #409eff; }
 
-@media (max-width: 960px){ .side-nav { width: 100%; position: static; } }
+/* 隐藏WebKit浏览器（Chrome/Safari）的滚动条 */
+.side-nav::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 960px){ 
+  .side-nav { 
+    width: 100%; 
+    position: static; 
+    /* 移动端取消最大高度限制 */
+    max-height: none; 
+    overflow-y: visible; 
+  } 
+}
 </style>
