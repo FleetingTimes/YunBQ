@@ -266,8 +266,13 @@ onUnmounted(() => {
 <style scoped>
 /* 列表基础样式：保持与页面统一的卡片风格与尺寸设置（与网站/Git 区一致） */
 .note-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px; }
-.note-item { background:#fff; border:1px solid #ebeef5; border-radius:12px; padding:10px; height:110px; box-shadow:0 3px 10px rgba(0,0,0,0.05); cursor:pointer; transition: transform .15s ease, box-shadow .15s ease; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; }
-.note-item:hover { transform: translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.08); }
+.note-item { background:#fff; border:1px solid #ebeef5; border-radius:12px; padding:10px; height:110px; box-shadow:0 3px 10px rgba(0,0,0,0.05); cursor:pointer; transition: transform .15s ease, box-shadow .15s ease, background-color .2s ease; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; }
+/* 便签项悬停效果：浅蓝色背景 + 轻微上移 + 阴影增强 */
+.note-item:hover { 
+  background-color: #e6f4ff; 
+  transform: translateY(-2px); 
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08); 
+}
 .note-item .title { color:#303133; font-size:14px; font-weight:600; line-height:1.5; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient: vertical; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; }
 .note-item .content { color:#303133; font-size:12px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient: vertical; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; }
 

@@ -591,8 +591,20 @@ function scrollTo(id){
   const targetId = (s && Array.isArray(s.aliasTargets) && s.aliasTargets.length) ? s.aliasTargets[0] : id
   const el = container.querySelector('#' + targetId)
   if (!el) return
-  const top = el.offsetTop
-  container.scrollTo({ top, behavior: 'smooth' })
+  // 动态计算滚动偏移量，避免“云便签·广场”标题与顶部内容提示遮挡
+  // 说明：
+  // - 标题区域（.square-header）不在滚动容器内，但会占据页面顶部空间；
+  // - 顶部内容提示（.content-head）在滚动容器内，也需要计入偏移；
+  // - 通过读取实际高度来计算更准确的偏移量，并预留额外安全间距。
+  const titleEl = document.querySelector('.square-header')
+  const headEl = container.querySelector('.content-head')
+  const titleH = titleEl ? titleEl.offsetHeight : 0
+  const headH = headEl ? headEl.offsetHeight : 0
+  const extra = 16 // 额外安全间距，避免卡片紧贴标题
+  const offset = titleH + headH + extra
+  const top = Math.max(0, el.offsetTop - offset)
+  // 采用 scrollIntoView，并结合 CSS 的 scroll-margin-top 实现更稳健的避挡
+  el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
   activeId.value = id
 }
 
@@ -636,7 +648,21 @@ function handleScroll(){
 
 onMounted(() => {
   const container = contentRef.value
-  if (container){ container.addEventListener('scroll', handleScroll, { passive: true }) }
+  if (container){ 
+    container.addEventListener('scroll', handleScroll, { passive: true }) 
+    // 初始化并监听窗口尺寸变化：将实际标题和内容提示高度写入 CSS 变量，供 scroll-margin-top 使用
+    const updateAnchorOffset = () => {
+      const titleEl = document.querySelector('.square-header')
+      const headEl = container.querySelector('.content-head')
+      const titleH = titleEl ? titleEl.offsetHeight : 0
+      const headH = headEl ? headEl.offsetHeight : 0
+      const extra = 20 // 额外安全间距，适配不同缩放/字体大小
+      const offset = titleH + headH + extra
+      container.style.setProperty('--anchorOffset', offset + 'px')
+    }
+    updateAnchorOffset()
+    window.addEventListener('resize', updateAnchorOffset)
+  }
 })
 </script>
 
@@ -685,7 +711,7 @@ onMounted(() => {
 .sub-nav-list a:hover { background:#f6f8fe; }
 .sub-nav-list a.active { background:#eef5ff; color:#409eff; }
 .content-scroll { flex:1; max-height:70vh; overflow:auto; scroll-behavior:smooth; display:flex; flex-direction:column; gap:12px; }
-.content-scroll .card { scroll-margin-top:8px; }
+.content-scroll .card { scroll-margin-top: var(--anchorOffset, 128px); }
 .content-head { display:flex; align-items:center; gap:6px; font-weight:600; color:#303133; margin: 4px 0 4px; }
 .content-head .slash { color:#909399; }
 .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; background: #fff; }
