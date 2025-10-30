@@ -39,6 +39,8 @@ import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
 import DanmuWall from '@/components/DanmuWall.vue'
 
+// Props 恢复为原始定义：仅保留 query 与 showComposer
+// 说明：添加便签页侧边栏不再进行标签快捷填充，因此移除 quickTags。
 const props = defineProps({ query: { type: String, default: '' }, showComposer: { type: Boolean, default: true } })
 
 const router = useRouter()

@@ -28,7 +28,11 @@
       <!-- 列表项：统一展示站点名与介绍，点击打开链接 -->
       <li class="note-item" v-for="it in pagedNotes" :key="it.id" @click="open(it)" role="button" v-show="!isLoading">
         <div class="title">{{ siteName(it) }}</div>
-        <div class="content">{{ siteDesc(it) || snippet(it.content || '') }}</div>
+        <!-- 便签简介：鼠标悬停时显示完整内容，使用浏览器原生 title 属性 -->
+        <div class="content content-with-tooltip" 
+             :title="siteDesc(it) || snippet(it.content || '')">
+          {{ siteDesc(it) || snippet(it.content || '') }}
+        </div>
         <div class="meta">
           <div class="left"><span class="author">{{ authorLabel }}</span></div>
           <div class="right"><span class="time"></span></div>
@@ -266,6 +270,11 @@ onUnmounted(() => {
 .note-item:hover { transform: translateY(-2px); box-shadow:0 8px 20px rgba(0,0,0,0.08); }
 .note-item .title { color:#303133; font-size:14px; font-weight:600; line-height:1.5; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient: vertical; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; }
 .note-item .content { color:#303133; font-size:12px; line-height:1.5; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient: vertical; overflow:hidden; word-break:break-word; overflow-wrap:anywhere; }
+
+/* 简化 tooltip：仅使用浏览器原生 title 属性显示完整简介内容 */
+.content-with-tooltip { 
+  cursor: default; 
+}
 .note-item .meta { display:flex; justify-content:space-between; align-items:center; margin-top:6px; color:#606266; font-size:11px; }
 .note-item .meta .left { display:flex; align-items:center; gap:6px; min-width:0; flex:1; }
 .note-item .meta .right { display:flex; align-items:center; gap:6px; color:#909399; flex:none; }

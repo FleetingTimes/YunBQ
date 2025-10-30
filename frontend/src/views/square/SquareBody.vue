@@ -8,37 +8,12 @@
     </header>
 
     <section class="layout">
-      <aside class="side-nav">
-        <div class="nav-title">导航</div>
-        <!-- 侧边导航：支持子导航
-             说明：
-             - 基于 sections 数据结构，允许某个项（如 AI 便签）包含 children；
-             - 子导航以缩进列表展示，并可独立高亮与滚动定位；
-             - 样式上父级仍使用斜杠分隔，子级使用更轻的分隔符避免干扰。 -->
-        <ul class="nav-list">
-          <!-- 更新：支持父项下方显示子导航（如 AI 便签下的“绘图”）
-               说明：
-               - 为有子项的父级 li 增加类名 has-children；
-               - 通过样式让 has-children 的 a 与子列表纵向排列；
-               - 去除父级项前的斜杠分隔，避免视觉干扰。 -->
-          <!-- 恢复：为有子项的父级 li 添加 has-children 类，使子导航纵向呈现 -->
-          <li v-for="s in sections" :key="s.id" :class="{ break: s.id === 'site', 'has-children': s.children && s.children.length }">
-            <!-- 修改：父项点击行为改为展开/折叠子导航而非滚动
-                 说明：
-                 - 默认子导航折叠（不展示）；
-                 - 点击父项时切换展开状态，并将 activeId 设为父项以高亮；
-                 - 非父项（无 children）仍按原逻辑滚动到对应内容区。 -->
-            <a href="javascript:;" :class="{ active: activeId === s.id }" @click="onParentClick(s)">{{ s.label }}</a>
-            <!-- 子导航渲染：仅当存在 children 时显示；默认折叠，展开时展示
-                 使用 v-show 控制显隐以保留子元素结构，避免频繁销毁/重建 -->
-            <ul v-if="s.children && s.children.length" class="sub-nav-list" v-show="isExpanded(s.id)">
-              <li v-for="c in s.children" :key="c.id">
-                <a href="javascript:;" :class="{ active: activeId === c.id }" @click="scrollTo(c.id)">{{ c.label }}</a>
-              </li>
-            </ul>
-          </li>
-        </ul>
-      </aside>
+      <!-- 抽取：使用通用侧边栏组件 SideNav（父子导航、默认折叠、选择事件）
+           说明：
+           - 通过 v-model:activeId 绑定当前高亮项；
+           - 监听 select 事件并调用 scrollTo，实现滚动到内容区块；
+           - sections 数据结构保持不变，aliasTargets 的滚动映射由父组件 scrollTo 处理。 -->
+      <SideNav :sections="sections" v-model:activeId="activeId" @select="scrollTo" />
       <div class="content-scroll" ref="contentRef">
         <!-- 内容导航提示：同步展示区块名称，新增“知识/影视/工具/AI 便签” -->
         <div class="content-head">
@@ -211,6 +186,9 @@ import { useRoute } from 'vue-router'
 import { http } from '@/api/http'
 import { getToken } from '@/utils/auth'
 import SiteNoteList from '@/components/SiteNoteList.vue'
+import SideNav from '@/components/SideNav.vue'
+// 抽取：从公共配置导入侧边栏导航，保持与“添加便签”页一致
+import { sideNavSections } from '@/config/navSections'
 
 const hotNotes = ref([])
 const recentNotes = ref([])
@@ -223,79 +201,10 @@ const isLoggedIn = computed(() => !!(tokenRef.value && tokenRef.value.trim()))
 function refreshAuth(){
   try{ tokenRef.value = String(getToken() || '') }catch{ tokenRef.value = '' }
 }
-// 网站区已改用通用组件 SiteNoteList，父组件不再维护网站来源/数据。
-// 导航区块列表：新增“知识/影视/工具/AI 便签”，用于侧边导航与滚动定位
-// 导航配置：
-// - 合并“热门/最近”为单一项“热门·最近”，同时映射至两个内容锚点（hot/recent），以便滚动与高亮在两卡片附近都归属该项；
-// - 在 AI 项下保留子项“AI·绘图”树状展示；
-// - 其他项保持不变。
-const sections = [
-  // 合并项：热门·最近（别名锚点映射至 hot 与 recent）
-  { id: 'hot-recent', label: '热门·最近', aliasTargets: ['hot','recent'] },
-  // 更新：导航同步改为“聚合便签”，与上方内容导航保持一致
-  { id: 'site', label: '聚合便签' },
-  // 更新：为 Git 便签添加两个子导航（git影音 / git工具）
-  // 说明：
-  // - 子导航以树状缩进显示，便于用户快速定位到子卡片；
-  // - 锚点 id 分别为 git-media / git-tool，与右侧内容区卡片的 id 对应；
-  // - 滚动定位与高亮通过现有 scrollTo/activeId 逻辑自动生效。
-  // 撤销：移除父项别名映射（aliasTargets），仅保留子项锚点用于滚动与高亮
-  { id: 'git', label: 'git便签', children: [
-    { id: 'git-media', label: 'git影音' },
-    { id: 'git-tool', label: 'git工具' }
-  ] },
-  { id: 'knowledge', label: '知识便签' },
-  // 更新：为影视便签添加四个子导航（在线影视/影视软件/短视频/短视频下载）
-  // 说明：
-  // - 子导航以树状缩进显示，便于用户快速定位到子卡片；
-  // - 锚点 id 分别为 movie-online / movie-software / movie-short / movie-download，与右侧内容区卡片的 id 对应；
-  // - 滚动定位与高亮通过现有 scrollTo/activeId 逻辑自动生效。
-  { id: 'movie', label: '影视便签', children: [
-    { id: 'movie-online', label: '在线影视' },
-    { id: 'movie-software', label: '影视软件' },
-    { id: 'movie-short', label: '短视频' },
-    { id: 'movie-download', label: '短视频下载' },
-    // 新增：在线动漫子导航
-    // 说明：为影视便签添加动漫分类，锚点 id 为 movie-anime，与内容区卡片对应
-    { id: 'movie-anime', label: '在线动漫' }
-  ] },
-  // 新增：站点类“音乐便签”，并包含两个子导航（在线音乐/音乐下载）
-  // 说明：
-  // - 顶层音乐便签用于展示总览（标签“音乐”）；
-  // - 子导航以树状缩进显示，锚点 id 用于滚动定位与高亮；
-  // - 子卡片分别过滤标签“在线音乐”和“音乐下载”。
-  // 撤销：移除父项别名映射（aliasTargets），仅保留子项锚点用于滚动与高亮
-  { id: 'music', label: '音乐便签', children: [
-    { id: 'music-online', label: '在线音乐' },
-    { id: 'music-download', label: '音乐下载' }
-  ] },
-  { id: 'tool', label: '工具便签' },
-  { id: 'ai', label: 'AI便签', children: [ { id: 'ai-draw', label: 'AI·绘图' } ] },
-]
+// 导航配置改为公共导入，确保与添加便签页一致、便于维护
+const sections = sideNavSections
 const activeId = ref('hot')
 const contentRef = ref(null)
-// 新增：子导航展开状态集合
-// 说明：
-// - 使用一个 Set 存储已展开的父项 id；默认不含任何父项，表示全部折叠；
-// - 选择 Set 是为了 O(1) 的查找与插入/删除，适合频繁切换；
-// - 通过辅助方法 isExpanded/toggleExpanded 提供模板友好的接口。
-const expandedIds = ref(new Set())
-function isExpanded(id){ return expandedIds.value.has(id) }
-function toggleExpanded(id){
-  const set = expandedIds.value
-  if (set.has(id)) set.delete(id)
-  else set.add(id)
-}
-// 父项点击：若有子项则展开/折叠并高亮父项；否则按原逻辑滚动
-function onParentClick(s){
-  if (s && Array.isArray(s.children) && s.children.length){
-    toggleExpanded(s.id)
-    // 高亮父项以反馈当前上下文，滚动交由用户点击子项控制
-    activeId.value = s.id
-    return
-  }
-  scrollTo(s?.id)
-}
 const pageSize = 4
 const pageHot = ref(1)
 const pageRecent = ref(1)
