@@ -22,7 +22,8 @@
         <div class="card" id="hot">
           <div class="card-title">热门便签</div>
           <div class="card-desc">基于收藏、点赞与时效综合排序</div>
-          <ul class="note-list">
+          <!-- 网站便签列表：撤销上一步的尺寸缩小，恢复默认列表样式 -->
+  <ul class="note-list">
             <li class="note-item" v-for="it in hotPageItems" :key="it.id" @click="goNote(it)" role="button">
               <div class="title">{{ tagTitle(it) }}</div>
               <div class="content">{{ snippet(it.content || it.title) }}</div>
@@ -80,11 +81,28 @@
 
         <div class="card" id="site">
           <div class="card-title">网站便签</div>
-          <div class="card-desc">推荐站点</div>
+          <div class="card-desc" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <span>推荐站点</span>
+            <!-- 控件：登录后显示，用于切换“公开/我的”网站便签；未登录隐藏此控件。
+                 行为：
+                 - 未登录：默认显示公开网站便签，不渲染控件；
+                 - 已登录：默认显示公开网站便签，可在此控件中切换为“我的网站便签”。 -->
+            <template v-if="isLoggedIn">
+              <el-radio-group v-model="siteSource" size="small" @change="onSiteSourceChange">
+                <el-radio-button label="public">公开</el-radio-button>
+                <el-radio-button label="mine">我的</el-radio-button>
+              </el-radio-group>
+            </template>
+          </div>
           <ul class="note-list">
+            <!-- 网站便签：仅展示“网站名”，点击跳转到对应链接。
+                 注意：数据可能只有 content，其中包含网站名与链接地址。
+                 为适配不同数据结构，显示名优先取 title；若没有 title，则从链接解析域名作为显示名。 -->
             <li class="note-item" v-for="it in siteNotes" :key="it.id" @click="goSite(it)" role="button">
-              <div class="title">{{ it.title }}</div>
-              <div class="content">{{ snippet(it.content || '') }}</div>
+              <div class="title">{{ siteName(it) }}</div>
+              <!-- 显示网站介绍：若存在中间行内容则展示，否则为空白，以统一格式（首行名称、末行 URL、中间为介绍）。 -->
+              <div class="content">{{ siteDesc(it) }}</div>
+              <!-- 省略内容简介，仅保留网站名以满足需求 -->
               <div class="meta">
                 <div class="left">
                   <span class="author">站点</span>
@@ -123,14 +141,32 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { http } from '@/api/http'
+import { getToken } from '@/utils/auth'
 
 const hotNotes = ref([])
 const recentNotes = ref([])
-const siteNotes = ref([
-  { id: 'site-emby', title: 'emby.wiki', content: 'Emby 指南与更新', url: 'https://emby.wiki' }
-])
+// 网站便签数据源：只显示“我的便签”中标签为“网站”的便签
+// 说明：
+// - 数据来源统一通过后端接口 `/api/notes` 获取；
+// - 请求参数包含 `mineOnly=true` 以确保仅返回“我的便签”；
+// - 前端再次严格按标签过滤，仅保留标签集合中含“网站”的便签；
+// - 便签的 `content` 解析遵循：首行名称 / 中间介绍 / 倒数第二行 URL / 最后一行标签（忽略）。
+const siteNotes = ref([])
+// 登录状态（响应式）：
+// - 通过一个响应式 tokenRef 来驱动 isLoggedIn；
+// - 监听 hash 路由变化与页面可见性变化，及时刷新登录状态；
+// - 这样在退出登录后无需手动刷新也能隐藏控件与重载公开网站便签。
+const tokenRef = ref('')
+const isLoggedIn = computed(() => !!(tokenRef.value && tokenRef.value.trim()))
+function refreshAuth(){
+  try{ tokenRef.value = String(getToken() || '') }catch{ tokenRef.value = '' }
+}
+// 网站便签数据源：'public' 公开网站便签；'mine' 我的网站便签（仅登录时可选）
+// 默认 'public'，未登录时强制为 'public' 并隐藏控件。
+const siteSource = ref('public')
 const sections = [
   { id: 'hot', label: '热门' },
   { id: 'recent', label: '最近' },
@@ -231,10 +267,192 @@ function goNote(it){
 }
 
 function goSite(it){
-  if (it && it.url) {
-    const url = String(it.url)
+  // 跳转逻辑：统一按“末行 URL”为主；若未提供，则从内容中提取第一个 URL。
+  const url = siteUrl(it)
+  if (url) {
     window.open(url, '_blank', 'noopener')
   }
+}
+
+/**
+ * 从文本中提取第一个 URL。
+ * 支持 http/https 形式，简单鲁棒处理常见的链接分隔与尾随标点。
+ */
+function extractFirstUrl(text){
+  const s = String(text || '')
+  // 粗略 URL 正则：匹配 http(s):// 开头直到空白或右括号、中文标点前
+  const re = /(https?:\/\/[^\s)\]\u3002\uFF1B\uFF0C]+)/i
+  const m = s.match(re)
+  return m ? m[1] : ''
+}
+
+/**
+ * 统一解析网站便签内容，约定格式：
+ *  - 第一行为网站名
+ *  - 最后一行为 URL 地址
+ *  - 中间的行为网站介绍（可选，多行将合并为一行展示）
+ * 若未严格遵循，仍尽力解析并给出合理的 name/desc/url。
+ */
+function parseSiteInfoFromContent(text){
+  const s = String(text || '').replace(/`/g, '').trim()
+  if (!s) return { name: '', desc: '', url: '' }
+  const lines = s.split(/\r?\n+/).map(l => l.trim()).filter(Boolean)
+  // 识别“标签行”：常见为多个 #tag 或以“标签/Tags”开头的行，用于在便签末行标注，不参与简介
+  const isTagsLine = (line) => {
+    const t = String(line || '').trim()
+    if (!t) return false
+    if (/^(标签|tags?):?/i.test(t)) return true
+    // 形如 “#前端 #Vue #教程” 的情况
+    if (/^#\S+(?:\s+#\S+)*$/i.test(t)) return true
+    return false
+  }
+  // 查找最后一个包含 URL 的行
+  const urlRe = /https?:\/\/\S+/i
+  let urlIdx = -1
+  let url = ''
+  for (let i = lines.length - 1; i >= 0; i--){
+    const m = lines[i].match(urlRe)
+    if (m){ urlIdx = i; url = m[0]; break }
+  }
+  // 网站名：优先第一行
+  let name = lines.length ? lines[0] : ''
+  name = String(name).replace(/["'“”‘’《》「」\[\]\(\)]+/g, '').trim()
+  // 介绍：第一行与末行之间的所有行合并为一行
+  let desc = ''
+  if (urlIdx > 0){
+    const descLines = lines.slice(1, urlIdx)
+    desc = descLines.join(' ').trim()
+  }else if (lines.length > 1){
+    // 无 URL 行：若末行是“标签行”，介绍取除首行与末行外的中间行；否则取除首行外全部
+    const lastIsTags = isTagsLine(lines[lines.length - 1])
+    const descLines = lastIsTags ? lines.slice(1, lines.length - 1) : lines.slice(1)
+    desc = descLines.join(' ').trim()
+  }
+  return { name, desc, url }
+}
+
+/**
+ * 取得站点 URL：优先 it.url；否则从 it.content 中提取。
+ */
+function siteUrl(it){
+  if (!it) return ''
+  const direct = String(it.url || '').trim()
+  if (direct) return direct
+  // 优先末行 URL，其次回退为全文第一个 URL
+  const info = parseSiteInfoFromContent(it.content)
+  if (info.url) return info.url
+  return extractFirstUrl(it.content)
+}
+
+/**
+ * 取得用于展示的站点名：
+ * 1) 优先使用 title
+ * 2) 若无 title，则尝试从 URL 的域名解析（如 example.com）
+ * 3) 仍不可得则回退为 content 的片段
+ */
+function siteName(it){
+  if (!it) return '未知站点'
+  // 优先使用 title 字段作为网站名（当数据本身已提供网站名时，更可靠）
+  const t = String(it.title || '').trim()
+  if (t) return t
+  // 次级：从 content 中解析“首行网站名”（适配名称+介绍+URL 的统一格式）
+  const info = parseSiteInfoFromContent(it?.content)
+  if (info.name) return info.name
+  // 再回退：域名/URL
+  const url = siteUrl(it)
+  if (url){
+    try{ const u = new URL(url); return u.hostname || url }catch{ return url }
+  }
+  // 最后回退：内容片段
+  return snippetTitle(it?.content)
+}
+
+/**
+ * 从 content 文本中解析“网站名”。
+ * 优先识别 Markdown 链接格式：[名称](https://example.com)
+ * 若为“名称 + URL”的顺序（如：掘金 https://juejin.cn 或 掘金 `https://juejin.cn`），
+ * 将 URL 之前的文本作为网站名，并进行清理（去除引号、反引号、分隔符等）。
+ */
+function parseSiteNameFromContent(text){
+  const s = String(text || '').trim()
+  if (!s) return ''
+  // 1) Markdown 链接格式：[名称](url)
+  const md = s.match(/\[([^\]]+)\]\(\s*https?:\/\/[^\s)]+\s*\)/i)
+  if (md && md[1]){
+    const name = String(md[1]).trim()
+    if (name) return name
+  }
+  // 2) 支持“网站名 + 换行 + 链接地址”以及同一行的“名称 + URL”（允许反引号包裹 URL）
+  //    思路：
+  //    - 先按行拆分，找到第一行 URL；
+  //    - 若存在，则选择其上一行（或最近的非 URL 行）作为网站名；
+  //    - 若行内未找到 URL，则回退到全文检索第一个 URL，并取其前面的文本作为名称。
+  const cleaned = s.replace(/`/g, '')
+  const lines = cleaned.split(/\r?\n+/).map(l => l.trim()).filter(Boolean)
+  const isUrlLine = (line) => /https?:\/\/\S+/i.test(line)
+  let firstUrlLineIndex = -1
+  for (let i = 0; i < lines.length; i++){
+    if (isUrlLine(lines[i])){ firstUrlLineIndex = i; break }
+  }
+  if (firstUrlLineIndex >= 0){
+    // 在 URL 之前寻找最近的非 URL 行作为名称（典型：第 0 行是名称，第 1 行是 URL）
+    for (let j = firstUrlLineIndex - 1; j >= 0; j--){
+      if (!isUrlLine(lines[j])){
+        let name = lines[j]
+        name = name
+          .replace(/["'“”‘’《》「」\[\]\(\)`]+/g, '')
+          .replace(/[|｜:：\-—–·•]+$/g, '')
+          .trim()
+        if (name) return name
+      }
+    }
+    // 如果所有前序行都不可用，尝试用域名/URL
+    const urlLine = lines[firstUrlLineIndex]
+    const urlFromLineMatch = urlLine.match(/https?:\/\/\S+/i)
+    const urlFromLine = urlFromLineMatch ? urlFromLineMatch[0] : ''
+    if (urlFromLine){
+      try{ const u = new URL(urlFromLine); return u.hostname || urlFromLine }catch{ return urlFromLine }
+    }
+  }
+  // 3) 回退：文本 + URL 在同一行（或未按行拆分找到 URL）
+  const url = extractFirstUrl(cleaned)
+  if (url){
+    const idx = cleaned.indexOf(url)
+    if (idx > 0){
+      let name = cleaned.slice(0, idx).trim()
+      name = name
+        .replace(/["'“”‘’《》「」\[\]\(\)`]+/g, '')
+        .replace(/[|｜:：\-—–·•]+$/g, '')
+        .trim()
+      if (name) return name
+    }
+    try{ const u = new URL(url); return u.hostname || url }catch{ return url }
+  }
+  // 3) 没有 URL：清除可能的 URL 内容并截断一段文本
+  const noUrlText = s.replace(/https?:\/\/\S+/g, '').trim()
+  return snippetTitle(noUrlText)
+}
+
+/**
+ * 取得网站介绍：
+ *  - 若内容遵循“首行名称、末行链接”，则取中间行合并为简介；
+ *  - 否则回退为空字符串，实现“无介绍则空白”的展示；
+ *    如需更强回退可改为片段截断（但本需求指向空白）。
+ */
+function siteDesc(it){
+  if (!it) return ''
+  // 解析中间行作为简介
+  const info = parseSiteInfoFromContent(it.content)
+  let desc = String(info.desc || '').trim()
+  // 兼容场景：数据提供了 title 作为网站名，而 content 只有一行介绍，且 URL 不在 content 中
+  // 在这种情况下，解析不出中间行简介（因为没有 URL 行），这里将 content 作为简介显示
+  if (!desc){
+    const s = String(it.content || '').trim()
+    const hasUrl = /https?:\/\/\S+/i.test(s)
+    const isTagsLine = /^(标签|tags?):?/i.test(s) || /^#\S+(?:\s+#\S+)*$/i.test(s)
+    if (s && !hasUrl && !isTagsLine){ desc = s }
+  }
+  return desc
 }
 
 const gitNotes = ref([
@@ -271,7 +489,82 @@ async function loadRecent(){
   }catch(e){ recentNotes.value = [] }
 }
 
-onMounted(() => { loadHot(); loadRecent(); })
+/**
+ * 判断便签是否包含“网站”标签（严格按标签匹配，不仅是内容包含）。
+ * - 同时检查 `tags` 字段与 `content` 内的内联 #标签；
+ * - 标签统一规范化，去除开头的 `#` 与多余分隔符；
+ */
+function hasWebsiteTag(n){
+  const fieldTags = normalizeTags(n.tags)
+  const contentTags = extractTagsFromContent(n.content || '')
+  const all = [...fieldTags, ...contentTags].map(t => String(t || '').trim()).filter(Boolean)
+  return all.some(t => t === '网站')
+}
+
+/**
+ * 加载网站便签：依据来源（公开 / 我的）请求后端，并在前端再次严格过滤“网站”标签。
+ * - source='public'：获取公开便签（`isPublic=true`，未登录时仅公开）；
+ * - source='mine'：仅获取我的便签（`mineOnly=true`，登录后可用）。
+ * - 同时传 `q=网站` 进行粗筛，降低传输体量；最终仍以前端严格标签过滤为准。
+ */
+async function loadSites(source = 'public'){
+  try{
+    const params = { page: 1, size: 100, q: '网站' }
+    if (source === 'mine' && isLoggedIn.value){
+      // 我的便签：仅作者本人，公开与私有均可；如需仅公开可加 isPublic=true
+      Object.assign(params, { mineOnly: true })
+    }else{
+      // 公开网站便签：任何人可见
+      Object.assign(params, { isPublic: true })
+    }
+    const { data } = await http.get('/notes', { params, suppress401Redirect: true })
+    const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
+    // 前端严格过滤标签为“网站”
+    siteNotes.value = (items || []).filter(hasWebsiteTag)
+  }catch(e){
+    // 失败时置空，避免残留旧数据
+    siteNotes.value = []
+  }
+}
+
+/**
+ * 控件切换回调：根据选择加载来源（公开/我的）。
+ * - 未登录时强制回退为 'public' 并隐藏控件（由模板层处理）。
+ */
+function onSiteSourceChange(){
+  const src = isLoggedIn.value ? siteSource.value : 'public'
+  loadSites(src)
+}
+
+// 页面挂载：加载热门/最近与网站便签（网站便签仅来源于“我的便签”且标签为“网站”）
+onMounted(() => {
+  loadHot();
+  loadRecent();
+  // 初始：未登录/已登录均默认显示公开网站便签
+  siteSource.value = 'public'
+  loadSites('public')
+  // 初始化登录状态并添加监听，确保退出登录后无需手动刷新也能更新控件显示
+  refreshAuth()
+  const onHashChange = () => refreshAuth()
+  const onVisibilityChange = () => { if (!document.hidden) refreshAuth() }
+  window.addEventListener('hashchange', onHashChange)
+  window.addEventListener('visibilitychange', onVisibilityChange)
+  // 兜底：轻量轮询，确保在同路由退出登录也能及时更新
+  const authPoller = setInterval(refreshAuth, 1000)
+  // 路由变化也刷新一次（更稳妥）
+  const route = useRoute()
+  watch(() => route.fullPath, () => refreshAuth())
+  // 清理监听
+  onUnmounted(() => {
+    window.removeEventListener('hashchange', onHashChange)
+    window.removeEventListener('visibilitychange', onVisibilityChange)
+    clearInterval(authPoller)
+  })
+})
+
+// 当登录状态发生变化时（例如登录/退出），重载网站便签来源：保持默认公开
+// 当登录状态变化时，重置来源为公开并重新加载
+watch(isLoggedIn, () => { siteSource.value = 'public'; loadSites('public') })
 
 // 滚动控制与激活态
 function scrollTo(id){
@@ -344,6 +637,21 @@ onMounted(() => {
 .note-list .content { color: #303133; margin-bottom: 6px; }
 .note-list .meta { color: #606266; font-size: 12px; display: flex; gap: 10px; }
 .note-list .empty { color: #909399; background: #fff; border: 1px dashed #e5e7eb; }
+
+ /* 仅缩小“网站便签”区卡片尺寸（不影响热门/最近/Git）
+    说明：
+    - 使用区块 id 选择器 #site 限定作用范围，避免污染其他列表；
+    - 调整列表列数、卡片内边距与高度、字体大小与间距；
+    - 响应式在不同断点下保持合理密度与可读性。 */
+ #site .note-list { grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px; }
+ #site .note-item { padding: 10px; height: 110px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); }
+ #site .note-item .title { font-size: 14px; line-height: 1.5; }
+ #site .note-item .content { font-size: 12px; line-height: 1.5; }
+ #site .note-item .meta { margin-top: 6px; font-size: 11px; }
+
+ /* 响应式断点：窄屏下减列以保证可读性 */
+ @media (max-width: 960px){ #site .note-list { grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; } }
+ @media (max-width: 640px){ #site .note-list { grid-template-columns: 1fr; gap: 6px; } }
 @media (max-width: 720px){ .grid-two { grid-template-columns: 1fr; } }
 @media (max-width: 960px){
   .layout { flex-direction: column; }
