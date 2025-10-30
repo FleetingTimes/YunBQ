@@ -118,21 +118,49 @@
 
         <div class="card" id="git">
           <div class="card-title">Git便签</div>
-          <div class="card-desc">常用 Git 命令与参考</div>
+          <div class="card-desc" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+            <span>常用 Git 命令与参考</span>
+            <!-- 控件：登录后显示，用于切换“公开/我的”Git便签；未登录隐藏此控件。
+                 行为：
+                 - 未登录：默认显示公开 Git 便签，不渲染控件；
+                 - 已登录：默认显示公开 Git 便签，可在此控件中切换为“我的 Git 便签”。 -->
+            <template v-if="isLoggedIn">
+              <el-radio-group v-model="gitSource" size="small" @change="onGitSourceChange">
+                <el-radio-button label="public">公开</el-radio-button>
+                <el-radio-button label="mine">我的</el-radio-button>
+              </el-radio-group>
+            </template>
+          </div>
           <ul class="note-list">
-            <li class="note-item" v-for="it in gitNotes" :key="it.id" @click="goGit(it)" role="button">
-              <div class="title">{{ it.title }}</div>
-              <div class="content">{{ snippet(it.content || '') }}</div>
+            <!-- 骨架加载：在数据请求期间显示占位卡片，避免空白跳变 -->
+            <template v-if="isGitLoading">
+              <li class="note-item skeleton" v-for="i in 6" :key="'git-skel-' + i">
+                <div class="title skeleton-line" style="width:70%"></div>
+                <div class="content skeleton-line" style="width:90%"></div>
+                <div class="meta">
+                  <div class="left"><span class="author skeleton-pill" style="width:60px"></span></div>
+                  <div class="right"><span class="time skeleton-pill" style="width:80px"></span></div>
+                </div>
+              </li>
+            </template>
+            <!-- 展示与网站便签区一致：仅显示“名称”和“简介”，点击打开对应链接 -->
+            <li class="note-item" v-for="it in gitNotes" :key="it.id" @click="goGit(it)" role="button" v-show="!isGitLoading">
+              <!-- 名称：优先使用标题；若无标题则从内容首行或 URL 域名解析（沿用网站解析逻辑） -->
+              <div class="title">{{ siteName(it) }}</div>
+              <!-- 简介：沿用网站解析逻辑，从内容中间行合并为简介；若无则回退到内容摘要 -->
+              <div class="content">{{ siteDesc(it) || snippet(it.content || '') }}</div>
               <div class="meta">
                 <div class="left">
-                  <span class="author">命令</span>
+                  <!-- 为保持与网站便签一致，这里也显示“站点” -->
+                  <span class="author">站点</span>
                 </div>
                 <div class="right">
                   <span class="time"></span>
                 </div>
               </div>
             </li>
-            <li v-if="!gitNotes.length" class="empty">暂无Git便签</li>
+            <!-- 空态：仅在非加载时且无数据时展示 -->
+            <li v-if="!isGitLoading && !gitNotes.length" class="empty">暂无Git便签</li>
           </ul>
         </div>
       </div>
@@ -167,6 +195,9 @@ function refreshAuth(){
 // 网站便签数据源：'public' 公开网站便签；'mine' 我的网站便签（仅登录时可选）
 // 默认 'public'，未登录时强制为 'public' 并隐藏控件。
 const siteSource = ref('public')
+// Git 便签数据源：'public' 公开 Git 便签；'mine' 我的 Git 便签（仅登录时可选）
+// 默认 'public'，未登录时强制为 'public' 并隐藏控件。
+const gitSource = ref('public')
 const sections = [
   { id: 'hot', label: '热门' },
   { id: 'recent', label: '最近' },
@@ -455,21 +486,19 @@ function siteDesc(it){
   return desc
 }
 
-const gitNotes = ref([
-  { id: 'git-init', title: 'git init', content: '初始化仓库，创建 .git 目录', url: 'https://git-scm.com/docs/git-init' },
-  { id: 'git-clone', title: 'git clone <url>', content: '克隆远程仓库到本地', url: 'https://git-scm.com/docs/git-clone' },
-  { id: 'git-status', title: 'git status', content: '查看工作区与暂存区的状态', url: 'https://git-scm.com/docs/git-status' },
-  { id: 'git-add', title: 'git add .', content: '添加所有更改到暂存区', url: 'https://git-scm.com/docs/git-add' },
-  { id: 'git-commit', title: 'git commit -m "msg"', content: '提交暂存内容并附加说明', url: 'https://git-scm.com/docs/git-commit' },
-  { id: 'git-pull', title: 'git pull', content: '拉取远程更新并合并', url: 'https://git-scm.com/docs/git-pull' },
-  { id: 'git-push', title: 'git push', content: '推送本地提交到远程仓库', url: 'https://git-scm.com/docs/git-push' }
-])
+// Git便签数据源：来自后端 `/api/notes`，严格过滤标签为“git”（大小写不敏感）
+// 与网站便签区一致，默认只拉取公开便签（isPublic=true），后续可扩展“我的Git便签”。
+const gitNotes = ref([])
+// Git 加载状态：用于骨架占位显示，避免空白跳变
+const isGitLoading = ref(false)
 
+// Git便签打开链接：优先从内容中解析（与网站逻辑一致），若解析不到则回退到字段 it.url
 function goGit(it){
-  if (it && it.url){
-    const url = String(it.url)
-    window.open(url, '_blank', 'noopener')
-  }
+  if (!it) return
+  const u1 = siteUrl(it)
+  const u2 = it.url ? String(it.url) : ''
+  const url = u1 || u2
+  if (url){ window.open(url, '_blank', 'noopener') }
 }
 
 async function loadHot(){
@@ -502,6 +531,20 @@ function hasWebsiteTag(n){
 }
 
 /**
+ * 判断便签是否包含“git”标签（严格按标签匹配，大小写不敏感）。
+ * - 同时检查 `tags` 字段与 `content` 内的内联 #标签；
+ * - 标签统一规范化为小写，去除开头的 `#` 与多余分隔符；
+ */
+function hasGitTag(n){
+  const fieldTags = normalizeTags(n.tags)
+  const contentTags = extractTagsFromContent(n.content || '')
+  const all = [...fieldTags, ...contentTags]
+    .map(t => String(t || '').trim().toLowerCase())
+    .filter(Boolean)
+  return all.some(t => t === 'git')
+}
+
+/**
  * 加载网站便签：依据来源（公开 / 我的）请求后端，并在前端再次严格过滤“网站”标签。
  * - source='public'：获取公开便签（`isPublic=true`，未登录时仅公开）；
  * - source='mine'：仅获取我的便签（`mineOnly=true`，登录后可用）。
@@ -528,12 +571,47 @@ async function loadSites(source = 'public'){
 }
 
 /**
+ * 加载 Git 便签：来源与网站区一致，默认拉取公开便签并在前端严格过滤 “git” 标签。
+ * - 通过 `q=git` 做粗筛；最终严格以标签为准，大小写不敏感。
+ */
+/**
+ * 加载 Git 便签：来源与网站区一致（公开/我的），并在前端严格过滤 “git” 标签。
+ * - source='public'：获取公开便签（`isPublic=true`）；
+ * - source='mine'：仅获取我的便签（`mineOnly=true`，登录后可用）。
+ * - 通过 `q=git` 做粗筛；最终严格以标签为准，大小写不敏感。
+ */
+async function loadGit(source = 'public'){
+  try{
+    isGitLoading.value = true
+    const params = { page: 1, size: 100, q: 'git' }
+    if (source === 'mine' && isLoggedIn.value){
+      Object.assign(params, { mineOnly: true })
+    }else{
+      Object.assign(params, { isPublic: true })
+    }
+    const { data } = await http.get('/notes', { params, suppress401Redirect: true })
+    const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
+    gitNotes.value = (items || []).filter(hasGitTag)
+  }catch(e){ gitNotes.value = [] }
+  finally{ isGitLoading.value = false }
+}
+
+/**
  * 控件切换回调：根据选择加载来源（公开/我的）。
  * - 未登录时强制回退为 'public' 并隐藏控件（由模板层处理）。
  */
 function onSiteSourceChange(){
   const src = isLoggedIn.value ? siteSource.value : 'public'
   loadSites(src)
+}
+
+/**
+ * Git 来源切换：同网站便签的来源逻辑，响应控件切换。
+ * - 未登录时回退为公开；已登录可选择“我的”。
+ */
+function onGitSourceChange(){
+  const src = isLoggedIn.value ? gitSource.value : 'public'
+  loadGit(src)
 }
 
 // 页面挂载：加载热门/最近与网站便签（网站便签仅来源于“我的便签”且标签为“网站”）
@@ -543,6 +621,9 @@ onMounted(() => {
   // 初始：未登录/已登录均默认显示公开网站便签
   siteSource.value = 'public'
   loadSites('public')
+  // 加载 Git 便签（默认公开）
+  gitSource.value = 'public'
+  loadGit('public')
   // 初始化登录状态并添加监听，确保退出登录后无需手动刷新也能更新控件显示
   refreshAuth()
   const onHashChange = () => refreshAuth()
@@ -562,9 +643,13 @@ onMounted(() => {
   })
 })
 
-// 当登录状态发生变化时（例如登录/退出），重载网站便签来源：保持默认公开
-// 当登录状态变化时，重置来源为公开并重新加载
-watch(isLoggedIn, () => { siteSource.value = 'public'; loadSites('public') })
+// 当登录状态发生变化时（例如登录/退出），重置来源为公开并重新加载（网站/Git 均保持默认公开）
+watch(isLoggedIn, () => {
+  siteSource.value = 'public';
+  gitSource.value = 'public';
+  loadSites('public');
+  loadGit('public');
+})
 
 // 滚动控制与激活态
 function scrollTo(id){
@@ -638,6 +723,18 @@ onMounted(() => {
 .note-list .meta { color: #606266; font-size: 12px; display: flex; gap: 10px; }
 .note-list .empty { color: #909399; background: #fff; border: 1px dashed #e5e7eb; }
 
+ /* 骨架加载样式：用于 Git 加载占位，避免空白跳变与布局抖动 */
+ .note-item.skeleton { position: relative; overflow: hidden; }
+ .note-item.skeleton .skeleton-line { height: 14px; border-radius: 6px; background: #f2f3f5; }
+ .note-item.skeleton .skeleton-pill { display:inline-block; height: 12px; border-radius: 6px; background: #f2f3f5; }
+ .note-item.skeleton::after {
+   content: '';
+   position: absolute; left: -40%; top: 0; width: 40%; height: 100%;
+   background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.6) 50%, rgba(255,255,255,0) 100%);
+   animation: shimmer 1.2s infinite;
+ }
+ @keyframes shimmer { 0% { left: -40%; } 100% { left: 100%; } }
+
  /* 仅缩小“网站便签”区卡片尺寸（不影响热门/最近/Git）
     说明：
     - 使用区块 id 选择器 #site 限定作用范围，避免污染其他列表；
@@ -652,6 +749,19 @@ onMounted(() => {
  /* 响应式断点：窄屏下减列以保证可读性 */
  @media (max-width: 960px){ #site .note-list { grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; } }
  @media (max-width: 640px){ #site .note-list { grid-template-columns: 1fr; gap: 6px; } }
+
+ /* Git 便签区样式对齐网站便签区（仅作用于 #git 区块）
+    说明：
+    - 保持与网站便签一致的列数、间距、卡片尺寸与字体大小；
+    - 通过 #git 作为作用域，避免影响其他区块；
+    - 这样两者视觉统一，同时不改变热门/最近便签。 */
+ #git .note-list { grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px; }
+ #git .note-item { padding: 10px; height: 110px; box-shadow: 0 3px 10px rgba(0,0,0,0.05); }
+ #git .note-item .title { font-size: 14px; line-height: 1.5; }
+ #git .note-item .content { font-size: 12px; line-height: 1.5; }
+ #git .note-item .meta { margin-top: 6px; font-size: 11px; }
+ @media (max-width: 960px){ #git .note-list { grid-template-columns: repeat(2, minmax(160px, 1fr)); gap: 8px; } }
+ @media (max-width: 640px){ #git .note-list { grid-template-columns: 1fr; gap: 6px; } }
 @media (max-width: 720px){ .grid-two { grid-template-columns: 1fr; } }
 @media (max-width: 960px){
   .layout { flex-direction: column; }
