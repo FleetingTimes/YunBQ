@@ -264,6 +264,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 说明：撤销“右上角徽标（anchor-badge）”相关改动，恢复原始卡片结构。
+   - 保留卡片默认定位与样式；
+   - 不再在本组件内渲染徽标或使用绝对定位元素。 */
 /* 列表基础样式：保持与页面统一的卡片风格与尺寸设置（与网站/Git 区一致） */
 .note-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 8px; }
 .note-item { background:#fff; border:1px solid #ebeef5; border-radius:12px; padding:10px; height:110px; box-shadow:0 3px 10px rgba(0,0,0,0.05); cursor:pointer; transition: transform .15s ease, box-shadow .15s ease, background-color .2s ease; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; }

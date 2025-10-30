@@ -15,32 +15,10 @@
            - sections 数据结构保持不变，aliasTargets 的滚动映射由父组件 scrollTo 处理。 -->
       <SideNav :sections="sections" v-model:activeId="activeId" @select="scrollTo" />
       <div class="content-scroll" ref="contentRef">
-        <!-- 内容导航提示：同步展示区块名称，新增“知识/影视/工具/AI 便签” -->
-        <div class="content-head">
-          <!-- 文案合并：顶部内容导航合并为“热门·最近”以与侧边导航一致 -->
-          <span>热门·最近</span><span class="slash">/</span>
-          <!-- 更新：网站便签改为聚合便签，数据来源为标签“聚合” -->
-          <span>聚合便签</span><span class="slash">/</span>
-          <!-- 顺序调整：将“云盘集”置于 git 子项之前，保持与侧边导航一致 -->
-          <span>云盘集</span><span class="slash">/</span>
-          <!-- 顶部内容导航不展示父项“git集”，仅保留其子项文案提示（git影音 / git工具）
-               原因：父导航内容区已取消分组容器，回退为直接显示子卡片；
-               因此顶部文案与侧边导航保持“仅子项”一致，避免层级冗余。 -->
-          <span>git影音</span><span class="slash">/</span><span>git工具</span><span class="slash">/</span>
-          <!-- 更新：顶部内容导航显示影视便签的五个子项文案
-               说明：与侧边导航子项保持一致，便于用户快速了解影视便签的内容分类 -->
-          <span>在线影视</span><span class="slash">/</span><span>影视软件</span><span class="slash">/</span><span>短视频</span><span class="slash">/</span><span>短视频下载</span><span class="slash">/</span><span>在线动漫</span><span class="slash">/</span>
-          <!-- 撤销：顶部内容导航不再展示父项“音乐便签”，仅保留其子项文案提示
-               原因：父导航内容区已取消分组容器，回退为直接显示子卡片；
-               因此顶部文案与侧边导航保持“仅子项”一致。 -->
-          <span>在线音乐</span><span class="slash">/</span><span>音乐下载</span><span class="slash">/</span>
-          <!-- 新增：顶部内容提示增加“图书集”，与侧边导航保持一致 -->
-          <span>图书集</span><span class="slash">/</span>
-          <!-- 文案更新：侧边导航改为“工具集”，顶部同步更新为“工具集” -->
-          <span>工具集</span><span class="slash">/</span>
-          <!-- 顶部内容导航：更新“AI便签”为“AI集”，子类文案改为“AI绘图”，与侧边导航一致 -->
-          <span>AI集</span><span class="slash">/</span><span>AI绘图</span>
-        </div>
+        <!-- 需求：隐藏顶部内容导航提示区域（红框圈住的横向标签文案）。
+             实现：移除该 DOM 区块，避免冗余占位；保留滚动与锚点逻辑。
+             兼容：scrollTo 中对 .content-head 的高度读取为 0（不存在），仍有额外安全间距；
+             同时各卡片通过 CSS 的 scroll-margin-top 避免标题遮挡。 -->
         <div class="grid-two">
         <div class="card" id="hot">
           <div class="card-title">热门便签</div>
@@ -597,14 +575,28 @@ function scrollTo(id){
   // - 顶部内容提示（.content-head）在滚动容器内，也需要计入偏移；
   // - 通过读取实际高度来计算更准确的偏移量，并预留额外安全间距。
   const titleEl = document.querySelector('.square-header')
-  const headEl = container.querySelector('.content-head')
+  // 顶部提示 .content-head 已移除，因此仅考虑页面标题高度；
+  // 为消除“滚动到目标后顶部留白”，改用容器 scrollTo 并使用精确偏移。
   const titleH = titleEl ? titleEl.offsetHeight : 0
-  const headH = headEl ? headEl.offsetHeight : 0
-  const extra = 16 // 额外安全间距，避免卡片紧贴标题
-  const offset = titleH + headH + extra
+  // 计算全局顶部栏高度（AppTopBar），用于防止卡片被应用顶部栏遮挡
+  // 说明：AppTopBar 处于滚动容器之外，但用户视觉上会认为它是“页面顶部”，
+  // 因此在滚动定位时应当预留其高度，以避免目标卡片被遮挡。
+  const topbarEl = document.querySelector('.topbar') || document.querySelector('.header.topbar')
+  const topbarH = topbarEl ? topbarEl.offsetHeight : 0
+  // 容器的内边距顶部值（如果容器自身有 padding-top，需要纳入偏移）
+  const containerStyles = getComputedStyle(container)
+  const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
+  // 增加安全间距：在不同缩放/字体/主题下提供少许缓冲，避免视觉上的压迫或轻微遮挡。
+  // 依据你的最新需求，将安全间距调整为 52px：较大缓冲值，
+  // 适用于顶部阴影更强、装饰元素更厚重或页面缩放≥125%时，保证滚动后更充足的可视留白且无遮挡。
+  // 注：偏移综合考虑页面标题（square-header）、全局顶栏（.topbar）与容器上内边距，确保滚动后无遮挡显示。
+  const extra = 52
+  // 综合偏移：页面标题高度 + 顶部栏高度 + 容器上内边距 + 安全间距
+  const offset = titleH + topbarH + containerPadTop + extra
+  // 最终滚动目标位置：卡片顶部减去综合偏移，确保无遮挡显示
   const top = Math.max(0, el.offsetTop - offset)
-  // 采用 scrollIntoView，并结合 CSS 的 scroll-margin-top 实现更稳健的避挡
-  el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+  // 改为容器滚动：避免 scroll-margin-top 造成的固定空隙
+  container.scrollTo({ top, behavior: 'smooth' })
   activeId.value = id
 }
 
@@ -649,25 +641,47 @@ function handleScroll(){
 onMounted(() => {
   const container = contentRef.value
   if (container){ 
-    container.addEventListener('scroll', handleScroll, { passive: true }) 
-    // 初始化并监听窗口尺寸变化：将实际标题和内容提示高度写入 CSS 变量，供 scroll-margin-top 使用
-    const updateAnchorOffset = () => {
-      const titleEl = document.querySelector('.square-header')
-      const headEl = container.querySelector('.content-head')
-      const titleH = titleEl ? titleEl.offsetHeight : 0
-      const headH = headEl ? headEl.offsetHeight : 0
-      const extra = 20 // 额外安全间距，适配不同缩放/字体大小
-      const offset = titleH + headH + extra
-      container.style.setProperty('--anchorOffset', offset + 'px')
+    // 使用 requestAnimationFrame 节流滚动处理，降低频率，避免加载数据期间卡顿
+    let ticking = false
+    const onScroll = () => {
+      if (ticking) return
+      ticking = true
+      window.requestAnimationFrame(() => {
+        handleScroll()
+        ticking = false
+      })
     }
+    container.addEventListener('scroll', onScroll, { passive: true }) 
+    // 初始化并监听窗口尺寸变化：将实际标题和内容提示高度写入 CSS 变量，供 scroll-margin-top 使用
+    // 顶部提示已移除，取消写入 CSS 变量，仅通过 scrollTo 精确控制偏移
+    const updateAnchorOffset = () => {}
     updateAnchorOffset()
+    // 刷新锚点缓存，避免滚动时频繁查询
+    const refreshAnchors = () => { window.__squareAnchors = [] }
+    // 初次渲染后以及数据可能到达后的时刻刷新一次
+    setTimeout(refreshAnchors, 600)
+    setTimeout(refreshAnchors, 1600)
     window.addEventListener('resize', updateAnchorOffset)
   }
 })
 </script>
 
 <style scoped>
-.square-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+/* 顶部标题区（云便签 · 广场）
+   说明：
+   - 将高度改为“可配置”，通过 CSS 变量控制，便于按需微调；
+   - 默认提供较为稳妥的最小高度 64px 与上下内边距 8px；
+   - 滚动定位逻辑会动态读取实际高度（offsetHeight），不需额外修改。 */
+.square-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  /* 可配置的最小高度：将 --square-header-height 设置为你希望的数值（如 72px/80px） */
+  min-height: var(--square-header-height, 64px);
+  /* 可配置的上下内边距：增加纵向空间时可以更柔和，不仅靠高度撑开 */
+  padding: var(--square-header-padding-block, 8px) 0;
+}
 .brand { display: flex; align-items: center; gap: 8px; }
 .brand h1 { font-size: 20px; margin: 0; }
 .actions { display: flex; gap: 8px; }
@@ -711,7 +725,17 @@ onMounted(() => {
 .sub-nav-list a:hover { background:#f6f8fe; }
 .sub-nav-list a.active { background:#eef5ff; color:#409eff; }
 .content-scroll { flex:1; max-height:70vh; overflow:auto; scroll-behavior:smooth; display:flex; flex-direction:column; gap:12px; }
-.content-scroll .card { scroll-margin-top: var(--anchorOffset, 128px); }
+/*
+  隐藏右侧内容区滚动条（跨浏览器），但仍保留滚动功能。
+  说明：
+  - Firefox 与旧版 Edge/IE 通过设置 `scrollbar-width: none` 与 `-ms-overflow-style: none` 来隐藏滚动条；
+  - WebKit 浏览器（Chrome/Safari）通过伪元素 `::-webkit-scrollbar` 隐藏滚动条；
+  - 不影响鼠标滚轮、触摸板与触屏手势的滚动体验。
+*/
+.content-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.content-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+/* 移除卡片的 scroll-margin-top，避免 scrollIntoView 留白；
+   现使用容器 scrollTo 精确偏移，确保目标卡片贴近顶部。 */
 .content-head { display:flex; align-items:center; gap:6px; font-weight:600; color:#303133; margin: 4px 0 4px; }
 .content-head .slash { color:#909399; }
 .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; background: #fff; }
