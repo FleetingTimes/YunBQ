@@ -79,90 +79,11 @@
         </div>
         </div>
 
-        <div class="card" id="site">
-          <div class="card-title">网站便签</div>
-          <div class="card-desc" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-            <span>推荐站点</span>
-            <!-- 控件：登录后显示，用于切换“公开/我的”网站便签；未登录隐藏此控件。
-                 行为：
-                 - 未登录：默认显示公开网站便签，不渲染控件；
-                 - 已登录：默认显示公开网站便签，可在此控件中切换为“我的网站便签”。 -->
-            <template v-if="isLoggedIn">
-              <el-radio-group v-model="siteSource" size="small" @change="onSiteSourceChange">
-                <el-radio-button label="public">公开</el-radio-button>
-                <el-radio-button label="mine">我的</el-radio-button>
-              </el-radio-group>
-            </template>
-          </div>
-          <ul class="note-list">
-            <!-- 网站便签：仅展示“网站名”，点击跳转到对应链接。
-                 注意：数据可能只有 content，其中包含网站名与链接地址。
-                 为适配不同数据结构，显示名优先取 title；若没有 title，则从链接解析域名作为显示名。 -->
-            <li class="note-item" v-for="it in siteNotes" :key="it.id" @click="goSite(it)" role="button">
-              <div class="title">{{ siteName(it) }}</div>
-              <!-- 显示网站介绍：若存在中间行内容则展示，否则为空白，以统一格式（首行名称、末行 URL、中间为介绍）。 -->
-              <div class="content">{{ siteDesc(it) }}</div>
-              <!-- 省略内容简介，仅保留网站名以满足需求 -->
-              <div class="meta">
-                <div class="left">
-                  <span class="author">站点</span>
-                </div>
-                <div class="right">
-                  <span class="time"></span>
-                </div>
-              </div>
-            </li>
-            <li v-if="!siteNotes.length" class="empty">暂无网站便签</li>
-          </ul>
-        </div>
+        <!-- 使用通用站点便签组件：抽象样式与数据逻辑，传入标签为“网站” -->
+        <SiteNoteList id="site" title="网站便签" subtitle="推荐站点" tag="网站" />
 
-        <div class="card" id="git">
-          <div class="card-title">Git便签</div>
-          <div class="card-desc" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
-            <span>常用 Git 命令与参考</span>
-            <!-- 控件：登录后显示，用于切换“公开/我的”Git便签；未登录隐藏此控件。
-                 行为：
-                 - 未登录：默认显示公开 Git 便签，不渲染控件；
-                 - 已登录：默认显示公开 Git 便签，可在此控件中切换为“我的 Git 便签”。 -->
-            <template v-if="isLoggedIn">
-              <el-radio-group v-model="gitSource" size="small" @change="onGitSourceChange">
-                <el-radio-button label="public">公开</el-radio-button>
-                <el-radio-button label="mine">我的</el-radio-button>
-              </el-radio-group>
-            </template>
-          </div>
-          <ul class="note-list">
-            <!-- 骨架加载：在数据请求期间显示占位卡片，避免空白跳变 -->
-            <template v-if="isGitLoading">
-              <li class="note-item skeleton" v-for="i in 6" :key="'git-skel-' + i">
-                <div class="title skeleton-line" style="width:70%"></div>
-                <div class="content skeleton-line" style="width:90%"></div>
-                <div class="meta">
-                  <div class="left"><span class="author skeleton-pill" style="width:60px"></span></div>
-                  <div class="right"><span class="time skeleton-pill" style="width:80px"></span></div>
-                </div>
-              </li>
-            </template>
-            <!-- 展示与网站便签区一致：仅显示“名称”和“简介”，点击打开对应链接 -->
-            <li class="note-item" v-for="it in gitNotes" :key="it.id" @click="goGit(it)" role="button" v-show="!isGitLoading">
-              <!-- 名称：优先使用标题；若无标题则从内容首行或 URL 域名解析（沿用网站解析逻辑） -->
-              <div class="title">{{ siteName(it) }}</div>
-              <!-- 简介：沿用网站解析逻辑，从内容中间行合并为简介；若无则回退到内容摘要 -->
-              <div class="content">{{ siteDesc(it) || snippet(it.content || '') }}</div>
-              <div class="meta">
-                <div class="left">
-                  <!-- 为保持与网站便签一致，这里也显示“站点” -->
-                  <span class="author">站点</span>
-                </div>
-                <div class="right">
-                  <span class="time"></span>
-                </div>
-              </div>
-            </li>
-            <!-- 空态：仅在非加载时且无数据时展示 -->
-            <li v-if="!isGitLoading && !gitNotes.length" class="empty">暂无Git便签</li>
-          </ul>
-        </div>
+        <!-- 使用通用站点便签组件：抽象样式与数据逻辑，传入标签为“git” -->
+        <SiteNoteList id="git" title="Git便签" subtitle="常用 Git 命令与参考" tag="git" />
       </div>
     </section>
   </div>
@@ -173,16 +94,10 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { http } from '@/api/http'
 import { getToken } from '@/utils/auth'
+import SiteNoteList from '@/components/SiteNoteList.vue'
 
 const hotNotes = ref([])
 const recentNotes = ref([])
-// 网站便签数据源：只显示“我的便签”中标签为“网站”的便签
-// 说明：
-// - 数据来源统一通过后端接口 `/api/notes` 获取；
-// - 请求参数包含 `mineOnly=true` 以确保仅返回“我的便签”；
-// - 前端再次严格按标签过滤，仅保留标签集合中含“网站”的便签；
-// - 便签的 `content` 解析遵循：首行名称 / 中间介绍 / 倒数第二行 URL / 最后一行标签（忽略）。
-const siteNotes = ref([])
 // 登录状态（响应式）：
 // - 通过一个响应式 tokenRef 来驱动 isLoggedIn；
 // - 监听 hash 路由变化与页面可见性变化，及时刷新登录状态；
@@ -192,12 +107,7 @@ const isLoggedIn = computed(() => !!(tokenRef.value && tokenRef.value.trim()))
 function refreshAuth(){
   try{ tokenRef.value = String(getToken() || '') }catch{ tokenRef.value = '' }
 }
-// 网站便签数据源：'public' 公开网站便签；'mine' 我的网站便签（仅登录时可选）
-// 默认 'public'，未登录时强制为 'public' 并隐藏控件。
-const siteSource = ref('public')
-// Git 便签数据源：'public' 公开 Git 便签；'mine' 我的 Git 便签（仅登录时可选）
-// 默认 'public'，未登录时强制为 'public' 并隐藏控件。
-const gitSource = ref('public')
+// 网站区已改用通用组件 SiteNoteList，父组件不再维护网站来源/数据。
 const sections = [
   { id: 'hot', label: '热门' },
   { id: 'recent', label: '最近' },
@@ -297,13 +207,7 @@ function goNote(it){
   window.location.hash = `#/search?q=${encodeURIComponent(q)}`
 }
 
-function goSite(it){
-  // 跳转逻辑：统一按“末行 URL”为主；若未提供，则从内容中提取第一个 URL。
-  const url = siteUrl(it)
-  if (url) {
-    window.open(url, '_blank', 'noopener')
-  }
-}
+// 网站区跳转逻辑已内聚到 SiteNoteList（通过 openSite 实现），此处不再保留。
 
 /**
  * 从文本中提取第一个 URL。
@@ -488,9 +392,6 @@ function siteDesc(it){
 
 // Git便签数据源：来自后端 `/api/notes`，严格过滤标签为“git”（大小写不敏感）
 // 与网站便签区一致，默认只拉取公开便签（isPublic=true），后续可扩展“我的Git便签”。
-const gitNotes = ref([])
-// Git 加载状态：用于骨架占位显示，避免空白跳变
-const isGitLoading = ref(false)
 
 // Git便签打开链接：优先从内容中解析（与网站逻辑一致），若解析不到则回退到字段 it.url
 function goGit(it){
@@ -518,112 +419,29 @@ async function loadRecent(){
   }catch(e){ recentNotes.value = [] }
 }
 
-/**
- * 判断便签是否包含“网站”标签（严格按标签匹配，不仅是内容包含）。
- * - 同时检查 `tags` 字段与 `content` 内的内联 #标签；
- * - 标签统一规范化，去除开头的 `#` 与多余分隔符；
- */
-function hasWebsiteTag(n){
-  const fieldTags = normalizeTags(n.tags)
-  const contentTags = extractTagsFromContent(n.content || '')
-  const all = [...fieldTags, ...contentTags].map(t => String(t || '').trim()).filter(Boolean)
-  return all.some(t => t === '网站')
-}
+// 网站区的标签过滤由通用组件内部完成（hasTag），无需在父组件保留。
 
-/**
- * 判断便签是否包含“git”标签（严格按标签匹配，大小写不敏感）。
- * - 同时检查 `tags` 字段与 `content` 内的内联 #标签；
- * - 标签统一规范化为小写，去除开头的 `#` 与多余分隔符；
- */
-function hasGitTag(n){
-  const fieldTags = normalizeTags(n.tags)
-  const contentTags = extractTagsFromContent(n.content || '')
-  const all = [...fieldTags, ...contentTags]
-    .map(t => String(t || '').trim().toLowerCase())
-    .filter(Boolean)
-  return all.some(t => t === 'git')
-}
+// Git 区也已改用通用组件 SiteNoteList，父组件不再保留标签过滤。
 
-/**
- * 加载网站便签：依据来源（公开 / 我的）请求后端，并在前端再次严格过滤“网站”标签。
- * - source='public'：获取公开便签（`isPublic=true`，未登录时仅公开）；
- * - source='mine'：仅获取我的便签（`mineOnly=true`，登录后可用）。
- * - 同时传 `q=网站` 进行粗筛，降低传输体量；最终仍以前端严格标签过滤为准。
- */
-async function loadSites(source = 'public'){
-  try{
-    const params = { page: 1, size: 100, q: '网站' }
-    if (source === 'mine' && isLoggedIn.value){
-      // 我的便签：仅作者本人，公开与私有均可；如需仅公开可加 isPublic=true
-      Object.assign(params, { mineOnly: true })
-    }else{
-      // 公开网站便签：任何人可见
-      Object.assign(params, { isPublic: true })
-    }
-    const { data } = await http.get('/notes', { params, suppress401Redirect: true })
-    const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
-    // 前端严格过滤标签为“网站”
-    siteNotes.value = (items || []).filter(hasWebsiteTag)
-  }catch(e){
-    // 失败时置空，避免残留旧数据
-    siteNotes.value = []
-  }
-}
+// 网站区数据加载由通用组件内部完成，父组件不再维护。
 
 /**
  * 加载 Git 便签：来源与网站区一致，默认拉取公开便签并在前端严格过滤 “git” 标签。
  * - 通过 `q=git` 做粗筛；最终严格以标签为准，大小写不敏感。
  */
-/**
- * 加载 Git 便签：来源与网站区一致（公开/我的），并在前端严格过滤 “git” 标签。
- * - source='public'：获取公开便签（`isPublic=true`）；
- * - source='mine'：仅获取我的便签（`mineOnly=true`，登录后可用）。
- * - 通过 `q=git` 做粗筛；最终严格以标签为准，大小写不敏感。
- */
-async function loadGit(source = 'public'){
-  try{
-    isGitLoading.value = true
-    const params = { page: 1, size: 100, q: 'git' }
-    if (source === 'mine' && isLoggedIn.value){
-      Object.assign(params, { mineOnly: true })
-    }else{
-      Object.assign(params, { isPublic: true })
-    }
-    const { data } = await http.get('/notes', { params, suppress401Redirect: true })
-    const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
-    gitNotes.value = (items || []).filter(hasGitTag)
-  }catch(e){ gitNotes.value = [] }
-  finally{ isGitLoading.value = false }
-}
 
 /**
  * 控件切换回调：根据选择加载来源（公开/我的）。
  * - 未登录时强制回退为 'public' 并隐藏控件（由模板层处理）。
  */
-function onSiteSourceChange(){
-  const src = isLoggedIn.value ? siteSource.value : 'public'
-  loadSites(src)
-}
+// 网站来源切换由通用组件内部完成，父组件不再维护。
 
-/**
- * Git 来源切换：同网站便签的来源逻辑，响应控件切换。
- * - 未登录时回退为公开；已登录可选择“我的”。
- */
-function onGitSourceChange(){
-  const src = isLoggedIn.value ? gitSource.value : 'public'
-  loadGit(src)
-}
 
 // 页面挂载：加载热门/最近与网站便签（网站便签仅来源于“我的便签”且标签为“网站”）
 onMounted(() => {
   loadHot();
   loadRecent();
-  // 初始：未登录/已登录均默认显示公开网站便签
-  siteSource.value = 'public'
-  loadSites('public')
-  // 加载 Git 便签（默认公开）
-  gitSource.value = 'public'
-  loadGit('public')
+  // 网站区的初始加载与来源切换交由 SiteNoteList 组件处理
   // 初始化登录状态并添加监听，确保退出登录后无需手动刷新也能更新控件显示
   refreshAuth()
   const onHashChange = () => refreshAuth()
@@ -643,13 +461,7 @@ onMounted(() => {
   })
 })
 
-// 当登录状态发生变化时（例如登录/退出），重置来源为公开并重新加载（网站/Git 均保持默认公开）
-watch(isLoggedIn, () => {
-  siteSource.value = 'public';
-  gitSource.value = 'public';
-  loadSites('public');
-  loadGit('public');
-})
+// 网站区使用通用组件，父组件无需重置网站来源或数据。
 
 // 滚动控制与激活态
 function scrollTo(id){
