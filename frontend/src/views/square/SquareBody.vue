@@ -108,6 +108,8 @@
         <SiteNoteList id="git-media" title="Git · 影音" subtitle="与 Git 相关的影音资源" tag="git影音" />
         <!-- 子区块"git工具" → 严格过滤标签"git工具" -->
         <SiteNoteList id="git-tool" title="Git · 工具" subtitle="Git 配套工具与插件" tag="git工具" />
+        <!-- 新增：git代理子区块 → 严格过滤标签"git代理" -->
+        <SiteNoteList id="git-proxy" title="Git · 代理" subtitle="Git 代理配置与加速工具" tag="git代理" />
 
         <!-- 更新：站点类的"影视集"区（原"影视便签"）
              说明：
@@ -161,6 +163,13 @@
         <!-- 子区块：图书下载（标签“图书下载”） -->
         <SiteNoteList id="book-download" title="图书 · 图书下载" subtitle="图书下载与资源" tag="图书下载" />
 
+        <!-- 新增：图书搜索（标签“图书搜索”）
+             说明：
+             - 与侧边导航子项 id 对齐（book-search），用于滚动定位与高亮；
+             - 严格过滤标签“图书搜索”，展示图书检索、聚合入口与相关工具；
+             - 默认将父项点击滚动到首子项（book-online），如需变更可调整 aliasTargets。 -->
+        <SiteNoteList id="book-search" title="图书 · 搜索" subtitle="图书搜索与聚合入口" tag="图书搜索" />
+
         <!-- 更新：工具区
              说明：
              - 父区块“工具集”用于展示“工具”标签的总览；
@@ -171,6 +180,12 @@
         <SiteNoteList id="tool-file" title="工具 · 文件工具" subtitle="文件处理与转换工具" tag="文件工具" />
         <!-- 子区块：影音工具（标签“影音工具”） -->
         <SiteNoteList id="tool-media" title="工具 · 影音工具" subtitle="音视频处理与播放相关工具" tag="影音工具" />
+        <!-- 新增：磁力工具（标签“磁力工具”）
+             说明：
+             - 与侧边导航子项 id 对齐（tool-magnet），用于滚动定位与高亮；
+             - 通过标签“磁力工具”严格过滤磁力链接解析、搜索与下载相关站点；
+             - 放置在“影音工具”之后，便于用户在媒体相关工具中快速找到磁力相关功能。 -->
+        <SiteNoteList id="tool-magnet" title="工具 · 磁力工具" subtitle="磁力链接解析与搜索" tag="磁力工具" />
         <!-- 子区块：其他工具（标签“其他工具”） -->
         <SiteNoteList id="tool-other" title="工具 · 其他工具" subtitle="其他常用站点工具" tag="其他工具" />
 

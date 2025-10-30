@@ -27,9 +27,11 @@ export const sideNavSections = [
   // - 仅修改 label 文案，不改变 id 及子项结构；
   // 父导航存在子导航时：右侧内容区不再渲染父卡片，点击父项应滚动到首个子项。
   // 因此为父项增加 aliasTargets，首元素作为滚动目标。
-  { id: 'git', label: 'git集', aliasTargets: ['git-media','git-tool'], children: [
+  { id: 'git', label: 'git集', aliasTargets: ['git-media','git-tool','git-proxy'], children: [
     { id: 'git-media', label: 'git影音' },
-    { id: 'git-tool', label: 'git工具' }
+    { id: 'git-tool', label: 'git工具' },
+    // 新增：git代理子导航，用于展示git代理相关工具与配置
+    { id: 'git-proxy', label: 'git代理' }
   ] },
   // 影视便签：子导航包含在线影视 / 影视软件 / 短视频 / 短视频下载 / 在线动漫
   // 修改：展示文案改为“影视集”
@@ -53,17 +55,28 @@ export const sideNavSections = [
   // - 保持与其他分类一致的结构，便于 SideNav 统一渲染与滚动。
   { id: 'book', label: '图书集', aliasTargets: ['book-online'], children: [
     { id: 'book-online', label: '在线图书' },
-    { id: 'book-download', label: '图书下载' }
+    { id: 'book-download', label: '图书下载' },
+    // 新增子导航：图书搜索
+    // 说明：
+    // - 子项 id 为 'book-search'，与内容区锚点保持一致；
+    // - 文案为“图书搜索”，用于承载图书检索与聚合入口相关便签；
+    // - 父项 aliasTargets 仍指向首子项（book-online），点击父项滚动到“在线图书”。
+    { id: 'book-search', label: '图书搜索' }
   ] },
   // 工具便签
   // 修改：将“工具便签”改为“工具集”，并新增三个子导航
   // 说明：
   // - 父项 id 保持为 'tool'，用于滚动到工具概览区块；
-  // - 子项分别为文件工具/影音工具/其他工具，对应内容区锚点：tool-file、tool-media、tool-other；
+  // - 子项分别为文件工具/影音工具/磁力工具/其他工具，对应内容区锚点：tool-file、tool-media、tool-magnet、tool-other；
   // - 这样点击侧边子导航时可滚动定位到具体分类卡片。
   { id: 'tool', label: '工具集', aliasTargets: ['tool-file'], children: [
     { id: 'tool-file', label: '文件工具' },
     { id: 'tool-media', label: '影音工具' },
+    // 新增子导航：磁力工具
+    // 说明：
+    // - 子项 id 为 'tool-magnet'，用于与内容区锚点一致；
+    // - 展示文案为“磁力工具”，对应内容卡片的标签筛选也为“磁力工具”。
+    { id: 'tool-magnet', label: '磁力工具' },
     { id: 'tool-other', label: '其他工具' }
   ] },
   // AI 集：将原“AI便签”改为“AI集”，并将子导航“AI·绘图”改为“AI绘图”
