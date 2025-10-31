@@ -5,7 +5,8 @@
   <TwoPaneLayout>
     <!-- 顶栏：全宽吸顶通用顶栏，桥接搜索到本页过滤逻辑 -->
     <template #topFull>
-      <AppTopBar fluid @search="onTopSearch" />
+      <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
+      <AppTopBar fluid :transparent="true" @search="onTopSearch" />
     </template>
     <!-- 左侧：通用侧边导航；本页不进行锚点滚动，仅供导航一致性展示 -->
     <template #left>

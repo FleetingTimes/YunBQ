@@ -16,7 +16,8 @@
     <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
     <template #topFull>
       <!-- 开启铺满模式：fluid，让中间搜索区域在可用空间内尽可能拉伸 -->
-      <AppTopBar fluid :solid="topbarSolid" @search="onSearch" />
+      <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
+      <AppTopBar fluid :transparent="true" @search="onSearch" />
     </template>
 
     <!-- 右下：广场正文内容，保留 query 传参；通过 ref 暴露滚动方法与高亮更新事件供父级桥接 -->

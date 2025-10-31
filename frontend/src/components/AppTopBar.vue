@@ -223,12 +223,16 @@
 <script setup>
 // 顶栏组件：支持吸顶与可控背景模式，增加滚动检测和毛玻璃效果
 // 说明：
-// - 通过 props.solid 控制背景：false=透明，true=毛玻璃；
-// - 通过 props.fluid 控制布局：true 时启用“铺满模式”，让中间区域（搜索）在可用空间内尽可能拉伸；
-// - 自动检测页面滚动，当滚动距离超过阈值时自动切换为毛玻璃效果；
-// - 页面也可手动控制 solid 状态来覆盖自动检测。
-const { solid = false, fluid = false } = defineProps({ 
+// - props.solid：当为 true 时强制启用毛玻璃效果；为 false 时根据滚动自动切换；
+// - props.transparent：当为 true 时“始终透明”，即使滚动也不启用毛玻璃（优先级最高）；
+// - props.fluid：当为 true 时启用“铺满模式”，让中间区域（搜索）在可用空间内尽可能拉伸；
+// - 自动检测页面滚动，当滚动距离超过阈值时自动切换为毛玻璃效果（除非 transparent 为 true）。
+const { solid = false, transparent = false, fluid = false } = defineProps({ 
+  // 控制是否强制毛玻璃效果
   solid: { type: Boolean, default: false },
+  // 控制是否始终透明；开启后将禁用一切毛玻璃切换
+  transparent: { type: Boolean, default: false },
+  // 控制顶栏布局是否“铺满”
   fluid: { type: Boolean, default: false }
 })
 import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
@@ -261,9 +265,14 @@ const scrollY = ref(0)
 const isScrolled = ref(false)
 
 // 计算属性：确定是否应该显示毛玻璃效果
+// 逻辑说明：
+// - 当 transparent=true 时，顶栏“始终透明”，不显示毛玻璃（最高优先级）；
+// - 否则，如果 solid=true，则强制显示毛玻璃；
+// - 其余情况由滚动状态决定（超过 20px 显示毛玻璃）。
 const shouldShowGlass = computed(() => {
-  // 如果外部传入 solid 为 true，则显示毛玻璃
-  // 或者当滚动距离超过 20px 时也显示毛玻璃
+  // 透明优先：一旦开启始终透明，直接返回 false
+  if (transparent) return false
+  // 强制毛玻璃或按滚动自动切换
   return solid || isScrolled.value
 })
 

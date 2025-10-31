@@ -8,7 +8,8 @@
     </template>
     <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
     <template #topFull>
-      <AppTopBar fluid @search="onSearch" />
+      <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
+      <AppTopBar fluid :transparent="true" @search="onSearch" />
     </template>
     <!-- 右下：正文（添加便签） -->
     <template #rightMain>
