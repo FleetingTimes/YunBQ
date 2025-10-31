@@ -50,3 +50,22 @@
 
 ## Auth
 - All endpoints require valid `Authorization: Bearer <token>` header.
+
+## Logging
+- Tables:
+  - `audit_logs`: business audit entries, fields: `id,user_id,level,message,created_at`.
+  - `request_logs`: request metrics, fields: `id,method,uri,query,ip,user_agent,status,duration_ms,user_id,created_at`.
+  - `auth_logs`: authentication events, fields: `id,user_id,username,success,reason,ip,user_agent,created_at`.
+  - `error_logs`: unhandled exceptions, fields: `id,user_id,path,exception,message,stack_trace,created_at`.
+
+- Admin API:
+  - GET `/api/admin/logs` — paginate `audit_logs` with optional `level`.
+  - GET `/api/admin/request-logs` — paginate `request_logs` with optional `uri`, `status`.
+  - GET `/api/admin/auth-logs` — paginate `auth_logs` with optional `success`, `username`.
+  - GET `/api/admin/error-logs` — paginate `error_logs` with optional `exception`.
+
+- Write paths:
+  - Request logs: `RequestLoggingFilter` records method/URI/status/duration and persists via `LogService`.
+  - Auth logs: `JwtAuthenticationFilter` records success/failure of JWT verification via `LogService`.
+  - Error logs: `GlobalExceptionHandler` catches unhandled exceptions and persists via `LogService`.
+  - Audit logs: use `LogService.logAudit(userId, level, message)` in business paths as needed.

@@ -88,3 +88,23 @@ logging:
   level:
     org.springframework.security: DEBUG
     com.yunbq.backend.security: DEBUG
+  # 控制台日志包含 MDC（requestId），便于跨模块关联；生产环境可按需调整格式
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg %mdc%n"
+
+# 日志数据库写入相关配置（LogProperties）
+logdb:
+  # 开关：按需开启/关闭各类日志
+  request-enabled: true
+  auth-enabled: true
+  error-enabled: true
+  audit-enabled: true
+  # 请求日志采样百分比（0-100；100 表示全量写入）
+  request-sampling-percent: 100
+  # 保留天数：定期清理超期数据
+  retention-request-days: 30
+  retention-auth-days: 30
+  retention-error-days: 90
+  retention-audit-days: 90
+  # 清理任务执行间隔（毫秒）：默认 1 小时
+  retention-sweep-interval-ms: 3600000

@@ -7,8 +7,13 @@
         <h1>系统管理</h1>
       </div>
       <el-menu :default-active="active" class="menu" @select="onSelect">
+        <!-- 系统管理主项：用户管理 -->
         <el-menu-item index="users">用户管理</el-menu-item>
-        <el-menu-item index="logs">日志管理</el-menu-item>
+        <!-- 日志管理：按类型拆分为独立子页面，便于分别筛选与查看 -->
+        <el-menu-item index="logs_audit">审计日志</el-menu-item>
+        <el-menu-item index="logs_request">请求日志</el-menu-item>
+        <el-menu-item index="logs_auth">认证日志</el-menu-item>
+        <el-menu-item index="logs_error">错误日志</el-menu-item>
       </el-menu>
       <div class="sidebar-actions">
         <el-button @click="$router.push('/')">返回广场</el-button>
@@ -44,13 +49,31 @@ const isAdmin = ref(false);
 const active = ref('users');
 const summary = ref({ total: null });
 
+// 动态子页面映射：按菜单选择加载对应日志类型页面
 const components = {
   users: defineAsyncComponent(() => import('./admin/AdminUsers.vue')),
-  logs: defineAsyncComponent(() => import('./admin/AdminLogs.vue')),
+  // 审计日志（系统操作或审计事件）
+  logs_audit: defineAsyncComponent(() => import('./admin/AdminLogs.vue')),
+  // 请求日志（HTTP 请求流量与状态）
+  logs_request: defineAsyncComponent(() => import('./admin/AdminLogsRequest.vue')),
+  // 认证日志（登录/令牌校验）
+  logs_auth: defineAsyncComponent(() => import('./admin/AdminLogsAuth.vue')),
+  // 错误日志（未处理异常）
+  logs_error: defineAsyncComponent(() => import('./admin/AdminLogsError.vue')),
 };
 
 const CurrentComp = computed(() => components[active.value]);
-const activeLabel = computed(() => (active.value === 'users' ? '用户管理' : '日志管理'));
+// 顶栏当前功能提示：根据选择的子页面显示友好中文
+const activeLabel = computed(() => {
+  switch(active.value){
+    case 'users': return '用户管理';
+    case 'logs_audit': return '审计日志';
+    case 'logs_request': return '请求日志';
+    case 'logs_auth': return '认证日志';
+    case 'logs_error': return '错误日志';
+    default: return '日志管理';
+  }
+});
 
 function onSelect(key) {
   active.value = key;
