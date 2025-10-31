@@ -1,24 +1,55 @@
 <template>
-  <!-- 统一顶栏结构：顶栏置于广场容器之外，采用一致的 topbar-wrap 包裹以保证宽度与边距统一 -->
-  <div class="topbar-wrap">
-    <!-- 传递 solid 状态：当顶栏底部接触到内容卡片区域时，切换为纯白背景 -->
-    <AppTopBar :solid="topbarSolid" @search="onSearch" />
-  </div>
-  <div class="square-container">
-    <!-- 回退：移除页面级顶栏吸顶与内容渐隐遮罩，恢复原始布局与滚动行为 -->
-    <SquareBody :query="query" />
-  </div>
-  
+  <!-- 两栏布局：左侧 SideNav，右侧上方顶栏、下方广场正文
+       说明：
+       - 顶栏移入右列上方（rightTop），保持“左右两部分、右侧再分上下”的结构；
+       - 侧栏移至左列（left），从 SquareBody 中抽离，避免嵌套影响布局；
+       - 选择侧栏项时，通过父组件桥接调用 SquareBody 的滚动方法，不改变原有锚点与高亮行为。 -->
+  <TwoPaneLayout>
+    <!-- 左侧：通用侧栏组件（复用公共导航配置）
+         行为：
+         - 使用 v-model 绑定父级 activeId，以保持与右侧滚动联动的高亮状态；
+         - 选择事件 @select 调用 SquareBody 的 scrollTo（通过 ref 暴露），保证滚动逻辑完全复用原实现。 -->
+    <template #left>
+      <SideNav :sections="sections" v-model:activeId="activeId" @select="onSelect" />
+    </template>
+
+    <!-- 右上：顶栏组件，保持原有 solid 背景切换逻辑与搜索事件 -->
+    <template #rightTop>
+      <div class="topbar-wrap">
+        <AppTopBar :solid="topbarSolid" @search="onSearch" />
+      </div>
+    </template>
+
+    <!-- 右下：广场正文内容，保留 query 传参；通过 ref 暴露滚动方法与高亮更新事件供父级桥接 -->
+    <template #rightMain>
+      <div class="square-container">
+        <SquareBody ref="bodyRef" :query="query" @update:activeId="val => activeId = val" />
+      </div>
+    </template>
+  </TwoPaneLayout>
 </template>
 
 <script setup>
 import { ref, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
+// 通用两栏布局 + 侧栏组件
+const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
+const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
 
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const SquareBody = defineAsyncComponent(() => import('./square/SquareBody.vue'))
+// 导入公共侧栏导航配置（与广场页原逻辑一致）
+import { sideNavSections as sections } from '@/config/navSections'
 
 const query = ref('')
 function onSearch(q){ query.value = q || '' }
+// 侧栏当前高亮项（与右侧滚动联动），初始化为热门区
+const activeId = ref('hot')
+// 引用正文组件实例以桥接滚动方法
+const bodyRef = ref(null)
+function onSelect(id){
+  // 通过子组件暴露的 scrollTo 保持滚动逻辑与偏移计算的一致性
+  try{ bodyRef.value?.scrollTo?.(id) }catch{ /* 忽略异常以保障选择稳定 */ }
+}
 
 // 顶栏背景切换：默认透明；当滚动使顶栏底部接触到内容区域时，切换为纯白
 // 说明：
@@ -87,14 +118,14 @@ onUnmounted(() => {
    /* 将上下内边距设为 0，确保总高度尽量接近 20px（可按需改回 4px/6px/8px） */
    --square-header-padding-block: 0px;
 
-   /* 左侧侧边栏偏移配置
+  /* 左侧侧边栏偏移配置
       需求：将导航栏“向下、向右”移动一些以避开顶部元素或贴边区域。
       用法：SideNav.vue 中读取以下变量以控制定位与间距：
       - --side-nav-offset-y → 作用于 position: sticky 的 top（向下移动）
       - --side-nav-offset-x → 作用于 margin-left（向右移动）
       默认值分别为 16px/0px；此处设置为 36px/12px 以获得更舒适的间距。 */
-   --side-nav-offset-y: 36px;  /* 垂直向下偏移（粘性顶部距离） */
-   --side-nav-offset-x: 12px;  /* 水平向右偏移（列内左右空隙） */
+  --side-nav-offset-y: 36px;  /* 垂直向下偏移（粘性顶部距离） */
+  --side-nav-offset-x: 12px;  /* 水平向右偏移（列内左右空隙） */
   }
   /* 回退说明：移除页面级 :deep(.topbar) 吸顶覆写与 .content-fade 渐隐遮罩，
      保持广场页原始样式与行为，仅保留标题高度与侧边栏偏移变量。 */

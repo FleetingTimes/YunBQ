@@ -1,49 +1,63 @@
 <template>
-  <!-- 统一顶栏结构：页面外部顶栏 + 一致的 topbar-wrap 包裹 -->
-  <div class="topbar-wrap">
-    <AppTopBar @search="onSearch" />
-  </div>
-  <div class="container">
-    <!-- 回退：移除页面级顶栏吸顶与内容渐隐遮罩，恢复原始布局与滚动行为 -->
-    <div class="page-header">
-      <h2>我的收藏</h2>
-    </div>
-    <DanmuWall :items="danmuItems" :rows="6" :speed-scale="1.35" />
-    <div class="year-groups">
-      <div v-for="g in yearGroups" :key="g.year" class="year-group">
-        <div class="year-header">
-          <span class="year-title">{{ g.year }}</span>
-        </div>
-        <el-timeline>
-          <transition-group name="list" tag="div">
-            <el-timeline-item
-              v-for="n in g.items"
-              :key="n.id"
-              :timestamp="formatMD(n.createdAt || n.created_at)"
-              placement="top"
-            >
-              <NoteCard
-                :note="n"
-                :enableLongPressActions="true"
-                @toggle-like="toggleLike"
-                @toggle-favorite="toggleFavorite"
-              />
-            </el-timeline-item>
-          </transition-group>
-        </el-timeline>
+  <!-- 两栏布局：左侧 SideNav（展示为统一结构），右侧顶栏与正文在一列 -->
+  <TwoPaneLayout>
+    <template #left>
+      <!-- 引入通用侧栏以保持结构一致；本页不做锚点滚动，仅提供导航视觉 -->
+      <SideNav :sections="sections" v-model:activeId="activeId" :alignCenter="true" />
+    </template>
+    <template #rightTop>
+      <div class="topbar-wrap">
+        <AppTopBar @search="onSearch" />
       </div>
-    </div>
-  </div>
+    </template>
+    <template #rightMain>
+      <div class="container">
+        <div class="page-header">
+          <h2>我的收藏</h2>
+        </div>
+        <DanmuWall :items="danmuItems" :rows="6" :speed-scale="1.35" />
+        <div class="year-groups">
+          <div v-for="g in yearGroups" :key="g.year" class="year-group">
+            <div class="year-header">
+              <span class="year-title">{{ g.year }}</span>
+            </div>
+            <el-timeline>
+              <transition-group name="list" tag="div">
+                <el-timeline-item
+                  v-for="n in g.items"
+                  :key="n.id"
+                  :timestamp="formatMD(n.createdAt || n.created_at)"
+                  placement="top"
+                >
+                  <NoteCard
+                    :note="n"
+                    :enableLongPressActions="true"
+                    @toggle-like="toggleLike"
+                    @toggle-favorite="toggleFavorite"
+                  />
+                </el-timeline-item>
+              </transition-group>
+            </el-timeline>
+          </div>
+        </div>
+      </div>
+    </template>
+  </TwoPaneLayout>
 </template>
 
 <script setup>
 import { ref, onMounted, defineAsyncComponent, computed } from 'vue'
+const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
+const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
 import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
 
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const DanmuWall = defineAsyncComponent(() => import('@/components/DanmuWall.vue'))
 const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
+import { sideNavSections as sections } from '@/config/navSections'
+// 侧栏当前高亮项（本页仅用于展示导航，不参与滚动）
+const activeId = ref('')
 
 const query = ref('')
 const danmuItems = ref([])

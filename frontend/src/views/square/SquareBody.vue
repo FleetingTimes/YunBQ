@@ -8,13 +8,11 @@
     </header>
 
     <section class="layout">
-      <!-- 抽取：使用通用侧边栏组件 SideNav（父子导航、默认折叠、选择事件）
+      <!-- 布局重构：侧边栏移至父组件（Square.vue）的左列，避免在正文内部嵌套侧栏影响整体结构。
            说明：
-           - 通过 v-model:activeId 绑定当前高亮项；
-           - 监听 select 事件并调用 scrollTo，实现滚动到内容区块；
-           - sections 数据结构保持不变，aliasTargets 的滚动映射由父组件 scrollTo 处理。 -->
-      <!-- 撤销：恢复默认粘性布局的侧边栏 -->
-      <SideNav :sections="sections" v-model:activeId="activeId" @select="scrollTo" />
+           - 本组件保留滚动逻辑 scrollTo 与滚动联动高亮（activeId）；
+           - 通过 defineEmits 暴露 update:activeId 事件，使父组件可绑定到 SideNav 的 v-model；
+           - 父组件通过 ref 调用 scrollTo(id) 保持原有滚动偏移与锚点映射逻辑。 -->
       <div class="content-scroll" ref="contentRef">
         <!-- 需求：隐藏顶部内容导航提示区域（红框圈住的横向标签文案）。
              实现：移除该 DOM 区块，避免冗余占位；保留滚动与锚点逻辑。
@@ -211,9 +209,10 @@ import { useRoute } from 'vue-router'
 import { http } from '@/api/http'
 import { getToken } from '@/utils/auth'
 import SiteNoteList from '@/components/SiteNoteList.vue'
-import SideNav from '@/components/SideNav.vue'
 // 抽取：从公共配置导入侧边栏导航，保持与“添加便签”页一致
 import { sideNavSections } from '@/config/navSections'
+// 暴露事件：向父组件更新当前高亮项，以联动左侧 SideNav 的 v-model
+const emit = defineEmits(['update:activeId'])
 
 const hotNotes = ref([])
 const recentNotes = ref([])
@@ -626,6 +625,8 @@ function scrollTo(id){
     window.scrollTo({ top, behavior: 'smooth' })
   }
   activeId.value = id
+  // 向父组件同步活跃项，以便联动左侧 SideNav 高亮
+  try{ emit('update:activeId', id) }catch{ /* 忽略异常以保证滚动稳定 */ }
 }
 
 // 滚动高亮：
@@ -705,6 +706,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* 导航容器宽度改由共享组件的 prop 控制（SideNav.innerWidth），此处不再覆盖 */
 /* 顶部标题区（云便签 · 广场）
    说明：
    - 将高度改为“可配置”，通过 CSS 变量控制，便于按需微调；
@@ -725,19 +727,7 @@ onMounted(() => {
 .actions { display: flex; gap: 8px; }
 .grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
 .layout { display:flex; gap:12px; align-items:flex-start; }
-.side-nav { width:180px; border:none; border-radius:12px; background: transparent; padding:12px; position:fixed; left:12px; top:12px; z-index:10; }
-.side-nav .nav-title { font-weight:600; margin-bottom:8px; }
-/* 统一侧边导航为树状纵向布局
-   说明：
-   - 改为块级纵向排列，移除斜杠分隔；
-   - 在列表左侧绘制竖虚线作为树干；
-   - 每个项前绘制短横线与树干连接，形成父子层级的统一视觉。 */
-.side-nav .nav-list { list-style:none; margin:0; padding:0 0 0 16px; display:block; position:relative; }
-.side-nav .nav-list::before { content:""; position:absolute; left:8px; top:0; bottom:0; width:0; border-left:1px dashed #dcdfe6; }
-.side-nav .nav-list a { display:block; padding:8px 10px; border-radius:8px; color:#303133; text-decoration:none; transition: background-color .15s ease; }
-.side-nav .nav-list a:hover { background:#f5f7ff; }
-.side-nav .nav-list a.active { background:#ecf5ff; color:#409eff; }
-.side-nav .nav-list li { display:block; align-items:unset; position:relative; padding-left:12px; margin:4px 0; }
+/* 移除本组件内的侧栏样式：侧栏已抽离至父组件左列，避免样式重复或干扰 */
 /* 列表项连接树干：替代原有斜杠分隔符 */
 .side-nav .nav-list li::before { content:""; position:absolute; left:0; top:50%; width:8px; border-top:1px solid #dcdfe6; transform: translateY(-50%); }
 /* 分组断点：扩大间距以区分（原先 break 用于换行，现在用于加间距） */

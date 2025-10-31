@@ -1,30 +1,41 @@
 <template>
-  <!-- 统一顶栏结构：将顶栏放置在页面容器之外，并使用 topbar-wrap 控制宽度与左右安全边距
-       这样每个页面的顶栏都以一致的 1080px 最大宽度居中显示，不受各页面内部 .container/.square-container 的宽度与内边距影响 -->
-  <div class="topbar-wrap">
-    <AppTopBar @search="onSearch" />
-  </div>
-  <div class="container">
-    <!-- 回退：移除页面级顶栏吸顶与内容渐隐遮罩，恢复原始布局与滚动行为 -->
-    <div class="page-header">
-      <h2>搜索结果</h2>
-    </div>
-    <NotesBody :query="query" :showComposer="false" />
-  </div>
+  <!-- 两栏布局：左侧 SideNav（统一结构展示），右侧顶栏 + 搜索结果正文 -->
+  <TwoPaneLayout>
+    <template #left>
+      <SideNav :sections="sections" v-model:activeId="activeId" :alignCenter="true" />
+    </template>
+    <template #rightTop>
+      <div class="topbar-wrap">
+        <AppTopBar @search="onSearch" />
+      </div>
+    </template>
+    <template #rightMain>
+      <div class="container">
+        <div class="page-header">
+          <h2>搜索结果</h2>
+        </div>
+        <NotesBody :query="query" :showComposer="false" />
+      </div>
+    </template>
+  </TwoPaneLayout>
   
 </template>
 
 <script setup>
 import { ref, watch, defineAsyncComponent } from 'vue';
+const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
+const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
 import { useRoute, useRouter } from 'vue-router';
 
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'));
 const NotesBody = defineAsyncComponent(() => import('./notes/NotesBody.vue'));
+import { sideNavSections as sections } from '@/config/navSections'
 
 const route = useRoute();
 const router = useRouter();
 
 const query = ref(String(route.query.q || ''));
+const activeId = ref('')
 
 function onSearch(q){
   query.value = q || '';

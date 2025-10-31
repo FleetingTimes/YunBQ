@@ -8,7 +8,8 @@
          * select(id) 当点击子项或无子项的父项时触发，由父组件决定滚动或其他行为；
        - 样式：本组件包含自身样式，不依赖父组件 scoped 样式。 -->
   <!-- 撤销：恢复默认粘性布局，不再固定到页面左侧 -->
-  <aside class="side-nav">
+  <!-- 增加可选居中样式：当传入 alignCenter=true 时，侧边导航内容在自身宽度内水平居中 -->
+  <aside class="side-nav" :class="{ centered: props.alignCenter }" :style="asideStyle">
     <div class="nav-title">导航</div>
     <ul class="nav-list">
       <li v-for="s in sections" :key="s.id" :class="{ break: s.id === 'site', 'has-children': s.children && s.children.length }">
@@ -48,9 +49,59 @@ const props = defineProps({
   // 导航配置：数组项包含 id/label/children，可选 aliasTargets 由父处理
   sections: { type: Array, default: () => [] },
   // v-model:activeId 当前高亮项 id
-  activeId: { type: String, default: '' }
+  activeId: { type: String, default: '' },
+  // 居中对齐开关：当为 true 时，侧栏中的标题与导航项在自身列内居中显示
+  // 说明：
+  // - 顶层导航（父项）与子导航均采用文本居中；
+  // - 子导航的树状连接线将被隐藏，以避免与居中布局冲突；
+  // - 不改变侧栏自身宽度与粘性定位，仅是内容对齐方式的调整。
+  alignCenter: { type: Boolean, default: false },
+  // 导航容器内部宽度：集中到组件控制，支持数字或带单位字符串；默认 160px
+  innerWidth: { type: [Number, String], default: 160 }
+  ,
+  /**
+   * 组件外部宽度（aside.side-nav 的整体宽度）。
+   * - 用于“缩小侧边栏组件本身的宽度”，不影响内部文本对齐。
+   * - 支持数字（按 px 处理）或字符串（例如 '180px'/'12rem'/'80%'）。
+   * - 默认值：200（即 200px）。
+   */
+  width: { type: [Number, String], default: 200 }
 })
 const emit = defineEmits(['update:activeId', 'select'])
+
+// 组件根元素样式绑定：通过 CSS 变量传递“内部容器宽度”与“组件外宽”
+// 说明：
+// - innerWidth → 绑定到 --side-nav-inner-width，用于 .nav-list/.sub-nav-list 的居中容器宽度；
+// - width → 绑定到 --side-nav-width，用于 aside.side-nav 的整体宽度；
+// - 两者都支持数字（自动转 px）与长度字符串（px/rem/% 等），包含详尽容错注释。
+const asideStyle = computed(() => {
+  // 解析内部宽度（默认 160px）
+  let inner = props.innerWidth
+  if (typeof inner === 'number') {
+    inner = `${inner}px`
+  } else if (typeof inner === 'string') {
+    const t = inner.trim()
+    inner = /^\d+$/.test(t) ? `${t}px` : t
+  } else {
+    inner = '160px'
+  }
+
+  // 解析组件外宽（默认 200px）
+  let outer = props.width
+  if (typeof outer === 'number') {
+    outer = `${outer}px`
+  } else if (typeof outer === 'string') {
+    const t = outer.trim()
+    outer = /^\d+$/.test(t) ? `${t}px` : t
+  } else {
+    outer = '200px'
+  }
+
+  return {
+    '--side-nav-inner-width': inner,
+    '--side-nav-width': outer
+  }
+})
 
 // 本地展开状态：使用 Set 以获得 O(1) 插入/删除/查询性能
 const expandedIds = ref(new Set())
@@ -124,7 +175,8 @@ function onChildClick(id){
 <style scoped>
 /* 侧边栏总体布局：窄列、粘性定位、竖向导航，支持滚动 */
 .side-nav { 
-  width: 220px; 
+  /* 组件整体宽度：集中由 CSS 变量控制，默认 200px，可通过 prop 覆盖 */
+  width: var(--side-nav-width, 200px); 
   flex: none; 
   position: sticky; 
   /* 垂直偏移（向下移动）
@@ -169,6 +221,45 @@ function onChildClick(id){
 /* 隐藏WebKit浏览器（Chrome/Safari）的滚动条 */
 .side-nav::-webkit-scrollbar {
   display: none;
+}
+
+/* 居中变体（仅控件居中）：
+   说明：
+   - 当启用 centered 时，仅让侧边栏“控件本身”（aside.side-nav 区块）在其所在列内居中；
+   - 不改变导航标题与父/子导航项的文本对齐方式（仍保持默认左对齐）；
+   - 适用于希望整体控件居中而内容仍左对齐的场景。 */
+.side-nav.centered { 
+  /* 使用自动左右外边距将侧栏控件在列内居中（宽度 220px 保持不变） */
+  margin-left: auto; 
+  margin-right: auto; 
+}
+/* 仅导航容器居中：
+   说明：
+   - 在保持侧栏控件（aside）居中的基础上，将内部的导航容器（.nav-list）作为一个“居中块”，
+     通过固定较窄的内容宽度并设置左右自动外边距，使其在侧栏中居中显示；
+   - 导航项文本与层级线保持默认左对齐，不改变交互与树状视觉；
+   - 可通过 CSS 变量 --side-nav-inner-width 调整导航容器的宽度（默认 180px）。 */
+.side-nav.centered .nav-list {
+  width: var(--side-nav-inner-width, 160px);
+  margin-left: auto;
+  margin-right: auto;
+  /* 明确文本左对齐，避免继承导致的意外居中 */
+  text-align: left;
+}
+/* 子导航容器也应用同样的居中宽度，以保证父子层级宽度一致 */
+.side-nav.centered .sub-nav-list {
+  width: var(--side-nav-inner-width, 160px);
+  margin-left: auto;
+  margin-right: auto;
+}
+/* 子导航项宽度优化（居中模式）：
+   说明：
+   - 默认 sub-nav 的 <a> 为 block，会占满容器宽度，看起来“胶囊过长”；
+   - 这里改为 inline-block/自适应宽度，让胶囊长度贴合文本；
+   - 仍保持左对齐与树状连接线（::before）不变。 */
+.side-nav.centered .sub-nav-list a {
+  display: inline-block; /* 自适应文本宽度，避免占满容器 */
+  width: auto;          /* 明确不拉伸至容器宽度 */
 }
 
 @media (max-width: 960px){ 
