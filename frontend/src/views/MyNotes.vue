@@ -328,7 +328,12 @@ async function loadMe(){
 
 async function loadNotes(){
   try{
-    const { data } = await http.get('/notes', { params: { size: 100, page: 1 } });
+    // 仅加载“我的”便签：通过向后端传递 mineOnly=true，让服务端按 user_id 精确过滤
+    // 说明：
+    // - 后端 NoteController.list 支持 mineOnly 参数；当为 true 时仅返回当前登录用户的便签；
+    // - 若不传该参数，后端默认返回“公开便签 + 我的便签”的并集，导致页面出现他人公开便签；
+    // - suppress401Redirect: true 用于避免意外的 401 时触发全局重定向（在本页通常已登录，仅加作稳妥保护）。
+    const { data } = await http.get('/notes', { params: { size: 100, page: 1, mineOnly: true }, suppress401Redirect: true });
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? []);
     notes.value = (items || []).map(it => ({
       ...it,
