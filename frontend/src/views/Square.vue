@@ -17,6 +17,7 @@
     <template #topFull>
       <!-- 开启铺满模式：fluid，让中间搜索区域在可用空间内尽可能拉伸 -->
       <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
+      <!-- 说明：广场页需要保持极简沉浸效果，顶栏在滚动时不切换毛玻璃，以免分散注意力。 -->
       <AppTopBar fluid :transparent="true" @search="onSearch" />
     </template>
 
@@ -51,7 +52,7 @@ function onSelect(id){
   try{ bodyRef.value?.scrollTo?.(id) }catch{ /* 忽略异常以保障选择稳定 */ }
 }
 
-// 顶栏背景切换：默认透明；当滚动使顶栏底部接触到内容区域时，切换为纯白
+// 顶栏背景切换（保留解释性注释）：默认透明；当滚动使顶栏底部接触到内容区域时，切换为纯白
 // 说明：
 // - 通过检测页面容器（.square-container）相对视窗的顶部位置与顶栏高度来判断接触；
 // - 当 container 顶部的可见位置 <= 顶栏高度，视为“顶栏底部接触到内容区域”，置 solid=true；
@@ -105,7 +106,7 @@ onUnmounted(() => {
    display: flex;
    flex-direction: column;
    max-width: 960px; margin: 0 auto; padding: 16px;
-  /* 设置广场标题高度为 12px：最小化标题占用空间
+   /* 设置广场标题高度为 12px：最小化标题占用空间
       说明：`.square-header` 使用 min-height，因此总高度≈min-height+padding；
       我们将上下内边距设为 0，以使总高度尽量接近 12px。
       警告：标题文字与图标有自身字体大小与行高（当前 h1 为 20px），

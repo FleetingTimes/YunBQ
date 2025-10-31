@@ -5,7 +5,10 @@ export const routes = [
   { path: '/login', component: () => import('../views/Login.vue') },
   { path: '/register', component: () => import('../views/Register.vue') },
   { path: '/notes', component: () => import('../views/Notes.vue') },
-  { path: '/my-notes', component: () => import('../views/MyNotes.vue') },
+  // 我的便签页：需要登录。原因：页面会请求 /api/notes?mineOnly=true 与 /api/account/me，
+  // 未登录时后端返回 401，前端全局拦截器会跳转首页导致请求被中止、浏览器提示报错。
+  // 加上 requiresAuth 后，通过路由守卫在进入页面前统一跳转登录页，避免页面内出现“报错/请求中止”。
+  { path: '/my-notes', meta: { requiresAuth: true }, component: () => import('../views/MyNotes.vue') },
   { path: '/messages', meta: { requiresAuth: true }, component: () => import('../views/Messages.vue') },
   { path: '/likes', meta: { requiresAuth: true }, component: () => import('../views/Likes.vue') },
   { path: '/favorites', meta: { requiresAuth: true }, component: () => import('../views/Favorites.vue') },

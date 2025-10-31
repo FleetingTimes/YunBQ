@@ -426,7 +426,16 @@ function logout(){
   router.replace('/')
 }
 function goMyNotes(){
+  // 关闭个人信息弹层，避免遮挡交互
   profileVisible.value = false
+  // 跳转防抖：若当前已在“我的便签”页，避免重复导航并给予轻提示
+  // 说明：Vue Router 在尝试跳转到同一路由时会忽略或抛出冗余导航错误；
+  // 这里主动判断当前路径，提升用户的感知与体验。
+  if (route.path === '/my-notes' || (typeof route.fullPath === 'string' && route.fullPath.includes('/my-notes'))){
+    ElMessage.info('已在我的便签页')
+    return
+  }
+  // 登录态：直接跳转；未登录时由路由守卫(meta.requiresAuth)统一拦截并重定向到登录页
   router.push('/my-notes')
 }
 function goAdmin(){

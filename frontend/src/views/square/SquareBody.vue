@@ -524,12 +524,29 @@ async function loadHot(){
   }catch(e){ hotNotes.value = [] }
 }
 async function loadRecent(){
+  // 最近便签加载：在离开广场页时（导航到“我的便签”等）可能发生请求中止
+  // 为避免浏览器报 net::ERR_ABORTED 或 axios 的 CanceledError 干扰体验，
+  // 增加取消控制并在卸载时主动终止请求。
   try{
-    const { data } = await http.get('/notes/recent', { params: { size: 16 }, suppress401Redirect: true })
+    // 若上次请求仍在进行，先主动取消（避免重复并行）
+    if (loadRecent.controller) {
+      try{ loadRecent.controller.abort() }catch{}
+    }
+    // 新建取消控制器，并将 signal 传入 axios 请求配置
+    loadRecent.controller = new AbortController()
+    const { data } = await http.get('/notes/recent', {
+      params: { size: 16 },
+      suppress401Redirect: true,
+      signal: loadRecent.controller.signal
+    })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     recentNotes.value = items || []
     pageRecent.value = 1
-  }catch(e){ recentNotes.value = [] }
+  }catch(e){
+    // 忽略取消错误（导航或重复触发导致的正常中止）
+    const isCanceled = e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError'
+    if (!isCanceled) { recentNotes.value = [] }
+  }
 }
 
 // 网站区的标签过滤由通用组件内部完成（hasTag），无需在父组件保留。
@@ -572,6 +589,11 @@ onMounted(() => {
     window.removeEventListener('visibilitychange', onVisibilityChange)
     clearInterval(authPoller)
   })
+})
+
+// 页面卸载时：取消最近便签的在途请求，避免导航中止错误
+onUnmounted(() => {
+  try{ loadRecent.controller?.abort?.() }catch{}
 })
 
 // 网站区使用通用组件，父组件无需重置网站来源或数据。

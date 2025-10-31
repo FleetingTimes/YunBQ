@@ -1,10 +1,7 @@
 <template>
-  <!-- 两栏布局：左侧 SideNav（展示为统一结构），右侧顶栏与正文在一列 -->
+  <!-- 单列布局：去掉左侧区域，仅保留全宽顶栏和正文
+       说明：继续复用 TwoPaneLayout 的顶栏吸顶与右侧唯一滚动容器逻辑。 -->
   <TwoPaneLayout>
-    <template #left>
-      <!-- 引入通用侧栏以保持结构一致；本页不做锚点滚动，仅提供导航视觉 -->
-      <SideNav :sections="sections" v-model:activeId="activeId" :alignCenter="true" />
-    </template>
     <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
     <template #topFull>
       <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
@@ -48,16 +45,12 @@
 <script setup>
 import { ref, onMounted, defineAsyncComponent, computed } from 'vue'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
-const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
 import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
 
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const DanmuWall = defineAsyncComponent(() => import('@/components/DanmuWall.vue'))
 const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
-import { sideNavSections as sections } from '@/config/navSections'
-// 侧栏当前高亮项（本页仅用于展示导航，不参与滚动）
-const activeId = ref('')
 
 const query = ref('')
 const danmuItems = ref([])
@@ -178,6 +171,13 @@ function sampleDanmu(){
 :deep(.meta.bottom-left .el-tag--info) {
   display: none !important;
 }
+/* 布局覆盖：在收藏页隐藏左侧列并取消列间距，使页面成为真正的单列
+   说明：
+   - TwoPaneLayout 默认两列（auto 1fr）并设置 column-gap: 12px；
+   - 若不渲染 #left 插槽，左列宽度为 0，但仍残留 12px 列间距；
+   - 覆盖 .bottom-row 与 .col-left，实现完全单列展示，并保留顶栏吸顶与右侧滚动。 */
+:deep(.bottom-row){ grid-template-columns: 1fr; column-gap: 0; }
+:deep(.col-left){ display: none !important; }
 /* 回退说明：
    - 移除了页面级顶栏包裹宽度限制（topbar-wrap），顶栏使用全宽插槽；
    - 保持原始页面样式与行为，不影响顶栏组件与其它页面。 */
