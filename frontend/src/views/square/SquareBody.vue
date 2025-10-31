@@ -616,13 +616,15 @@ function scrollTo(id){
   // 动态计算滚动偏移量，避免标题与顶栏遮挡目标卡片
   // - 标题（.square-header）与全局顶栏（.topbar/.header.topbar）位于容器之外，但会遮挡视线；
   // - 读取实际高度并叠加容器上内边距与安全间距，保证滚动后舒适的可视留白。
-  const titleEl = document.querySelector('.square-header')
+  // 兼容两种滚动容器：页面右栏(.right-main) 与正文内部(.content-scroll)
+  // - 当容器是 .right-main 时，顶部不存在覆盖性的固定顶栏，不需要额外减去顶栏高度；
+  // - 当容器是 .content-scroll（较旧布局或嵌套场景），才考虑标题区 .square-header 的高度。
+  const isRightMain = container.classList?.contains('right-main')
+  const titleEl = !isRightMain ? document.querySelector('.square-header') : null
   const titleH = titleEl ? titleEl.offsetHeight : 0
-  const topbarEl = document.querySelector('.topbar') || document.querySelector('.header.topbar')
-  const topbarH = topbarEl ? topbarEl.offsetHeight : 0
   const containerStyles = getComputedStyle(container)
   const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
-  const extra = 36 // 安全间距：适度减小，降低“过度避让”导致的位置误差
+  const extra = isRightMain ? 12 : 24 // 右栏滚动仅保留轻量安全间距；内部容器稍多一些
 
   // 更稳健的滚动距离计算（推荐）：基于 getBoundingClientRect
   // 说明：
@@ -632,7 +634,7 @@ function scrollTo(id){
   const elRect = el.getBoundingClientRect()
   const containerRect = container.getBoundingClientRect()
   const visibleDelta = elRect.top - containerRect.top
-  const offset = titleH + topbarH + containerPadTop + extra
+  const offset = titleH + containerPadTop + extra
   const targetTop = Math.max(0, container.scrollTop + visibleDelta - offset)
   container.scrollTo({ top: targetTop, behavior: 'smooth' })
 
