@@ -13,11 +13,10 @@
       <SideNav :sections="sections" v-model:activeId="activeId" @select="onSelect" />
     </template>
 
-    <!-- 右上：顶栏组件，保持原有 solid 背景切换逻辑与搜索事件 -->
-    <template #rightTop>
-      <div class="topbar-wrap">
-        <AppTopBar :solid="topbarSolid" @search="onSearch" />
-      </div>
+    <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
+    <template #topFull>
+      <!-- 开启铺满模式：fluid，让中间搜索区域在可用空间内尽可能拉伸 -->
+      <AppTopBar fluid :solid="topbarSolid" @search="onSearch" />
     </template>
 
     <!-- 右下：广场正文内容，保留 query 传参；通过 ref 暴露滚动方法与高亮更新事件供父级桥接 -->
@@ -84,11 +83,7 @@ onUnmounted(() => {
 <style scoped>
   /* 统一顶栏包裹：限定最大宽度为 1080px、居中显示，并保留左右 16px 安全边距
      说明：这使顶栏在所有页面显示为一致宽度，不受容器（如 .container/.square-container）影响 */
-  .topbar-wrap { 
-    /* 统一宽度与居中 */
-    max-width: 1080px; margin: 0 auto; padding: 0 16px; 
-    /* 移除页面级吸顶样式，让 AppTopBar 组件自己处理吸顶和毛玻璃效果 */
-  }
+  /* 顶栏宽度限制已移除：使用 TwoPaneLayout 的全宽插槽，AppTopBar 自行吸顶与视觉控制 */
   /* 页面容器样式
      说明：
      - 在容器上声明 CSS 变量以配置子组件（SquareBody）里的广场标题区高度；
@@ -100,6 +95,14 @@ onUnmounted(() => {
      - 采用通用内边距 16px，以保持内容安全边距；
      - 该回退仅影响广场页容器，不改动内部组件布局。 */
   .square-container {
+   /* 右侧正文外层容器：占满右列高度并作为 Flex 父容器
+      说明：
+      - height: 100% 让子组件（SquareBody）可读取到明确的高度上下文；
+      - display:flex + flex-direction: column 为子层级的滚动容器（content-scroll）提供空间约束；
+      - 其余宽度与内边距保持不变，确保视觉结构一致。 */
+   height: 100%;
+   display: flex;
+   flex-direction: column;
    max-width: 960px; margin: 0 auto; padding: 16px;
   /* 设置广场标题高度为 12px：最小化标题占用空间
       说明：`.square-header` 使用 min-height，因此总高度≈min-height+padding；

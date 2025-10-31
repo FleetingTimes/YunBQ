@@ -3,8 +3,9 @@
        说明：
        - 默认透明：与页面背景融合，提供沉浸式体验；
        - 滚动时毛玻璃：当页面滚动超过阈值时，自动切换为透明毛玻璃效果，保持内容可读性；
-       - 支持外部 solid 属性强制控制状态。 -->
-  <div class="header topbar" :class="{ 'glass-effect': shouldShowGlass }">
+       - 支持外部 solid 属性强制控制状态；
+       - 支持外部 fluid 属性启用“铺满模式”，让中间区域（通常为搜索）撑满顶栏宽度。 -->
+  <div class="header topbar" :class="{ 'glass-effect': shouldShowGlass, fluid }">
     <div class="brand" @click="goSquare" style="cursor:pointer;">
       <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
       <h1>云便签</h1>
@@ -223,9 +224,13 @@
 // 顶栏组件：支持吸顶与可控背景模式，增加滚动检测和毛玻璃效果
 // 说明：
 // - 通过 props.solid 控制背景：false=透明，true=毛玻璃；
+// - 通过 props.fluid 控制布局：true 时启用“铺满模式”，让中间区域（搜索）在可用空间内尽可能拉伸；
 // - 自动检测页面滚动，当滚动距离超过阈值时自动切换为毛玻璃效果；
 // - 页面也可手动控制 solid 状态来覆盖自动检测。
-const { solid = false } = defineProps({ solid: { type: Boolean, default: false } })
+const { solid = false, fluid = false } = defineProps({ 
+  solid: { type: Boolean, default: false },
+  fluid: { type: Boolean, default: false }
+})
 import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { http, avatarFullUrl } from '@/api/http'
@@ -496,6 +501,26 @@ function onHoverLeave(){
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   /* 柔和阴影提升层次 */
   box-shadow: 0 1px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* 铺满模式（fluid）：让中间列在可用空间内尽可能拉伸，达到“内容铺满顶栏”的效果
+   说明：
+   - 将中间列改为 1fr，左右两侧自适应内容宽度（auto）；
+   - 中间区域（.center-search）与输入框采用宽度 100%，以占满该列。 */
+.topbar.fluid {
+  /* 左列（品牌）auto + 中间列 1fr + 右列（操作）auto */
+  grid-template-columns: auto 1fr auto;
+}
+.topbar.fluid .center-search { 
+  /* 中间区域占满该列的可用空间；
+     注意：flex 的 justify-content 不支持 stretch，这里保持居中并允许子元素 100% 宽度 */
+  justify-content: center; 
+  /* 允许子元素计算宽度不被默认最小宽度限制（避免 grid 中 1fr 列内溢出） */
+  min-width: 0;
+}
+.topbar.fluid .top-search-input { 
+  /* 搜索输入占满中间区域 */
+  width: 100%; 
 }
 
 /* 说明：

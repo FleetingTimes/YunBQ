@@ -1,5 +1,19 @@
 <template>
-  <div class="container" :style="{ '--filtersH': filtersHeight + 'px' }">
+  <!-- 统一布局接入：
+       使用 TwoPaneLayout 的三槽位结构（topFull/left/rightMain），
+       保持原页面功能不变，同时统一顶栏与侧栏的视觉与交互。 -->
+  <TwoPaneLayout>
+    <!-- 顶栏：全宽吸顶通用顶栏，桥接搜索到本页过滤逻辑 -->
+    <template #topFull>
+      <AppTopBar fluid @search="onTopSearch" />
+    </template>
+    <!-- 左侧：通用侧边导航；本页不进行锚点滚动，仅供导航一致性展示 -->
+    <template #left>
+      <SideNav :sections="sections" v-model:activeId="activeId" :alignCenter="true" />
+    </template>
+    <!-- 右侧正文：原页面内容整体迁入，保留所有交互逻辑与样式 -->
+    <template #rightMain>
+      <div class="container" :style="{ '--filtersH': filtersHeight + 'px' }">
     <div class="header topbar">
       <div class="brand" role="button" @click="$router.push('/')" title="返回广场">
         <img src="https://api.iconify.design/mdi/timeline-text.svg" alt="timeline" width="24" height="24" />
@@ -208,16 +222,34 @@
       </div>
     </div>
   </div>
-  <!-- 右下：回到顶部组件（可见高度 360px 后出现） -->
-  <el-backtop :right="80" :bottom="100" :visibility-height="360">
-    <div class="backtop-btn" title="回到顶部">
-      <img src="https://api.iconify.design/mdi/arrow-up.svg" alt="up" width="20" height="20" />
-    </div>
-  </el-backtop>
+        <!-- 右下：回到顶部组件（可见高度 360px 后出现） -->
+        <el-backtop :right="80" :bottom="100" :visibility-height="360">
+          <div class="backtop-btn" title="回到顶部">
+            <img src="https://api.iconify.design/mdi/arrow-up.svg" alt="up" width="20" height="20" />
+          </div>
+        </el-backtop>
+      </div>
+    </template>
+  </TwoPaneLayout>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick, defineAsyncComponent } from 'vue';
+// 统一布局依赖：异步加载减少首屏体积
+const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
+const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
+const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
+// 侧栏导航配置：与其他页面保持一致，主要用于视觉统一
+import { sideNavSections as sections } from '@/config/navSections'
+// 侧栏当前高亮项（本页未做滚动联动，保持空即可）
+const activeId = ref('')
+// 顶栏搜索桥接：写入本页 filters.query 并触发搜索动画反馈
+function onTopSearch(q){
+  try{
+    filters.query = String(q || '')
+    triggerSearchPulse()
+  }catch{ /* 忽略异常以防 filters 未就绪时报错 */ }
+}
 import { useRouter } from 'vue-router';
 import { http, avatarFullUrl } from '@/api/http';
 import { ElMessage, ElMessageBox } from 'element-plus';

@@ -4,10 +4,9 @@
     <template #left>
       <SideNav :sections="sections" v-model:activeId="activeId" :alignCenter="true" />
     </template>
-    <template #rightTop>
-      <div class="topbar-wrap">
-        <AppTopBar @search="onSearch" />
-      </div>
+    <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
+    <template #topFull>
+      <AppTopBar fluid @search="onSearch" />
     </template>
     <template #rightMain>
       <div class="container">
@@ -48,11 +47,6 @@ watch(() => route.query.q, (nv) => {
 </script>
 
 <style scoped>
-.topbar-wrap { 
-  /* 统一宽度与居中显示 */
-  max-width: 1080px; margin: 0 auto; padding: 0 16px; 
-  /* 移除页面级吸顶样式，让 AppTopBar 组件自己处理吸顶和毛玻璃效果 */
-}
 .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 /* 回退说明：
    - 移除了页面级 :deep(.topbar) 吸顶与层级覆写；

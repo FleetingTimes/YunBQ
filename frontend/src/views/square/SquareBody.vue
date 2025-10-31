@@ -580,52 +580,64 @@ onMounted(() => {
 // 滚动控制：
 // - 支持“别名锚点”（aliasTargets）：当点击合并项（如热门·最近）时，默认滚动到其第一个锚点（hot）；
 // - 其余项按原逻辑滚动到自身 id 对应的内容区块。
+// 辅助函数：取得“最近的滚动父容器”（自适应 right-main 或 .content-scroll）
+// 说明：
+// - 在不同布局下，可能由 `.right-main` 或内部 `.content-scroll` 承担滚动；
+// - 这里向上查找第一个 overflowY 为 auto/scroll 的祖先，作为滚动上下文；
+// - 若未找到，则回退为 `.content-scroll` 本身，确保滚动行为可用。
+function getScrollContainer(){
+  const base = contentRef.value
+  if (!base) return null
+  let el = base
+  while (el && el !== document.body){
+    try{
+      const s = getComputedStyle(el)
+      const oy = String(s.overflowY || '').toLowerCase()
+      if (oy === 'auto' || oy === 'scroll') return el
+    }catch{ /* 忽略异常，继续向上查找 */ }
+    el = el.parentElement
+  }
+  return base
+}
+
 function scrollTo(id){
-  const container = contentRef.value
+  const container = getScrollContainer()
   if (!container) return
+  // 统一滚动容器：始终使用正文容器（.content-scroll）作为滚动上下文，避免回退到页面级滚动
+  // 背景：两栏布局已将页面级滚动禁用（.two-pane { overflow: hidden }），因此 window.scrollTo 不再生效；
+  // 方案：无论容器是否产生溢出，都使用容器 scrollTo，实现确定性的滚动行为。
+
   // 查找当前 section，若存在别名锚点，则优先使用第一个别名作为滚动目标
   const s = sections.find(x => x.id === id)
   const targetId = (s && Array.isArray(s.aliasTargets) && s.aliasTargets.length) ? s.aliasTargets[0] : id
-  const el = container.querySelector('#' + targetId)
+  const el = (contentRef.value || container).querySelector('#' + targetId)
   if (!el) return
-  // 动态计算滚动偏移量，避免“云便签·广场”标题与顶部内容提示遮挡
-  // 说明：
-  // - 标题区域（.square-header）不在滚动容器内，但会占据页面顶部空间；
-  // - 顶部内容提示（.content-head）在滚动容器内，也需要计入偏移；
-  // - 通过读取实际高度来计算更准确的偏移量，并预留额外安全间距。
+
+  // 动态计算滚动偏移量，避免标题与顶栏遮挡目标卡片
+  // - 标题（.square-header）与全局顶栏（.topbar/.header.topbar）位于容器之外，但会遮挡视线；
+  // - 读取实际高度并叠加容器上内边距与安全间距，保证滚动后舒适的可视留白。
   const titleEl = document.querySelector('.square-header')
-  // 顶部提示 .content-head 已移除，因此仅考虑页面标题高度；
-  // 为消除“滚动到目标后顶部留白”，改用容器 scrollTo 并使用精确偏移。
   const titleH = titleEl ? titleEl.offsetHeight : 0
-  // 计算全局顶部栏高度（AppTopBar），用于防止卡片被应用顶部栏遮挡
-  // 说明：AppTopBar 处于滚动容器之外，但用户视觉上会认为它是“页面顶部”，
-  // 因此在滚动定位时应当预留其高度，以避免目标卡片被遮挡。
   const topbarEl = document.querySelector('.topbar') || document.querySelector('.header.topbar')
   const topbarH = topbarEl ? topbarEl.offsetHeight : 0
-  // 容器的内边距顶部值（如果容器自身有 padding-top，需要纳入偏移）
   const containerStyles = getComputedStyle(container)
   const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
-  // 增加安全间距：在不同缩放/字体/主题下提供少许缓冲，避免视觉上的压迫或轻微遮挡。
-  // 依据你的最新需求，将安全间距调整为 52px：较大缓冲值，
-  // 适用于顶部阴影更强、装饰元素更厚重或页面缩放≥125%时，保证滚动后更充足的可视留白且无遮挡。
-  // 注：偏移综合考虑页面标题（square-header）、全局顶栏（.topbar）与容器上内边距，确保滚动后无遮挡显示。
-  const extra = 52
-  // 回退滚动模式：如果容器不再溢出（移除 max-height 后），使用整页滚动
-  const containerCanScroll = container.scrollHeight > (container.clientHeight + 1)
-  if (containerCanScroll){
-    // 容器滚动：综合偏移 = 标题 + 顶栏 + 容器上内边距 + 安全间距
-    const offset = titleH + topbarH + containerPadTop + extra
-    const top = Math.max(0, el.offsetTop - offset)
-    container.scrollTo({ top, behavior: 'smooth' })
-  }else{
-    // 整页滚动：使用元素相对文档的绝对位置，并忽略容器内边距
-    const rectTop = el.getBoundingClientRect().top + window.scrollY
-    const offset = titleH + topbarH + /* 页面级滚动不计容器内边距 */ 0 + extra
-    const top = Math.max(0, rectTop - offset)
-    window.scrollTo({ top, behavior: 'smooth' })
-  }
+  const extra = 36 // 安全间距：适度减小，降低“过度避让”导致的位置误差
+
+  // 更稳健的滚动距离计算（推荐）：基于 getBoundingClientRect
+  // 说明：
+  // - offsetTop 受 offsetParent 影响，在多层嵌套或定位上下文复杂时可能产生误差；
+  // - 使用元素与容器的可见位置差值 + 当前 scrollTop，可得到“容器坐标系”下的准确目标位置；
+  // - 再减去顶栏/标题/容器内边距等偏移，确保目标卡片顶部不会被遮挡。
+  const elRect = el.getBoundingClientRect()
+  const containerRect = container.getBoundingClientRect()
+  const visibleDelta = elRect.top - containerRect.top
+  const offset = titleH + topbarH + containerPadTop + extra
+  const targetTop = Math.max(0, container.scrollTop + visibleDelta - offset)
+  container.scrollTo({ top: targetTop, behavior: 'smooth' })
+
+  // 更新活跃项并通知父组件以联动侧栏高亮
   activeId.value = id
-  // 向父组件同步活跃项，以便联动左侧 SideNav 高亮
   try{ emit('update:activeId', id) }catch{ /* 忽略异常以保证滚动稳定 */ }
 }
 
@@ -634,27 +646,26 @@ function scrollTo(id){
 // - 合并项（有 aliasTargets）：其别名锚点（如 hot/recent）都映射为该项的 id，
 //   因此在热门或最近附近滚动时，都会高亮“热门·最近”。
 function handleScroll(){
-  const container = contentRef.value
+  const container = getScrollContainer()
   if (!container) return
-  // 判断滚动模式：容器可滚动则读取容器滚动量，否则读取窗口滚动量
-  const containerCanScroll = container.scrollHeight > (container.clientHeight + 1)
-  const scrollTop = containerCanScroll ? container.scrollTop : window.scrollY
+  // 统一滚动模式：始终基于正文容器的滚动量，避免页面级滚动被禁用时计算错误
+  const scrollTop = container.scrollTop
   const nodes = []
   for (const s of sections){
     // 自身锚点（若有对应内容区块 id）
-    const elTop = container.querySelector('#' + s.id)
+    const elTop = (contentRef.value || container).querySelector('#' + s.id)
     if (elTop) nodes.push({ id: s.id, el: elTop })
     // 子项锚点（保持既有子导航支持）
     if (s.children && s.children.length){
       for (const c of s.children){
-        const elChild = container.querySelector('#' + c.id)
+        const elChild = (contentRef.value || container).querySelector('#' + c.id)
         if (elChild) nodes.push({ id: c.id, el: elChild })
       }
     }
     // 别名锚点：将别名的内容锚点映射到当前 section 的 id
     if (Array.isArray(s.aliasTargets)){
       for (const a of s.aliasTargets){
-        const elAlias = container.querySelector('#' + a)
+        const elAlias = (contentRef.value || container).querySelector('#' + a)
         if (elAlias) nodes.push({ id: s.id, el: elAlias })
       }
     }
@@ -663,8 +674,8 @@ function handleScroll(){
   let current = sections[0]?.id || 'hot-recent'
   let minDelta = Infinity
   for (const n of validNodes){
-    // 计算与当前滚动位置的距离：容器模式用 offsetTop；页面模式用绝对位置
-    const pos = containerCanScroll ? n.el.offsetTop : (n.el.getBoundingClientRect().top + window.scrollY)
+    // 计算与当前滚动位置的距离：容器模式用 offsetTop（统一为容器模式）
+    const pos = n.el.offsetTop
     const delta = Math.abs(pos - scrollTop)
     if (delta < minDelta){ minDelta = delta; current = n.id }
   }
@@ -672,7 +683,7 @@ function handleScroll(){
 }
 
 onMounted(() => {
-  const container = contentRef.value
+  const container = getScrollContainer()
   if (container){ 
     // 使用 requestAnimationFrame 节流滚动处理，降低频率，避免加载数据期间卡顿
     let ticking = false
@@ -684,15 +695,10 @@ onMounted(() => {
         ticking = false
       })
     }
-    // 根据滚动模式绑定事件：容器滚动或页面滚动
-    const containerCanScroll = container.scrollHeight > (container.clientHeight + 1)
-    if (containerCanScroll){
-      container.addEventListener('scroll', onScroll, { passive: true })
-    }else{
-      window.addEventListener('scroll', onScroll, { passive: true })
-    }
-    // 初始化并监听窗口尺寸变化：将实际标题和内容提示高度写入 CSS 变量，供 scroll-margin-top 使用
-    // 顶部提示已移除，取消写入 CSS 变量，仅通过 scrollTo 精确控制偏移
+    // 始终监听容器滚动（页面级滚动已被两栏布局禁用）
+    container.addEventListener('scroll', onScroll, { passive: true })
+
+    // 初始化并监听窗口尺寸变化（如需）：顶部提示已移除，仅通过 scrollTo 精确控制偏移
     const updateAnchorOffset = () => {}
     updateAnchorOffset()
     // 刷新锚点缓存，避免滚动时频繁查询
@@ -703,6 +709,11 @@ onMounted(() => {
     window.addEventListener('resize', updateAnchorOffset)
   }
 })
+
+// 暴露滚动方法给父组件（Square.vue）
+// 说明：通过 defineExpose 暴露 scrollTo，父级可通过 ref 调用，
+// 以确保侧栏点击后使用本组件的滚动定位逻辑（含别名锚点与偏移计算）。
+defineExpose({ scrollTo })
 </script>
 
 <style scoped>
@@ -727,6 +738,13 @@ onMounted(() => {
 .actions { display: flex; gap: 8px; }
 .grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
 .layout { display:flex; gap:12px; align-items:flex-start; }
+/* 让布局承载高度，保证内部 content-scroll 能成为唯一滚动容器
+   说明：
+   - 父容器（右侧正文）高度为 100%，需要子层级也按 100% 传递；
+   - 设置 .container 为 100% 高度的纵向 Flex，.layout 占满剩余空间；
+   - 解开最小高度约束（min-height: 0），避免子滚动容器因网格/父 Flex 默认最小高度导致无法滚动。 */
+.container { display:flex; flex-direction: column; height: 100%; }
+.layout { flex: 1; min-height: 0; }
 /* 移除本组件内的侧栏样式：侧栏已抽离至父组件左列，避免样式重复或干扰 */
 /* 列表项连接树干：替代原有斜杠分隔符 */
 .side-nav .nav-list li::before { content:""; position:absolute; left:0; top:50%; width:8px; border-top:1px solid #dcdfe6; transform: translateY(-50%); }
@@ -757,7 +775,8 @@ onMounted(() => {
    - 之前设置为 max-height: 70vh，导致底部留出 30% 视口的空白；
    - 按“方案B”，移除该限制，使页面使用整页滚动，消除底栏上方的大间隙；
    - 保留 overflow:auto 以兼容某些宽高布局情况下容器仍可能产生内部滚动。 */
-.content-scroll { flex:1; /* max-height: none */ overflow:auto; scroll-behavior:smooth; display:flex; flex-direction:column; gap:12px; }
+/* 右侧滚动切换到父容器 right-main：正文内部不再作为滚动容器 */
+.content-scroll { flex:1; /* max-height: none */ overflow:visible; scroll-behavior:smooth; display:flex; flex-direction:column; gap:12px; }
 /*
   隐藏右侧内容区滚动条（跨浏览器），但仍保留滚动功能。
   说明：
@@ -765,8 +784,7 @@ onMounted(() => {
   - WebKit 浏览器（Chrome/Safari）通过伪元素 `::-webkit-scrollbar` 隐藏滚动条；
   - 不影响鼠标滚轮、触摸板与触屏手势的滚动体验。
 */
-.content-scroll { scrollbar-width: none; -ms-overflow-style: none; }
-.content-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+/* 滚动条样式移除：由于滚动发生在父容器 right-main，内部容器无需滚动条样式 */
 /* 移除卡片的 scroll-margin-top，避免 scrollIntoView 留白；
    现使用容器 scrollTo 精确偏移，确保目标卡片贴近顶部。 */
 .content-head { display:flex; align-items:center; gap:6px; font-weight:600; color:#303133; margin: 4px 0 4px; }

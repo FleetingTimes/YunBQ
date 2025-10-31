@@ -6,11 +6,9 @@
     <template #left>
       <SideNav :sections="sectionsNotes" v-model:activeId="activeId" :alignCenter="true" />
     </template>
-    <!-- 右上：顶栏 -->
-    <template #rightTop>
-      <div class="topbar-wrap">
-        <AppTopBar @search="onSearch" />
-      </div>
+    <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
+    <template #topFull>
+      <AppTopBar fluid @search="onSearch" />
     </template>
     <!-- 右下：正文（添加便签） -->
     <template #rightMain>
@@ -48,12 +46,7 @@ const sectionsNotes = sideNavSections;
 </script>
 
 <style scoped>
-/* 顶栏包裹：限制最大宽度并居中，保持与全局 container 一致的视觉 */
-.topbar-wrap { 
-  /* 居中与宽度限制（与全局 container 一致） */
-  max-width: 1080px; margin: 0 auto; padding: 0 16px; 
-  /* 移除页面级吸顶样式，让 AppTopBar 组件自己处理吸顶和毛玻璃效果 */
-}
+/* 顶栏宽度限制已移除：使用 TwoPaneLayout 的全宽插槽，AppTopBar 自行吸顶与视觉控制 */
 /* 正文容器：保持原有宽度与内边距，避免影响编辑体验 */
 .notes-container { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
 

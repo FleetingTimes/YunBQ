@@ -4,10 +4,9 @@
     <template #left>
       <SideNav :sections="sections" v-model:activeId="activeId" :alignCenter="true" />
     </template>
-    <template #rightTop>
-      <div class="topbar-wrap">
-        <AppTopBar @search="onSearch" />
-      </div>
+    <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
+    <template #topFull>
+      <AppTopBar fluid @search="onSearch" />
     </template>
     <template #rightMain>
       <div class="container">
@@ -165,7 +164,6 @@ function sampleDanmu(){
 </script>
 
 <style scoped>
-.topbar-wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
 .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
 .year-group { margin-bottom: 16px; }
 .year-header { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:#ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.06); position: sticky; top: 6px; z-index: 10; }
@@ -175,6 +173,7 @@ function sampleDanmu(){
 :deep(.meta.bottom-left .el-tag--info) {
   display: none !important;
 }
-/* 回退说明：移除页面级 :deep(.topbar) 吸顶覆写及 .content-fade 渐隐遮罩，
-   保持原有样式与滚动行为，避免对顶栏组件造成间接影响。 */
+/* 回退说明：
+   - 移除了页面级顶栏包裹宽度限制（topbar-wrap），顶栏使用全宽插槽；
+   - 保持原有样式与滚动行为，避免对顶栏组件造成间接影响。 */
 </style>
