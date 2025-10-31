@@ -1,143 +1,144 @@
 <template>
-  <div class="container" :style="{ '--filtersH': filtersHeight + 'px' }">
-    <div class="header topbar">
-      <div class="brand" role="button" @click="$router.push('/')" title="返回广场">
-        <img src="https://api.iconify.design/mdi/timeline-text.svg" alt="timeline" width="24" height="24" />
-        <h1>我的便签</h1>
-      </div>
-      <div class="top-actions" aria-label="返回主页">
-        <el-tooltip content="返回便签主页" placement="bottom">
-          <el-button link class="icon-btn" @click="$router.push('/notes')">
-            <img src="https://api.iconify.design/mdi/home-outline.svg" alt="主页" width="22" height="22" />
-          </el-button>
-        </el-tooltip>
-      </div>
-    </div>
+  <!-- 接入统一布局：使用 TwoPaneLayout 提供“全宽吸顶顶栏 + 右侧正文滚动”
+       改造要点：
+       1) 将页面原本的本地顶栏移除，改为公共顶栏 AppTopBar；
+       2) 顶栏放在 topFull 插槽中，保持全宽并吸顶；
+       3) 页面主体（个人资料、过滤栏与列表）放在 rightMain 插槽中；
+       4) 将回到顶部组件指定 target 为布局的滚动容器（.scrollable-content），确保滚动联动正常。 -->
+  <TwoPaneLayout class="my-notes-layout">
+    <!-- 公共顶栏：统一风格与交互；fluid 让中间区域（搜索）铺满宽度 -->
+    <template #topFull>
+      <AppTopBar fluid />
+    </template>
 
-    <!-- 个人资料摘要（显示在过滤栏上方） -->
-    <div class="profile-summary">
-      <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-lg" width="260" height="260" loading="lazy" />
-      <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" class="avatar-lg" width="260" height="260" />
-      <div class="text">
-        <div class="nickname">{{ me.nickname || me.username || '未设置昵称' }}</div>
-        <div
-          class="signature"
-          :class="[ signatureExpanded ? 'signature-full' : 'signature-ellipsis-3' ]"
-          :title="me.signature || '未设置'"
-          ref="signatureRef"
-        >
-          {{ me.signature || '未设置' }}
-        </div>
-        <a v-if="signatureOverflow" class="sig-toggle" @click="toggleSignature">{{ signatureExpanded ? '收起' : '展开' }}</a>
-      </div>
-    </div>
-
-    <!-- 过滤与排序栏 -->
-    <div class="filters" :class="{ 'is-stuck': isStuck }" ref="filtersRef">
-      <el-form :inline="true" label-width="80px" class="filters-form">
-        <!-- 第一行：左侧分组（时间范围/标签/公开性） + 右侧搜索 -->
-        <div class="top-row">
-          <div class="top-left">
-        <el-form-item label="时间范围">
-          <el-date-picker
-            v-model="filters.range"
-            type="daterange"
-            range-separator="至"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            size="small"
-            style="width:180px"
-          />
-        </el-form-item>
-        <el-form-item label="标签">
-          <el-select v-model="filters.tags" multiple filterable allow-create default-first-option placeholder="选择或输入标签" size="small" style="width:140px">
-            <el-option v-for="t in allTags" :key="t" :label="'#' + t" :value="t" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="公开性">
-          <el-select v-model="filters.visibility" size="small" style="width:60px">
-            <el-option label="全部" value="all" />
-            <el-option label="公开" value="public" />
-            <el-option label="私有" value="private" />
-          </el-select>
-        </el-form-item>
-          </div>
-          <div class="top-right">
-            <el-form-item label="搜索">
-              <el-input
-                v-model="filters.query"
-                size="small"
-                clearable
-                placeholder="搜索我的便签..."
-                style="width:200px"
-                @keyup.enter="triggerSearchPulse"
-              >
-                <template #prefix>
-                  <img src="https://api.iconify.design/mdi/magnify.svg" alt="search" width="16" height="16" />
-                </template>
-              </el-input>
-            </el-form-item>
-          </div>
-        </div>
-        <div class="flex-break" aria-hidden="true"></div>
-        <!-- 第二行：排序在左侧；清空在右侧 -->
-        <el-form-item label="排序">
-          <span class="sort-inline" style="width:260px">
-            <el-radio-group v-model="filters.sortBy" size="small">
-              <el-radio-button label="time">时间</el-radio-button>
-              <el-radio-button label="likes">点赞数</el-radio-button>
-            </el-radio-group>
-            <el-tooltip content="切换升/降序" placement="top">
-              <el-button size="small" class="order-toggle" @click="toggleOrder">
-                <img v-if="filters.sortOrder==='desc'" src="https://api.iconify.design/mdi/sort-descending.svg" alt="desc" width="18" height="18" />
-                <img v-else src="https://api.iconify.design/mdi/sort-ascending.svg" alt="asc" width="18" height="18" />
-              </el-button>
-            </el-tooltip>
-          </span>
-        </el-form-item>
-        <el-form-item class="pull-right">
-          <el-button @click="resetFilters">清空</el-button>
-        </el-form-item>
-      </el-form>
-    </div>
-
-    <div class="year-groups">
-      <div v-for="g in yearGroups" :key="g.year" class="year-group">
-        <div class="year-header">
-          <span class="year-title">{{ g.year }}</span>
-        </div>
-        <el-timeline>
-          <transition-group name="list" tag="div">
-          <el-timeline-item
-            v-for="n in g.items"
-            :key="n.id"
-            :timestamp="formatMD(n.createdAt || n.created_at)"
-            placement="top">
-        <div class="author-above">作者：{{ authorName }}</div>
-        <div
-          :class="['note-card', { editing: n.editing }]"
-          :style="noteCardStyle(n)"
-          :data-note-id="n.id"
-          @mousedown="startPress(n, $event)"
-          @mouseup="cancelPress"
-          @mouseleave="cancelPress"
-          @touchstart="startPress(n, $event)"
-          @touchend="cancelPress"
-        >
-          <!-- 动作菜单：长按出现（图标版） -->
-          <transition name="overlay">
+    <!-- 右侧正文：保留原页面主体结构，仅移除了本地顶栏 -->
+    <template #rightMain>
+      <div class="container" :style="{ '--filtersH': filtersHeight + 'px' }">
+        <!-- 个人资料摘要（显示在过滤栏上方） -->
+        <div class="profile-summary">
+          <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-lg" width="260" height="260" loading="lazy" />
+          <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" class="avatar-lg" width="260" height="260" />
+          <div class="text">
+            <div class="nickname">{{ me.nickname || me.username || '未设置昵称' }}</div>
             <div
-              v-if="n.showActions"
-              class="actions-overlay"
-              @click="closeActions(n)"
-              @mousedown.stop
-              @mouseup.stop
-              @touchstart.stop
-              @touchend.stop
+              class="signature"
+              :class="[ signatureExpanded ? 'signature-full' : 'signature-ellipsis-3' ]"
+              :title="me.signature || '未设置'"
+              ref="signatureRef"
             >
-            <div class="action-icon" :title="n.liked ? '取消喜欢' : '喜欢'" @click.stop="toggleLike(n)">
-              <img :src="n.liked ? 'https://api.iconify.design/mdi/heart.svg?color=%23e25555' : 'https://api.iconify.design/mdi/heart-outline.svg'" alt="like" width="20" height="20" />
+              {{ me.signature || '未设置' }}
             </div>
+            <a v-if="signatureOverflow" class="sig-toggle" @click="toggleSignature">{{ signatureExpanded ? '收起' : '展开' }}</a>
+          </div>
+        </div>
+
+        <!-- 过滤与排序栏（sticky：在右侧滚动容器内粘顶） -->
+        <div class="filters" :class="{ 'is-stuck': isStuck }" ref="filtersRef">
+          <el-form :inline="true" label-width="80px" class="filters-form">
+            <!-- 第一行：左侧分组（时间范围/标签/公开性） + 右侧搜索 -->
+            <div class="top-row">
+              <div class="top-left">
+            <el-form-item label="时间范围">
+              <el-date-picker
+                v-model="filters.range"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="开始日期"
+                end-placeholder="结束日期"
+                size="small"
+                style="width:180px"
+              />
+            </el-form-item>
+            <el-form-item label="标签">
+              <el-select v-model="filters.tags" multiple filterable allow-create default-first-option placeholder="选择或输入标签" size="small" style="width:140px">
+                <el-option v-for="t in allTags" :key="t" :label="'#' + t" :value="t" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="公开性">
+              <el-select v-model="filters.visibility" size="small" style="width:60px">
+                <el-option label="全部" value="all" />
+                <el-option label="公开" value="public" />
+                <el-option label="私有" value="private" />
+              </el-select>
+            </el-form-item>
+              </div>
+              <div class="top-right">
+                <el-form-item label="搜索">
+                  <el-input
+                    v-model="filters.query"
+                    size="small"
+                    clearable
+                    placeholder="搜索我的便签..."
+                    style="width:200px"
+                    @keyup.enter="triggerSearchPulse"
+                  >
+                    <template #prefix>
+                      <img src="https://api.iconify.design/mdi/magnify.svg" alt="search" width="16" height="16" />
+                    </template>
+                  </el-input>
+                </el-form-item>
+              </div>
+            </div>
+            <div class="flex-break" aria-hidden="true"></div>
+            <!-- 第二行：排序在左侧；清空在右侧 -->
+            <el-form-item label="排序">
+              <span class="sort-inline" style="width:260px">
+                <el-radio-group v-model="filters.sortBy" size="small">
+                  <el-radio-button label="time">时间</el-radio-button>
+                  <el-radio-button label="likes">点赞数</el-radio-button>
+                </el-radio-group>
+                <el-tooltip content="切换升/降序" placement="top">
+                  <el-button size="small" class="order-toggle" @click="toggleOrder">
+                    <img v-if="filters.sortOrder==='desc'" src="https://api.iconify.design/mdi/sort-descending.svg" alt="desc" width="18" height="18" />
+                    <img v-else src="https://api.iconify.design/mdi/sort-ascending.svg" alt="asc" width="18" height="18" />
+                  </el-button>
+                </el-tooltip>
+              </span>
+            </el-form-item>
+            <el-form-item class="pull-right">
+              <el-button @click="resetFilters">清空</el-button>
+            </el-form-item>
+          </el-form>
+        </div>
+
+        <!-- 年份分组时间线 -->
+        <div class="year-groups">
+          <div v-for="g in yearGroups" :key="g.year" class="year-group">
+            <div class="year-header">
+              <span class="year-title">{{ g.year }}</span>
+            </div>
+            <el-timeline>
+              <transition-group name="list" tag="div">
+              <el-timeline-item
+                v-for="n in g.items"
+                :key="n.id"
+                :timestamp="formatMD(n.createdAt || n.created_at)"
+                placement="top">
+            <div class="author-above">作者：{{ authorName }}</div>
+            <div
+              :class="['note-card', { editing: n.editing }]"
+              :style="noteCardStyle(n)"
+              :data-note-id="n.id"
+              @mousedown="startPress(n, $event)"
+              @mouseup="cancelPress"
+              @mouseleave="cancelPress"
+              @touchstart="startPress(n, $event)"
+              @touchend="cancelPress"
+            >
+              <!-- 动作菜单：长按出现（图标版） -->
+              <transition name="overlay">
+                <div
+                  v-if="n.showActions"
+                  class="actions-overlay"
+                  @click="closeActions(n)"
+                  @mousedown.stop
+                  @mouseup.stop
+                  @touchstart.stop
+                  @touchend.stop
+                >
+                <div class="action-icon" :title="n.liked ? '取消喜欢' : '喜欢'" @click.stop="toggleLike(n)">
+                  <img :src="n.liked ? 'https://api.iconify.design/mdi/heart.svg?color=%23e25555' : 'https://api.iconify.design/mdi/heart-outline.svg'" alt="like" width="20" height="20" />
+                </div>
             <div class="action-icon" :title="n.favorited ? '取消收藏' : '收藏'" @click.stop="toggleFavorite(n)">
               <img :src="n.favorited ? 'https://api.iconify.design/mdi/bookmark.svg?color=%23409eff' : 'https://api.iconify.design/mdi/bookmark-outline.svg'" alt="favorite" width="20" height="20" />
             </div>
@@ -204,12 +205,16 @@
       
       </el-timeline-item>
       </transition-group>
-        </el-timeline>
+            </el-timeline>
+          </div>
+        </div>
       </div>
-    </div>
-  </div>
-  <!-- 右下：回到顶部组件（可见高度 360px 后出现） -->
-  <el-backtop :right="80" :bottom="100" :visibility-height="360">
+    </template>
+  </TwoPaneLayout>
+  <!-- 右下：回到顶部组件（可见高度 360px 后出现）
+       指定 target 为 TwoPaneLayout 的滚动容器（.scrollable-content），
+       以便在“右侧正文滚动”模式下仍能正确工作。 -->
+  <el-backtop target=".scrollable-content" :right="80" :bottom="100" :visibility-height="360">
     <div class="backtop-btn" title="回到顶部">
       <img src="https://api.iconify.design/mdi/arrow-up.svg" alt="up" width="20" height="20" />
     </div>
@@ -217,6 +222,11 @@
 </template>
 
 <script setup>
+// 引入统一布局与公共顶栏组件：
+// - TwoPaneLayout：提供“全宽吸顶顶栏 + 右侧正文滚动”的通用布局结构；
+// - AppTopBar：公共顶栏，统一品牌与快捷入口，支持透明/毛玻璃切换与搜索。
+import TwoPaneLayout from '@/components/TwoPaneLayout.vue';
+import AppTopBar from '@/components/AppTopBar.vue';
 import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { http, avatarFullUrl } from '@/api/http';
@@ -666,14 +676,8 @@ function highlightHTML(s){
 </script>
 
 <style scoped>
- .topbar { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
- .topbar .brand { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
- .topbar .brand h1 { font-size: 18px; margin: 0; color: #303133; }
- .top-search { display: flex; justify-content: center; }
- .top-search-input { --el-input-bg-color: #fff; --el-input-border-color: transparent; --el-input-hover-border-color: transparent; --el-input-focus-border-color: var(--el-color-primary); box-shadow: 0 8px 26px rgba(64,158,255,0.12), 0 2px 10px rgba(0,0,0,0.08); border-radius: 999px; padding-right: 4px; }
- .top-actions { display: inline-flex; align-items: center; gap: 8px; }
- .icon-btn { border-radius: 50%; padding: 6px; transition: transform .15s ease, filter .15s ease; }
- .icon-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+ /* 移除本地顶栏相关样式（使用公共顶栏 AppTopBar） */
+ /* 其它样式保持不变，正文仍在右侧滚动容器中进行滚动与粘顶 */
 .note-card { background:#fff; border-radius:12px; padding:12px 12px 32px; box-shadow:0 4px 12px rgba(0,0,0,0.08); position:relative; }
 .note-card.editing { box-shadow:0 0 0 3px rgba(64,158,255,0.14), 0 4px 12px rgba(0,0,0,0.08); }
 .note-content { white-space:pre-wrap; line-height:1.7; color:#303133; margin:4px 0 6px; }

@@ -22,8 +22,8 @@
         <div class="card" id="hot">
           <div class="card-title">热门便签</div>
           <div class="card-desc">基于收藏、点赞与时效综合排序</div>
-          <!-- 网站便签列表：撤销上一步的尺寸缩小，恢复默认列表样式 -->
-  <ul class="note-list">
+          <!-- 撤回：移除骨架屏占位，恢复原始列表渲染 -->
+          <ul class="note-list">
             <li class="note-item" v-for="it in hotPageItems" :key="it.id" @click="goNote(it)" role="button">
               <div class="title">{{ tagTitle(it) }}</div>
               <div class="content">{{ snippet(it.content || it.title) }}</div>
@@ -53,6 +53,7 @@
           <div class="card-title">最近便签</div>
           <div class="card-desc">最新公开更新</div>
           <ul class="note-list">
+            <!-- 撤回：移除骨架屏占位，恢复原始列表渲染 -->
             <li class="note-item" v-for="it in recentPageItems" :key="it.id" @click="goNote(it)" role="button">
               <div class="title">{{ tagTitle(it) }}</div>
               <div class="content">{{ snippet(it.content || it.title) }}</div>
@@ -848,17 +849,7 @@ defineExpose({ scrollTo })
 .note-list .meta { color: #606266; font-size: 12px; display: flex; gap: 10px; }
 .note-list .empty { color: #909399; background: #fff; border: 1px dashed #e5e7eb; }
 
- /* 骨架加载样式：用于 Git 加载占位，避免空白跳变与布局抖动 */
- .note-item.skeleton { position: relative; overflow: hidden; }
- .note-item.skeleton .skeleton-line { height: 14px; border-radius: 6px; background: #f2f3f5; }
- .note-item.skeleton .skeleton-pill { display:inline-block; height: 12px; border-radius: 6px; background: #f2f3f5; }
- .note-item.skeleton::after {
-   content: '';
-   position: absolute; left: -40%; top: 0; width: 40%; height: 100%;
-   background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.6) 50%, rgba(255,255,255,0) 100%);
-   animation: shimmer 1.2s infinite;
- }
- @keyframes shimmer { 0% { left: -40%; } 100% { left: 100%; } }
+ /* 撤回：移除骨架屏样式，恢复卡片默认样式 */
 
  /* 仅缩小“网站便签”区卡片尺寸（不影响热门/最近/Git）
     说明：

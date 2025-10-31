@@ -28,10 +28,22 @@
       </div>
     </template>
   </TwoPaneLayout>
+  <!-- 右下：回到顶部组件（可见高度 360px 后出现）
+       说明：
+       - 指定 target 为 TwoPaneLayout 的右侧滚动容器（.scrollable-content），
+         确保在“右侧正文滚动”模式下依然正确工作；
+       - 位置与样式与“我的便签”页保持一致，统一交互体验；
+       - visibility-height 控制显示阈值（360px），可按需调整。 -->
+  <!-- 为避免目标容器尚未渲染（TwoPaneLayout 异步加载）导致的报错，使用 v-if 等待目标存在 -->
+  <el-backtop v-if="hasScrollTarget" target=".scrollable-content" :right="80" :bottom="100" :visibility-height="360">
+    <div class="backtop-btn" title="回到顶部">
+      <img src="https://api.iconify.design/mdi/arrow-up.svg" alt="up" width="20" height="20" />
+    </div>
+  </el-backtop>
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
+import { ref, defineAsyncComponent, onMounted, onUnmounted, nextTick } from 'vue'
 // 通用两栏布局 + 侧栏组件
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
@@ -58,6 +70,22 @@ function onSelect(id){
 // - 当 container 顶部的可见位置 <= 顶栏高度，视为“顶栏底部接触到内容区域”，置 solid=true；
 // - 该方案无需修改内容组件，鲁棒且性能开销低。
 const topbarSolid = ref(false)
+// 回到顶部控件的目标存在性：TwoPaneLayout 为异步组件，需等待其插入 DOM 后再渲染 Backtop
+// 说明：
+// - Element Plus 的 Backtop 在初始化时会查询 target；若不存在则抛错；
+// - 通过 hasScrollTarget + v-if，确保仅在 `.scrollable-content` 可用时渲染 Backtop；
+// - 采用短轮询（最多 3 秒）与 nextTick 组合，稳妥等待异步组件加载完成。
+const hasScrollTarget = ref(false)
+let targetPollTimer = null
+function checkBacktopTarget(){
+  try{
+    const el = document.querySelector('.scrollable-content')
+    if (el){
+      hasScrollTarget.value = true
+      if (targetPollTimer){ clearInterval(targetPollTimer); targetPollTimer = null }
+    }
+  }catch{ /* 忽略异常，继续轮询或在下次用户交互后再检查 */ }
+}
 
 function updateTopbarSolid(){
   try{
@@ -71,6 +99,16 @@ function updateTopbarSolid(){
 onMounted(() => {
   // 初始计算一次（避免进入页面时出现闪烁）
   updateTopbarSolid()
+  // 初始与下一个渲染周期检查回到顶部目标容器
+  checkBacktopTarget()
+  nextTick(checkBacktopTarget)
+  // 短轮询：考虑到 TwoPaneLayout 异步加载与插槽渲染可能晚于当前组件，最多尝试 3 秒
+  let elapsed = 0
+  targetPollTimer = setInterval(() => {
+    if (hasScrollTarget.value){ clearInterval(targetPollTimer); targetPollTimer = null; return }
+    checkBacktopTarget(); elapsed += 200
+    if (elapsed >= 3000){ clearInterval(targetPollTimer); targetPollTimer = null }
+  }, 200)
   // 监听滚动与视窗尺寸变化，保持状态同步
   window.addEventListener('scroll', updateTopbarSolid, { passive: true })
   window.addEventListener('resize', updateTopbarSolid)
@@ -79,6 +117,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('scroll', updateTopbarSolid)
   window.removeEventListener('resize', updateTopbarSolid)
+  if (targetPollTimer){ clearInterval(targetPollTimer); targetPollTimer = null }
 })
 </script>
 
