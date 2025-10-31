@@ -62,7 +62,11 @@ function updateSummary(val) {
 
 onMounted(async () => {
   try {
-    const { data } = await http.get('/account/me');
+  // 说明：管理员页在加载时会获取当前用户信息。
+  // 若未登录或 token 暂时校验失败，后端可能返回 401。
+  // 这里设置 suppress401Redirect=true，避免全局拦截器清除 token 或强制重定向，
+  // 由页面自身决定如何处理（例如展示“请登录”或引导至登录页）。
+  const { data } = await http.get('/account/me', { suppress401Redirect: true });
     isAdmin.value = data && data.role === 'ADMIN';
   } catch {
     isAdmin.value = false;

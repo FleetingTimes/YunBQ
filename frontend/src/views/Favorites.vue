@@ -80,13 +80,25 @@ function normalizeNote(it){
 
 async function load(){
   try{
-    const { data } = await http.get('/notes/favorites', { params: { q: query.value } })
+    // 严格认证模式：与喜欢页一致，不再抑制 401，由全局拦截器统一重定向到登录页；
+    // 不填充“示例数据”，避免与用户态不一致。
+    const { data } = await http.get('/notes/favorites', {
+      params: { q: query.value },
+    })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     const mapped = (items || []).map(normalizeNote)
-    danmuItems.value = mapped.length ? mapped : sampleDanmu()
+    danmuItems.value = mapped
   }catch(e){
-    danmuItems.value = sampleDanmu()
-    ElMessage.warning('加载收藏数据失败，已使用示例弹幕')
+    // 错误处理（严格模式）：
+    // - 401 交由全局拦截器重定向登录；
+    // - 非 401 显示错误并保持空列表。
+    const status = e?.response?.status
+    if (status === 401) {
+      return
+    } else {
+      ElMessage.error('加载收藏数据失败')
+      danmuItems.value = []
+    }
   }
 }
 

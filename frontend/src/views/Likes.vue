@@ -77,14 +77,39 @@ function normalizeNote(it){
 }
 
 async function load(){
+  // 改用后端专用接口：/api/notes/liked
+  // 目的：准确返回“我点赞过的便签”，避免在 /notes 列表中二次筛选导致为空或权限问题。
   try{
-    const { data } = await http.get('/notes', { params: { q: query.value } })
+    // 说明（严格认证模式）：
+    // - 喜欢页为受保护页面（requiresAuth），若首次数据拉取返回 401（未登录或 token 失效），
+    //   采用页面内处理：抑制全局 401 重定向，友好提示并引导用户登录，避免刚登录后被下一条 401 抢走路由。
+    // - 这样在网络抖动或后端短暂校验失败时，用户不会被“立即拉回登录页”，体验更稳定。
+    const { data } = await http.get('/notes/liked', {
+      params: { q: query.value },
+      // 关键：抑制 401 的全局重定向，由本页自行提示与跳转
+      suppress401Redirect: true,
+    })
+    // 兼容返回结构：PageResult 或直接数组
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
-    const mapped = (items || []).map(normalizeNote).filter(n => n.liked)
-    danmuItems.value = mapped.length ? mapped : sampleDanmu()
+    const mapped = (items || []).map(normalizeNote)
+    danmuItems.value = mapped
   }catch(e){
-    danmuItems.value = sampleDanmu()
-    ElMessage.warning('加载点赞数据失败，已使用示例弹幕')
+    // 错误处理策略（严格模式，无友好降级）：
+    // - 401：页面内提示并主动导航到登录页（携带 redirect），避免静默失败；
+    // - 非 401：给出错误提示，不填充示例数据，保持列表为空以体现错误态。
+    const status = e?.response?.status
+    if (status === 401) {
+      try{
+        ElMessage.warning('登录状态失效，请重新登录')
+      }catch{}
+      // 带上当前页路径作为重定向目标
+      const redirect = encodeURIComponent(window.location.hash ? window.location.hash.slice(1) : '/likes')
+      window.location.hash = `#/login?redirect=${redirect}`
+      return
+    } else {
+      ElMessage.error('加载点赞数据失败')
+      danmuItems.value = []
+    }
   }
 }
 

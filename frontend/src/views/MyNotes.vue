@@ -331,7 +331,9 @@ function goHistory(){ router.push('/history'); }
 
 async function loadMe(){
   try{
-    const { data } = await http.get('/account/me');
+  // 说明：我的便签页在初始化时获取用户信息。
+  // 若在未登录或后端短暂校验失败返回 401，这里采用静默处理，避免触发全局 401 重定向和干扰导航。
+  const { data } = await http.get('/account/me', { suppress401Redirect: true });
     Object.assign(me, data);
   }catch(e){ /* 忽略错误 */ }
 }

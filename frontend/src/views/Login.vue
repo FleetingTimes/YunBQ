@@ -80,8 +80,23 @@ async function onSubmit(){
     if (data?.token) {
       setToken(data.token, true);
       ElMessage.success('登录成功');
+      // 登录成功后的跳转：优先回原目标路径
+      // 说明：
+      // - 路由守卫在拦截未登录访问受保护页面时，会设置 query.redirect 为“未编码的完整路径”；
+      // - 全局响应拦截器在 401 时使用 window.location.hash 跳转登录页，为确保安全，
+      //   会将当前 hash 路径做 encodeURIComponent 编码后放入 redirect 参数；
+      // - 这里统一尝试 decodeURIComponent，若非编码字符串则保持原值，确保两类来源都能正确跳转。
       const r = route.query?.redirect;
-      const to = (typeof r === 'string' && r) ? r : '/';
+      let to = '/';
+      if (typeof r === 'string' && r) {
+        try { to = decodeURIComponent(r); }
+        catch { to = r; }
+        // 规范化跳转目标：
+        // 1) 若指向登录页本身（例如 '/login' 或 '/login?...'），回退到首页，避免“登录后仍在登录页”的循环。
+        if (to.startsWith('/login')) { to = '/'; }
+        // 2) 若包含 hash 片段（形如 '/#/likes'），去掉前导 '#/' 统一为 '/likes'，适配 hash 路由。
+        if (to.startsWith('/#/')) { to = to.slice(2); }
+      }
       router.replace(to);
     } else {
       ElMessage.error('登录失败：未返回 token');

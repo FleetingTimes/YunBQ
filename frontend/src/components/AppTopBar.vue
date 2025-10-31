@@ -448,19 +448,20 @@ function goNotes(){
   router.push('/notes')
 }
 function goMessages(){
-  if (!authed.value){ ElMessage.warning('当前用户未登录'); return }
+  // 改为“始终发起跳转”，未登录时交由路由守卫 (meta.requiresAuth) 统一重定向到登录页
+  // 原逻辑依赖顶栏的 me.username（authed）判断，登录后未刷新顶栏可能导致误判为未登录从而阻断跳转
   router.push('/messages')
 }
 function goLikes(){
-  if (!authed.value){ ElMessage.warning('当前用户未登录'); return }
+  // 喜欢页需要登录：让路由守卫处理未登录情况，避免顶栏状态未刷新时阻断跳转
   router.push('/likes')
 }
 function goFavorites(){
-  if (!authed.value){ ElMessage.warning('当前用户未登录'); return }
+  // 收藏页需要登录：同上，统一交给路由守卫判断
   router.push('/favorites')
 }
 function goHistory(){
-  if (!authed.value){ ElMessage.warning('当前用户未登录'); return }
+  // 历史页需要登录：交给路由守卫处理
   router.push('/history')
 }
 function goLogin(){

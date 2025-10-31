@@ -20,6 +20,7 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\Password
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\util\AuthUtil.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\PasswordResetController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NoteFavoriteMapper.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\security\RequestLoggingFilter.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\BackgroundController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\AuthRequest.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\NoteFavorite.java

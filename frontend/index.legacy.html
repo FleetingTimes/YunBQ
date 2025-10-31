@@ -302,7 +302,9 @@
       methods: {
         async loadMe(){
           try{
-            const { data } = await http.get('/account/me');
+    // 说明：老版入口的用户信息拉取也可能遇到未登录（401），
+    // 为避免影响其它页面的导航（例如顶栏跳转），这里也进行静默处理。
+    const { data } = await http.get('/account/me', { suppress401Redirect: true });
             this.me = data;
           }catch(e){
             if (e?.response?.status === 401) this.$router.replace('/login');

@@ -45,6 +45,10 @@ public class SecurityConfig {
                 // 允许匿名访问公开便签的查询接口
                 .requestMatchers(HttpMethod.GET, "/api/notes").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notes/**").permitAll()
+                // 显式放行 liked 列表（用于列出“我点赞的便签”）。
+                // 理论上上面的通配规则已覆盖，但在当前环境下 /api/notes/liked 返回 401，
+                // 为确保行为符合预期，这里补充精确路径的放行以规避匹配异常。
+                .requestMatchers(HttpMethod.GET, "/api/notes/liked").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()

@@ -561,6 +561,110 @@ public class NoteService {
         return ip;
     }
 
+    /**
+     * 列出当前用户点过赞的便签（分页）
+     * 实现思路：
+     * 1) 先从点赞表按 user_id 取出该用户点赞过的所有 note_id；
+     * 2) 再使用这些 note_id 反查便签并分页；
+     * 3) 计算作者昵称、点赞/收藏数量，并根据当前用户补充 likedByMe/favoritedByMe 标记；
+     * 注意：
+     * - 当 userId 为空（匿名访问）时，无法计算“我是否点赞/收藏”，统一返回 false；
+     * - 为了简化实现，liked 集合为空时直接返回空分页结果。
+     */
+    public Page<NoteItem> listLiked(Long userId, int page, int size, String q) {
+        // 若未登录，无用户上下文，直接返回空列表（也可改为公开便签中过滤，但前端喜欢页语义为“我点赞过的”）
+        if (userId == null || userId <= 0) {
+            Page<NoteItem> empty = Page.of(page, size);
+            empty.setTotal(0);
+            empty.setRecords(java.util.Collections.emptyList());
+            return empty;
+        }
+
+        // 取当前用户点赞过的便签 ID 集合
+        java.util.List<Long> likedIdsAll = likeMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<com.yunbq.backend.model.NoteLike>().eq("user_id", userId))
+                .stream().map(com.yunbq.backend.model.NoteLike::getNoteId).collect(java.util.stream.Collectors.toList());
+        if (likedIdsAll == null || likedIdsAll.isEmpty()) {
+            Page<NoteItem> empty = Page.of(page, size);
+            empty.setTotal(0);
+            empty.setRecords(java.util.Collections.emptyList());
+            return empty;
+        }
+
+        // 反查便签并分页
+        com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<com.yunbq.backend.model.Note> qw = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+        qw.in("id", likedIdsAll);
+        if (q != null && !q.isBlank()) {
+            qw.and(w -> w.like("content", q).or().like("tags", q));
+        }
+        qw.orderByDesc("updated_at");
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<com.yunbq.backend.model.Note> np = noteMapper.selectPage(com.baomidou.mybatisplus.extension.plugins.pagination.Page.of(page, size), qw);
+        java.util.List<com.yunbq.backend.model.Note> records = np.getRecords();
+        java.util.List<Long> ids = records.stream().map(com.yunbq.backend.model.Note::getId).collect(java.util.stream.Collectors.toList());
+
+        // 作者昵称映射
+        java.util.Map<Long, String> authorNameMap = new java.util.HashMap<>();
+        java.util.List<Long> authorIds = records.stream().map(com.yunbq.backend.model.Note::getUserId).distinct().collect(java.util.stream.Collectors.toList());
+        if (!authorIds.isEmpty()) {
+            java.util.List<com.yunbq.backend.model.User> users = userMapper.selectBatchIds(authorIds);
+            for (com.yunbq.backend.model.User u : users) {
+                String name = java.util.Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
+                authorNameMap.put(u.getId(), name);
+            }
+        }
+
+        // 点赞/收藏数量与用户态标记
+        java.util.Map<Long, Long> likeCountMap = new java.util.HashMap<>();
+        java.util.Map<Long, Long> favoriteCountMap = new java.util.HashMap<>();
+        final java.util.Set<Long> likedSet;
+        final java.util.Set<Long> favoritedSet;
+        if (!ids.isEmpty()) {
+            java.util.List<java.util.Map<String,Object>> likeCounts = likeMapper.countByNoteIds(ids);
+            for (java.util.Map<String,Object> m : likeCounts) {
+                Long nid = ((Number)m.get("noteId")).longValue();
+                Long cnt = ((Number)m.get("cnt")).longValue();
+                likeCountMap.put(nid, cnt);
+            }
+            java.util.List<java.util.Map<String,Object>> favCounts = favoriteMapper.countByNoteIds(ids);
+            for (java.util.Map<String,Object> m : favCounts) {
+                Long nid = ((Number)m.get("noteId")).longValue();
+                Long cnt = ((Number)m.get("cnt")).longValue();
+                favoriteCountMap.put(nid, cnt);
+            }
+            // 当前用户已点赞/已收藏集合
+            java.util.List<Long> likedIds = likeMapper.findLikedNoteIdsByUser(userId, ids);
+            likedSet = likedIds.stream().collect(java.util.stream.Collectors.toSet());
+            java.util.List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
+            favoritedSet = favoritedIds.stream().collect(java.util.stream.Collectors.toSet());
+        } else {
+            likedSet = java.util.Set.of();
+            favoritedSet = java.util.Set.of();
+        }
+
+        java.util.List<com.yunbq.backend.dto.NoteItem> items = records.stream().map(n -> {
+            com.yunbq.backend.dto.NoteItem it = new com.yunbq.backend.dto.NoteItem();
+            it.setId(n.getId());
+            it.setUserId(n.getUserId());
+            it.setAuthorName(authorNameMap.get(n.getUserId()));
+            it.setContent(n.getContent());
+            it.setTags(n.getTags());
+            it.setColor(n.getColor());
+            it.setArchived(n.getArchived());
+            it.setIsPublic(n.getIsPublic());
+            it.setCreatedAt(n.getCreatedAt());
+            it.setUpdatedAt(n.getUpdatedAt());
+            it.setLikeCount(likeCountMap.getOrDefault(n.getId(), 0L));
+            it.setLikedByMe(likedSet.contains(n.getId()));
+            it.setFavoriteCount(favoriteCountMap.getOrDefault(n.getId(), 0L));
+            it.setFavoritedByMe(favoritedSet.contains(n.getId()));
+            return it;
+        }).collect(java.util.stream.Collectors.toList());
+
+        com.baomidou.mybatisplus.extension.plugins.pagination.Page<com.yunbq.backend.dto.NoteItem> ip = com.baomidou.mybatisplus.extension.plugins.pagination.Page.of(np.getCurrent(), np.getSize());
+        ip.setTotal(np.getTotal());
+        ip.setRecords(items);
+        return ip;
+    }
+
     // 已移除：标签统计接口实现
 
     // ========= 解析工具 =========
