@@ -650,21 +650,28 @@ function scrollTo(id){
 function handleScroll(){
   const container = getScrollContainer()
   if (!container) return
-  // 统一滚动模式：始终基于正文容器的滚动量，避免页面级滚动被禁用时计算错误
-  const scrollTop = container.scrollTop
+
+  // 计算滚动偏移（与 scrollTo 保持一致）：
+  // - 当滚动容器为右栏 .right-main 时，仅保留轻量安全间距；
+  // - 当为内部 .content-scroll 时，考虑标题区高度与容器内边距。
+  const isRightMain = container.classList?.contains('right-main')
+  const titleEl = !isRightMain ? document.querySelector('.square-header') : null
+  const titleH = titleEl ? titleEl.offsetHeight : 0
+  const containerStyles = getComputedStyle(container)
+  const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
+  const offset = titleH + containerPadTop + (isRightMain ? 12 : 24)
+
+  // 收集所有参与高亮判断的锚点：自身、子项与别名
   const nodes = []
   for (const s of sections){
-    // 自身锚点（若有对应内容区块 id）
     const elTop = (contentRef.value || container).querySelector('#' + s.id)
     if (elTop) nodes.push({ id: s.id, el: elTop })
-    // 子项锚点（保持既有子导航支持）
     if (s.children && s.children.length){
       for (const c of s.children){
         const elChild = (contentRef.value || container).querySelector('#' + c.id)
         if (elChild) nodes.push({ id: c.id, el: elChild })
       }
     }
-    // 别名锚点：将别名的内容锚点映射到当前 section 的 id
     if (Array.isArray(s.aliasTargets)){
       for (const a of s.aliasTargets){
         const elAlias = (contentRef.value || container).querySelector('#' + a)
@@ -673,15 +680,23 @@ function handleScroll(){
     }
   }
   const validNodes = nodes.filter(x => x.el)
+
+  // 基于可见位置差值（rect.top 差）计算距离，更鲁棒：
+  // - offsetTop 受 offsetParent 影响，嵌套/定位复杂时容易不准；
+  // - 使用 getBoundingClientRect，并与容器 rect.top 取差，再减去偏移，得到“贴顶程度”。
+  const containerRect = container.getBoundingClientRect()
   let current = sections[0]?.id || 'hot-recent'
   let minDelta = Infinity
   for (const n of validNodes){
-    // 计算与当前滚动位置的距离：容器模式用 offsetTop（统一为容器模式）
-    const pos = n.el.offsetTop
-    const delta = Math.abs(pos - scrollTop)
+    const elRect = n.el.getBoundingClientRect()
+    const visibleDelta = elRect.top - containerRect.top
+    const delta = Math.abs(visibleDelta - offset)
     if (delta < minDelta){ minDelta = delta; current = n.id }
   }
+
+  // 更新本组件状态并同步到父组件，以驱动左侧导航高亮
   activeId.value = current
+  try { emit('update:activeId', current) } catch { /* 忽略异常，确保滚动流畅 */ }
 }
 
 onMounted(() => {
