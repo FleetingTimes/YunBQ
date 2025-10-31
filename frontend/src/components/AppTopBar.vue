@@ -1,10 +1,10 @@
 <template>
-  <!-- 顶栏根节点：根据 solid 状态切换背景透明/纯白
+  <!-- 顶栏根节点：根据滚动状态自动切换背景透明/毛玻璃
        说明：
-       - 默认透明（solid=false）：与页面背景融合；
-       - 触发接触内容区域（solid=true）：切换为纯白，避免与卡片内容叠加影响可读性；
-       - 具体触发逻辑由页面（如广场页）控制并以 prop 传入。 -->
-  <div class="header topbar" :class="{ solid }">
+       - 默认透明：与页面背景融合，提供沉浸式体验；
+       - 滚动时毛玻璃：当页面滚动超过阈值时，自动切换为透明毛玻璃效果，保持内容可读性；
+       - 支持外部 solid 属性强制控制状态。 -->
+  <div class="header topbar" :class="{ 'glass-effect': shouldShowGlass }">
     <div class="brand" @click="goSquare" style="cursor:pointer;">
       <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
       <h1>云便签</h1>
@@ -220,13 +220,13 @@
 </template>
 
 <script setup>
-// 顶栏组件：支持吸顶与可控背景模式
+// 顶栏组件：支持吸顶与可控背景模式，增加滚动检测和毛玻璃效果
 // 说明：
-// - 通过 props.solid 控制背景：false=透明，true=纯白；
-// - 页面（如广场页）可在滚动时判断与内容区域的接触程度并切换该状态；
-// - 组件内部不绑定滚动逻辑，保持通用性。
+// - 通过 props.solid 控制背景：false=透明，true=毛玻璃；
+// - 自动检测页面滚动，当滚动距离超过阈值时自动切换为毛玻璃效果；
+// - 页面也可手动控制 solid 状态来覆盖自动检测。
 const { solid = false } = defineProps({ solid: { type: Boolean, default: false } })
-import { reactive, ref, onMounted, computed } from 'vue'
+import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { http, avatarFullUrl } from '@/api/http'
 import { clearToken } from '@/utils/auth'
@@ -251,9 +251,27 @@ let sendTimer = null
 let hoverHideTimer = null
 const signatureExpanded = ref(false)
 
+// 滚动检测相关状态
+const scrollY = ref(0)
+const isScrolled = ref(false)
+
+// 计算属性：确定是否应该显示毛玻璃效果
+const shouldShowGlass = computed(() => {
+  // 如果外部传入 solid 为 true，则显示毛玻璃
+  // 或者当滚动距离超过 20px 时也显示毛玻璃
+  return solid || isScrolled.value
+})
+
 const avatarUrl = computed(() => avatarFullUrl(me.avatarUrl))
 const isAdmin = computed(() => (me.role || '').toUpperCase() === 'ADMIN')
 const authed = computed(() => !!(me.username))
+
+// 滚动事件处理函数
+function handleScroll() {
+  scrollY.value = window.scrollY || document.documentElement.scrollTop
+  // 当滚动距离超过 20px 时，认为已经滚动，需要显示毛玻璃效果
+  isScrolled.value = scrollY.value > 20
+}
 
 function emitSearch(){
   emit('search', q.value)
@@ -261,7 +279,18 @@ function emitSearch(){
   router.push(`/search?q=${qp}`)
 }
 
-onMounted(() => { loadMe() })
+onMounted(() => { 
+  loadMe()
+  // 添加滚动事件监听
+  window.addEventListener('scroll', handleScroll, { passive: true })
+  // 初始化滚动状态
+  handleScroll()
+})
+
+onUnmounted(() => {
+  // 清理滚动事件监听
+  window.removeEventListener('scroll', handleScroll)
+})
 
 async function loadMe(){
   try{
@@ -444,26 +473,36 @@ function onHoverLeave(){
   align-items: center;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid #e5e7eb;
   /* 吸顶：粘性定位 + 顶部距离 */
   position: sticky;
   top: 0;
   /* 覆盖层级 */
   z-index: 1000;
-  /* 默认背景透明：在未接触内容区域时，避免与页面背景产生突兀分割 */
+  /* 默认背景透明：提供沉浸式体验，与页面背景融合 */
   background: transparent;
+  border-bottom: 1px solid transparent;
+  /* 平滑过渡效果 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
-/* 接触内容区域：切换为纯白背景以提升可读性 */
-.topbar.solid { 
-  /* 接触内容时改为纯白背景，提高可读性 */
-  background: #ffffff; 
-  /* 仅在纯白状态下添加轻微阴影，增强层次感但不过度抢眼 */
-  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+
+/* 毛玻璃效果：滚动时激活，提供透明毛玻璃背景 */
+.topbar.glass-effect { 
+  /* 半透明白色背景 */
+  background: rgba(255, 255, 255, 0.75);
+  /* 毛玻璃模糊效果 */
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  /* 轻微边框增强层次感 */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  /* 柔和阴影提升层次 */
+  box-shadow: 0 1px 20px rgba(0, 0, 0, 0.08);
 }
+
 /* 说明：
-   - 若页面存在父容器设置了 overflow 或独立滚动容器，
-     sticky 将受最近的可滚动祖先影响；通常页面主体滚动为 body，无需特殊处理。
-   - 若需要半透明或毛玻璃效果，可改为 background: rgba(255,255,255,0.65) 并添加 backdrop-filter。 */
+   - 默认透明状态提供沉浸式体验；
+   - 滚动时自动切换为毛玻璃效果，保持内容可读性的同时维持视觉美感；
+   - 使用 backdrop-filter 实现真正的毛玻璃效果，对底层内容进行模糊处理；
+   - 平滑过渡确保状态切换的流畅性。 */
 /* 回退：移除品牌悬停增强效果，保留基础布局在文件后部定义 */
 
 /* 回退：移除搜索输入的毛玻璃态与深度选择器覆写，保留基础样式在文件后部定义 */

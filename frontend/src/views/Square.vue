@@ -87,12 +87,7 @@ onUnmounted(() => {
   .topbar-wrap { 
     /* 统一宽度与居中 */
     max-width: 1080px; margin: 0 auto; padding: 0 16px; 
-    /* 页面级吸顶（sticky 受滚动容器影响）：
-       说明：
-       - 将包裹顶栏的外层容器设置为粘性定位，确保在各页面主滚动容器下也能生效；
-       - 设置层级，防止滚动时被内容遮挡；
-       - 背景交由顶栏组件控制（透明/纯白）以适配广场页的动态切换。 */
-    position: sticky; top: 0; z-index: 1000; /* 背景透明，交由 AppTopBar 根据 solid 控制 */
+    /* 移除页面级吸顶样式，让 AppTopBar 组件自己处理吸顶和毛玻璃效果 */
   }
   /* 页面容器样式
      说明：

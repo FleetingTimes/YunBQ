@@ -52,10 +52,7 @@ const sectionsNotes = sideNavSections;
 .topbar-wrap { 
   /* 居中与宽度限制（与全局 container 一致） */
   max-width: 1080px; margin: 0 auto; padding: 0 16px; 
-  /* 页面级吸顶：
-     说明：添加便签页的主体可能在不同布局下滚动，为确保顶栏始终固定在视窗顶部，
-     将顶栏包裹容器设置为粘性定位，并提升层级避免遮挡。 */
-  position: sticky; top: 0; background: #ffffff; z-index: 1000;
+  /* 移除页面级吸顶样式，让 AppTopBar 组件自己处理吸顶和毛玻璃效果 */
 }
 /* 正文容器：保持原有宽度与内边距，避免影响编辑体验 */
 .notes-container { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
