@@ -37,13 +37,22 @@
             </el-timeline>
           </div>
         </div>
+        <!-- 服务端分页 + 触底加载（无限滚动）
+             说明：
+             - 当列表靠近底部时，自动请求下一页并追加到现有数组；
+             - 同时提供按钮手动触发，便于桌面端调试与回退；
+             - 当 hasNext=false 或正在加载时禁用按钮。 -->
+        <div class="load-more" v-if="hasNext || isLoading">
+          <button class="load-btn" :disabled="!hasNext || isLoading" @click="loadMore">{{ isLoading ? '加载中…' : '加载更多' }}</button>
+          <div ref="loadMoreSentinel" class="load-sentinel" aria-hidden="true"></div>
+        </div>
       </div>
     </template>
   </TwoPaneLayout>
 </template>
 
 <script setup>
-import { ref, onMounted, defineAsyncComponent, computed } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from 'vue'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
@@ -54,10 +63,20 @@ const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
 
 const query = ref('')
 const danmuItems = ref([])
+// 服务端分页状态（响应式）
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const hasNext = computed(() => danmuItems.value.length < total.value)
+const isLoading = ref(false)
+// 触底哨兵：进入视口时尝试加载下一页
+const loadMoreSentinel = ref(null)
+let io = null
 
-function onSearch(q){ query.value = q || ''; load() }
+function onSearch(q){ query.value = q || ''; reload() }
 
-onMounted(() => { load() })
+onMounted(() => { reload(); setupInfiniteScroll(); })
+onUnmounted(() => { teardownInfiniteScroll() })
 
 function normalizeNote(it){
   // 在收藏页面中，所有便签都应该显示为已收藏状态
@@ -78,29 +97,47 @@ function normalizeNote(it){
   }
 }
 
-async function load(){
+/** 加载一页收藏（服务端分页） */
+async function fetchPage(p = 1){
+  if (isLoading.value) return
+  isLoading.value = true
   try{
-    // 严格认证模式：与喜欢页一致，不再抑制 401，由全局拦截器统一重定向到登录页；
-    // 不填充“示例数据”，避免与用户态不一致。
-    const { data } = await http.get('/notes/favorites', {
-      params: { q: query.value },
-    })
+    const { data } = await http.get('/notes/favorites', { params: { q: query.value, page: p, size: size.value } })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     const mapped = (items || []).map(normalizeNote)
-    danmuItems.value = mapped
+    const t = (data?.total ?? data?.count ?? null)
+    if (typeof t === 'number') total.value = t
+    if (p <= 1) danmuItems.value = mapped
+    else danmuItems.value = danmuItems.value.concat(mapped)
+    page.value = p
   }catch(e){
-    // 错误处理（严格模式）：
-    // - 401 交由全局拦截器重定向登录；
-    // - 非 401 显示错误并保持空列表。
     const status = e?.response?.status
     if (status === 401) {
+      // 交由全局拦截器处理（重定向登录）
       return
     } else {
       ElMessage.error('加载收藏数据失败')
-      danmuItems.value = []
+    }
+  }finally{
+    isLoading.value = false
+    if (!total.value){
+      const lastCount = danmuItems.value.length % size.value
+      if (lastCount !== 0) total.value = danmuItems.value.length
     }
   }
 }
+function reload(){ page.value = 1; total.value = 0; danmuItems.value = []; fetchPage(1) }
+function loadMore(){ if (hasNext.value && !isLoading.value) fetchPage(page.value + 1) }
+function setupInfiniteScroll(){
+  try{
+    if (!('IntersectionObserver' in window)) return
+    io = new IntersectionObserver((entries) => {
+      for (const e of entries){ if (e.isIntersecting) loadMore() }
+    })
+    if (loadMoreSentinel.value) io.observe(loadMoreSentinel.value)
+  }catch{}
+}
+function teardownInfiniteScroll(){ try{ if (io) io.disconnect(); io = null }catch{} }
 
 function pad(n){ return String(n).padStart(2, '0') }
 function formatMD(t){
@@ -193,4 +230,10 @@ function sampleDanmu(){
 /* 回退说明：
    - 移除了页面级顶栏包裹宽度限制（topbar-wrap），顶栏使用全宽插槽；
    - 保持原始页面样式与行为，不影响顶栏组件与其它页面。 */
+/* 加载更多（移动端与桌面统一样式） */
+.load-more { display:flex; align-items:center; justify-content:center; gap:8px; margin:16px 0; }
+.load-btn { padding:8px 12px; border-radius:6px; border:1px solid #dcdfe6; background:#fff; color:#303133; cursor:pointer; }
+.load-btn:disabled { cursor:not-allowed; color:#c0c4cc; background:#f5f7fa; border-color:#ebeef5; }
+.load-btn:hover:not(:disabled) { background:#f5f7ff; border-color:#e0e9ff; }
+.load-sentinel { width:100%; height: 1px; }
 </style>

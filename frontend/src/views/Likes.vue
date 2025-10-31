@@ -37,13 +37,22 @@
             </el-timeline>
           </div>
         </div>
+        <!-- 服务端分页 + 触底加载（无限滚动）
+             说明：
+             - 当列表靠近底部时，自动请求下一页并追加到现有数组；
+             - 同时提供按钮手动触发，便于桌面端调试与回退；
+             - 当 hasNext=false 或正在加载时禁用按钮。 -->
+        <div class="load-more" v-if="hasNext || isLoading">
+          <button class="load-btn" :disabled="!hasNext || isLoading" @click="loadMore">{{ isLoading ? '加载中…' : '加载更多' }}</button>
+          <div ref="loadMoreSentinel" class="load-sentinel" aria-hidden="true"></div>
+        </div>
       </div>
     </template>
   </TwoPaneLayout>
 </template>
 
 <script setup>
-import { ref, onMounted, defineAsyncComponent, computed } from 'vue'
+import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from 'vue'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
@@ -54,10 +63,32 @@ const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
 
 const query = ref('')
 const danmuItems = ref([])
+// 服务端分页状态（响应式）
+// - page/size 控制请求翻页；
+// - total/hasNext 基于服务端 total 计算是否还有下一页；
+// - isLoading 避免并发请求与重复触发；
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const hasNext = computed(() => danmuItems.value.length < total.value)
+const isLoading = ref(false)
+// 触底哨兵：进入视口时尝试加载下一页
+const loadMoreSentinel = ref(null)
+let io = null
 
-function onSearch(q){ query.value = q || ''; load() }
+function onSearch(q){
+  // 搜索触发：重置分页为第 1 页并重新加载；
+  query.value = q || ''
+  reload()
+}
 
-onMounted(() => { load() })
+onMounted(() => {
+  // 首次加载：第 1 页
+  reload()
+  // 设置触底加载：IntersectionObserver 监听哨兵元素进入视口
+  setupInfiniteScroll()
+})
+onUnmounted(() => { teardownInfiniteScroll() })
 
 function normalizeNote(it){
   return {
@@ -76,41 +107,85 @@ function normalizeNote(it){
   }
 }
 
-async function load(){
-  // 改用后端专用接口：/api/notes/liked
-  // 目的：准确返回“我点赞过的便签”，避免在 /notes 列表中二次筛选导致为空或权限问题。
+/**
+ * 加载一页数据（服务端分页）
+ * - 请求参数：page/size + q（关键词）；
+ * - 兼容返回结构：数组 或 PageResult（items/records + total）。
+ * - 追加模式：将新页数据 append 到 danmuItems。
+ */
+async function fetchPage(p = 1){
+  if (isLoading.value) return
+  isLoading.value = true
   try{
-    // 说明（严格认证模式）：
-    // - 喜欢页为受保护页面（requiresAuth），若首次数据拉取返回 401（未登录或 token 失效），
-    //   采用页面内处理：抑制全局 401 重定向，友好提示并引导用户登录，避免刚登录后被下一条 401 抢走路由。
-    // - 这样在网络抖动或后端短暂校验失败时，用户不会被“立即拉回登录页”，体验更稳定。
     const { data } = await http.get('/notes/liked', {
-      params: { q: query.value },
+      params: { q: query.value, page: p, size: size.value },
       // 关键：抑制 401 的全局重定向，由本页自行提示与跳转
       suppress401Redirect: true,
     })
-    // 兼容返回结构：PageResult 或直接数组
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     const mapped = (items || []).map(normalizeNote)
-    danmuItems.value = mapped
+    // 更新总数（若服务端返回 total），否则按累加近似估算
+    const t = (data?.total ?? data?.count ?? null)
+    if (typeof t === 'number') total.value = t
+    // 追加到现有列表
+    if (p <= 1) danmuItems.value = mapped
+    else danmuItems.value = danmuItems.value.concat(mapped)
+    // 页码前进
+    page.value = p
   }catch(e){
-    // 错误处理策略（严格模式，无友好降级）：
-    // - 401：页面内提示并主动导航到登录页（携带 redirect），避免静默失败；
-    // - 非 401：给出错误提示，不填充示例数据，保持列表为空以体现错误态。
     const status = e?.response?.status
     if (status === 401) {
-      try{
-        ElMessage.warning('登录状态失效，请重新登录')
-      }catch{}
-      // 带上当前页路径作为重定向目标
+      try{ ElMessage.warning('登录状态失效，请重新登录') }catch{}
       const redirect = encodeURIComponent(window.location.hash ? window.location.hash.slice(1) : '/likes')
       window.location.hash = `#/login?redirect=${redirect}`
       return
     } else {
       ElMessage.error('加载点赞数据失败')
-      danmuItems.value = []
+    }
+  }finally{
+    isLoading.value = false
+    // 若服务端未返回 total，则根据当页长度与 size 粗略判断是否还有下一页
+    if (!total.value){
+      const lastCount = danmuItems.value.length % size.value
+      if (lastCount === 0) {
+        // 可能仍有下一页（不确定，总数未知）
+      } else {
+        total.value = danmuItems.value.length
+      }
     }
   }
+}
+
+/** 重置并加载第 1 页 */
+function reload(){
+  page.value = 1
+  total.value = 0
+  danmuItems.value = []
+  fetchPage(1)
+}
+
+/** 手动加载下一页 */
+function loadMore(){ if (hasNext.value && !isLoading.value) fetchPage(page.value + 1) }
+
+/** 设置触底加载（IntersectionObserver） */
+function setupInfiniteScroll(){
+  try{
+    if (!('IntersectionObserver' in window)) return
+    io = new IntersectionObserver((entries) => {
+      for (const e of entries){
+        if (e.isIntersecting){
+          loadMore()
+        }
+      }
+    })
+    if (loadMoreSentinel.value) io.observe(loadMoreSentinel.value)
+  }catch{}
+}
+function teardownInfiniteScroll(){
+  try{
+    if (io) io.disconnect()
+    io = null
+  }catch{}
 }
 
 function pad(n){ return String(n).padStart(2, '0') }
@@ -204,4 +279,10 @@ function sampleDanmu(){
 /* 回退说明：
    - 移除了页面级顶栏包裹宽度限制（topbar-wrap），顶栏使用全宽插槽；
    - 保持原有样式与滚动行为，避免对顶栏组件造成间接影响。 */
+/* 加载更多（移动端与桌面统一样式） */
+.load-more { display:flex; align-items:center; justify-content:center; gap:8px; margin:16px 0; }
+.load-btn { padding:8px 12px; border-radius:6px; border:1px solid #dcdfe6; background:#fff; color:#303133; cursor:pointer; }
+.load-btn:disabled { cursor:not-allowed; color:#c0c4cc; background:#f5f7fa; border-color:#ebeef5; }
+.load-btn:hover:not(:disabled) { background:#f5f7ff; border-color:#e0e9ff; }
+.load-sentinel { width:100%; height: 1px; }
 </style>

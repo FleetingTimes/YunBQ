@@ -209,6 +209,14 @@
           </div>
         </div>
       </div>
+      <!-- 加载更多区域：按钮 + 触底哨兵。桌面端可点击，移动端滚动到底自动触发 -->
+      <div class="load-more-container">
+        <button class="load-more-btn" :disabled="isLoading || !hasNext" @click="loadMore">
+          {{ isLoading ? '加载中…' : (hasNext ? '加载更多' : '已无更多') }}
+        </button>
+        <!-- 触底哨兵：进入视口时自动加载下一页；在没有更多或正在加载时隐藏 -->
+        <div v-show="hasNext && !isLoading" ref="loadMoreSentinel" class="load-more-sentinel" aria-hidden="true"></div>
+      </div>
     </template>
   </TwoPaneLayout>
   <!-- 右下：回到顶部组件（可见高度 360px 后出现）
@@ -237,6 +245,21 @@ const me = reactive({ username:'', nickname:'', avatarUrl:'', signature:'' });
 const avatarUrl = computed(() => avatarFullUrl(me.avatarUrl));
 const authorName = computed(() => me.nickname || me.username || '我');
 const router = useRouter();
+
+// —— 服务端分页状态（我的便签页）——
+// 当前页码（从 1 开始）
+const page = ref(1);
+// 每页条数（建议 20，避免一次性加载过多）
+const size = ref(20);
+// 总条数（由后端返回，用于判断是否还有下一页）
+const total = ref(0);
+// 是否正在加载（防止并发）
+const isLoading = ref(false);
+// 是否还有下一页：当已加载数量小于总数时继续加载
+const hasNext = computed(() => notes.value.length < total.value);
+// 触底加载哨兵
+const loadMoreSentinel = ref(null);
+let sentinelObserver = null;
 // 签名展开/收起
 const signatureExpanded = ref(false);
 const signatureOverflow = ref(false);
@@ -338,30 +361,69 @@ async function loadMe(){
   }catch(e){ /* 忽略错误 */ }
 }
 
-async function loadNotes(){
+// 将后端返回的便签项映射为页面内部结构，并累加到列表
+function appendMappedItems(items){
+  if (!Array.isArray(items) || items.length === 0) return;
+  const mapped = items.map(it => ({
+    ...it,
+    isPublic: it.isPublic ?? it.is_public ?? false,
+    likeCount: Number(it.likeCount ?? it.like_count ?? 0),
+    liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
+    favoriteCount: Number(it.favoriteCount ?? it.favorite_count ?? 0),
+    favorited: Boolean(it.favoritedByMe ?? it.favorited_by_me ?? it.favorited ?? false),
+    showActions: false,
+    editing: false,
+    contentEdit: it.content,
+    isPublicEdit: it.isPublic ?? it.is_public ?? false,
+  }));
+  notes.value = notes.value.concat(mapped);
+}
+
+// 拉取指定页的数据，并累加到列表
+async function fetchPage(targetPage){
+  if (isLoading.value) return;
+  isLoading.value = true;
   try{
-    // 仅加载“我的”便签：通过向后端传递 mineOnly=true，让服务端按 user_id 精确过滤
-    // 说明：
-    // - 后端 NoteController.list 支持 mineOnly 参数；当为 true 时仅返回当前登录用户的便签；
-    // - 若不传该参数，后端默认返回“公开便签 + 我的便签”的并集，导致页面出现他人公开便签；
-    // - suppress401Redirect: true 用于避免意外的 401 时触发全局重定向（在本页通常已登录，仅加作稳妥保护）。
-    const { data } = await http.get('/notes', { params: { size: 100, page: 1, mineOnly: true }, suppress401Redirect: true });
+    const { data } = await http.get('/notes', {
+      params: { size: size.value, page: targetPage, mineOnly: true },
+      suppress401Redirect: true,
+    });
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? []);
-    notes.value = (items || []).map(it => ({
-      ...it,
-      isPublic: it.isPublic ?? it.is_public ?? false,
-      likeCount: Number(it.likeCount ?? it.like_count ?? 0),
-      liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
-      favoriteCount: Number(it.favoriteCount ?? it.favorite_count ?? 0),
-      favorited: Boolean(it.favoritedByMe ?? it.favorited_by_me ?? it.favorited ?? false),
-      showActions: false,
-      editing: false,
-      contentEdit: it.content,
-      isPublicEdit: it.isPublic ?? it.is_public ?? false,
-    }));
+    const t = data?.total ?? data?.count ?? 0;
+    total.value = Number.isFinite(t) ? Number(t) : (notes.value.length + (items?.length || 0));
+    appendMappedItems(items || []);
+    page.value = targetPage;
   }catch(e){
     ElMessage.error('加载我的便签失败');
+  }finally{
+    isLoading.value = false;
   }
+}
+
+// 重新加载（重置列表并拉取第 1 页）
+async function reload(){
+  total.value = 0;
+  page.value = 1;
+  notes.value = [];
+  await fetchPage(1);
+}
+
+// 加载下一页
+async function loadMore(){
+  if (!hasNext.value || isLoading.value) return;
+  await fetchPage(page.value + 1);
+}
+
+// 初始化触底加载：当哨兵进入视口时自动触发下一页加载
+async function setupInfiniteScroll(){
+  await nextTick();
+  if (!loadMoreSentinel.value) return;
+  if (sentinelObserver){ try{ sentinelObserver.disconnect(); }catch{} }
+  sentinelObserver = new IntersectionObserver((entries) => {
+    const entry = entries[0];
+    if (entry?.isIntersecting){ loadMore(); }
+  }, { root: null, rootMargin: '0px', threshold: 1.0 });
+  sentinelObserver.observe(loadMoreSentinel.value);
 }
 
 function parseHexColor(hex){
@@ -388,7 +450,11 @@ function noteCardStyle(n){
   };
 }
 
-onMounted(() => { loadMe(); loadNotes(); });
+onMounted(async () => {
+  loadMe();
+  await reload();
+  await setupInfiniteScroll();
+});
 
 // 吸顶状态检测（用于视觉强调）
 const filtersRef = ref(null);
@@ -416,6 +482,12 @@ onMounted(() => {
 });
 onUnmounted(() => {
   window.removeEventListener('scroll', updateStickyState);
+});
+
+// 组件卸载时清理触底观察器，避免泄漏
+onUnmounted(() => {
+  if (sentinelObserver){ try{ sentinelObserver.disconnect(); }catch{} }
+  sentinelObserver = null;
 });
 
 // 所有标签集合（去重）
@@ -836,4 +908,10 @@ function highlightHTML(s){
 .signature-full { -webkit-line-clamp: unset; display: block; overflow: visible; white-space: pre-line; }
 .sig-toggle { color: var(--el-color-primary); font-size:13px; cursor:pointer; user-select:none; margin-top:4px; }
 .signature-ellipsis { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: break-word; white-space: pre-line; }
+
+/* 加载更多区域样式（与 Likes/Favorites 页面保持一致体验） */
+.load-more-container { display:flex; flex-direction:column; align-items:center; gap:8px; margin: 16px 0 32px; }
+.load-more-btn { padding:8px 16px; border-radius:6px; border:1px solid #dcdfe6; background:#f5f7ff; color:#409eff; cursor:pointer; }
+.load-more-btn:disabled { opacity:0.6; cursor:not-allowed; }
+.load-more-sentinel { width:100%; max-width:640px; height:1px; }
 </style>
