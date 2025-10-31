@@ -18,67 +18,68 @@
              实现：移除该 DOM 区块，避免冗余占位；保留滚动与锚点逻辑。
              兼容：scrollTo 中对 .content-head 的高度读取为 0（不存在），仍有额外安全间距；
              同时各卡片通过 CSS 的 scroll-margin-top 避免标题遮挡。 -->
+        <!-- 已按用户需求注释：热门便签与最近便签区块及相关功能 -->
+        <!--
         <div class="grid-two">
-        <div class="card" id="hot">
-          <div class="card-title">热门便签</div>
-          <div class="card-desc">基于收藏、点赞与时效综合排序</div>
-          <!-- 撤回：移除骨架屏占位，恢复原始列表渲染 -->
-          <ul class="note-list">
-            <li class="note-item" v-for="it in hotPageItems" :key="it.id" @click="goNote(it)" role="button">
-              <div class="title">{{ tagTitle(it) }}</div>
-              <div class="content">{{ snippet(it.content || it.title) }}</div>
-              <div class="meta">
-                <div class="left">
-                  <span class="author">{{ displayAuthor(it) }}</span>
+          <div class="card" id="hot">
+            <div class="card-title">热门便签</div>
+            <div class="card-desc">基于收藏、点赞与时效综合排序</div>
+            <ul class="note-list">
+              <li class="note-item" v-for="it in hotPageItems" :key="it.id" @click="goNote(it)" role="button">
+                <div class="title">{{ tagTitle(it) }}</div>
+                <div class="content">{{ snippet(it.content || it.title) }}</div>
+                <div class="meta">
+                  <div class="left">
+                    <span class="author">{{ displayAuthor(it) }}</span>
+                  </div>
+                  <div class="right">
+                    <span class="time">{{ formatYMD(it.updatedAt || it.updated_at) }}</span>
+                  </div>
                 </div>
-                <div class="right">
-                  <span class="time">{{ formatYMD(it.updatedAt || it.updated_at) }}</span>
-                </div>
-              </div>
-            </li>
-            <li v-if="!hotNotes.length" class="empty">暂无热门便签</li>
-          </ul>
-          <el-pagination
-            v-if="hotNotes.length"
-            background
-            layout="prev, pager, next"
-            :total="hotNotes.length"
-            :page-size="pageSize"
-            v-model:current-page="pageHot"
-            style="margin-top:10px; display:flex; justify-content:center;"
-          />
-        </div>
+              </li>
+              <li v-if="!hotNotes.length" class="empty">暂无热门便签</li>
+            </ul>
+            <el-pagination
+              v-if="hotNotes.length"
+              background
+              layout="prev, pager, next"
+              :total="hotNotes.length"
+              :page-size="pageSize"
+              v-model:current-page="pageHot"
+              style="margin-top:10px; display:flex; justify-content:center;"
+            />
+          </div>
 
-        <div class="card" id="recent">
-          <div class="card-title">最近便签</div>
-          <div class="card-desc">最新公开更新</div>
-          <ul class="note-list">
-            <!-- 撤回：移除骨架屏占位，恢复原始列表渲染 -->
-            <li class="note-item" v-for="it in recentPageItems" :key="it.id" @click="goNote(it)" role="button">
-              <div class="title">{{ tagTitle(it) }}</div>
-              <div class="content">{{ snippet(it.content || it.title) }}</div>
-              <div class="meta">
-                <div class="left">
-                  <span class="author">{{ displayAuthor(it) }}</span>
+          <div class="card" id="recent">
+            <div class="card-title">最近便签</div>
+            <div class="card-desc">最新公开更新</div>
+            <ul class="note-list">
+              <li class="note-item" v-for="it in recentPageItems" :key="it.id" @click="goNote(it)" role="button">
+                <div class="title">{{ tagTitle(it) }}</div>
+                <div class="content">{{ snippet(it.content || it.title) }}</div>
+                <div class="meta">
+                  <div class="left">
+                    <span class="author">{{ displayAuthor(it) }}</span>
+                  </div>
+                  <div class="right">
+                    <span class="time">{{ formatYMD(it.updatedAt || it.updated_at) }}</span>
+                  </div>
                 </div>
-                <div class="right">
-                  <span class="time">{{ formatYMD(it.updatedAt || it.updated_at) }}</span>
-                </div>
-              </div>
-            </li>
-            <li v-if="!recentNotes.length" class="empty">暂无最近便签</li>
-          </ul>
-          <el-pagination
-            v-if="recentNotes.length"
-            background
-            layout="prev, pager, next"
-            :total="recentNotes.length"
-            :page-size="pageSize"
-            v-model:current-page="pageRecent"
-            style="margin-top:10px; display:flex; justify-content:center;"
-          />
+              </li>
+              <li v-if="!recentNotes.length" class="empty">暂无最近便签</li>
+            </ul>
+            <el-pagination
+              v-if="recentNotes.length"
+              background
+              layout="prev, pager, next"
+              :total="recentNotes.length"
+              :page-size="pageSize"
+              v-model:current-page="pageRecent"
+              style="margin-top:10px; display:flex; justify-content:center;"
+            />
+          </div>
         </div>
-        </div>
+        -->
 
         <!-- 使用通用站点便签组件：抽象样式与数据逻辑，传入标签为“网站”
              启用来源切换模式为“公开/聚合”（聚合=公开+我的，登录后可用） -->
@@ -249,7 +250,8 @@ function refreshAuth(){
 }
 // 导航配置改为公共导入，确保与添加便签页一致、便于维护
 const sections = sideNavSections
-const activeId = ref('hot')
+// 注释：默认高亮锚点从“hot”改为“site”，避免指向已隐藏区块
+const activeId = ref('site')
 const contentRef = ref(null)
 const pageSize = 4
 const pageHot = ref(1)
@@ -591,8 +593,9 @@ async function loadRecent(){
 
 // 页面挂载：加载热门/最近与网站便签（网站便签仅来源于“我的便签”且标签为“网站”）
 onMounted(() => {
-  loadHot();
-  loadRecent();
+  // 注释：热门/最近初始化加载已禁用
+  // loadHot();
+  // loadRecent();
   // 网站区的初始加载与来源切换交由 SiteNoteList 组件处理
   // 初始化登录状态并添加监听，确保退出登录后无需手动刷新也能更新控件显示
   refreshAuth()
@@ -613,10 +616,10 @@ onMounted(() => {
   })
 })
 
-// 页面卸载时：取消最近便签的在途请求，避免导航中止错误
-onUnmounted(() => {
-  try{ loadRecent.controller?.abort?.() }catch{}
-})
+// 注释：最近便签请求取消逻辑已禁用（对应功能已注释）
+// onUnmounted(() => {
+//   try{ loadRecent.controller?.abort?.() }catch{}
+// })
 
 // 网站区使用通用组件，父组件无需重置网站来源或数据。
 

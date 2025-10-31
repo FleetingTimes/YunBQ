@@ -6,7 +6,8 @@
 
 export const sideNavSections = [
   // 合并项：热门·最近（别名锚点映射至 hot 与 recent）
-  { id: 'hot-recent', label: '热门·最近', aliasTargets: ['hot','recent'] },
+  // 注释：已隐藏"热门·最近"内容区块，同步移除侧边导航入口以避免点击无效果
+  // { id: 'hot-recent', label: '热门·最近', aliasTargets: ['hot','recent'] },
   // 聚合便签（网站/站点类聚合）
   { id: 'site', label: '聚合便签' },
   // 云盘集：将原“知识便签”改为“云盘集”，并提升至 git 之前
