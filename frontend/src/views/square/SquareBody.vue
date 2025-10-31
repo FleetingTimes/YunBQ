@@ -185,6 +185,12 @@
              - 通过标签“磁力工具”严格过滤磁力链接解析、搜索与下载相关站点；
              - 放置在“影音工具”之后，便于用户在媒体相关工具中快速找到磁力相关功能。 -->
         <SiteNoteList id="tool-magnet" title="工具 · 磁力工具" subtitle="磁力链接解析与搜索" tag="磁力工具" />
+        <!-- 新增：插件工具（标签“插件工具”）
+             说明：
+             - 与侧边导航子项 id 对齐（tool-plugin），用于滚动定位与高亮；
+             - 通过标签“插件工具”严格过滤浏览器扩展/第三方插件类工具集合。
+             - 放置在“磁力工具”之后，便于用户在工具集合中快速找到插件相关功能。 -->
+        <SiteNoteList id="tool-plugin" title="工具 · 插件工具" subtitle="浏览器扩展与第三方插件工具" tag="插件工具" />
         <!-- 子区块：其他工具（标签“其他工具”） -->
         <SiteNoteList id="tool-other" title="工具 · 其他工具" subtitle="其他常用站点工具" tag="其他工具" />
 
@@ -199,6 +205,21 @@
         <!-- 子区块标题更新：移除中间点，改为“AI绘图”，仅更新文案，id 不变
              数据标签同步：将 tag 从“绘图”修改为“AI绘图”，以匹配后端与内容标签。 -->
         <SiteNoteList id="ai-draw" title="AI绘图" subtitle="AI 绘图工具与案例" tag="AI绘图" />
+        <!-- 新增：AI语音（标签“AI语音”）
+             说明：
+             - 与侧边导航子项 id 对齐（ai-voice），用于滚动定位与高亮；
+             - 通过标签“AI语音”严格过滤语音合成/语音识别相关站点与工具。 -->
+        <SiteNoteList id="ai-voice" title="AI语音" subtitle="语音合成与语音识别工具" tag="AI语音" />
+        <!-- 新增：AI视频（标签“AI视频”）
+             说明：
+             - 与侧边导航子项 id 对齐（ai-video），用于滚动定位与高亮；
+             - 通过标签“AI视频”严格过滤视频生成/视频编辑与处理相关站点与工具。 -->
+        <SiteNoteList id="ai-video" title="AI视频" subtitle="视频生成与编辑处理工具" tag="AI视频" />
+        <!-- 新增：AI工具（标签“AI工具”）
+             说明：
+             - 与侧边导航子项 id 对齐（ai-tool），用于滚动定位与高亮；
+             - 通过标签“AI工具”聚合通用型 AI 工具与平台入口。 -->
+        <SiteNoteList id="ai-tool" title="AI工具" subtitle="通用型 AI 工具与平台" tag="AI工具" />
       </div>
     </section>
   </div>

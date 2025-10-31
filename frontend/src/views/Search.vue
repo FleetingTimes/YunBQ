@@ -1,9 +1,7 @@
 <template>
-  <!-- 两栏布局：左侧 SideNav（统一结构展示），右侧顶栏 + 搜索结果正文 -->
+  <!-- 单列布局：去除左侧侧边栏，仅保留全宽顶栏与正文区域 -->
+  <!-- 说明：继续复用 TwoPaneLayout 的顶栏吸顶与右侧滚动容器逻辑。 -->
   <TwoPaneLayout>
-    <template #left>
-      <SideNav :sections="sections" v-model:activeId="activeId" :alignCenter="true" />
-    </template>
     <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
     <template #topFull>
       <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
@@ -14,7 +12,48 @@
         <div class="page-header">
           <h2>搜索结果</h2>
         </div>
+        <!-- 顶部：弹幕流（复用 NotesBody，便于保留原搜索联动与草稿逻辑） -->
         <NotesBody :query="query" :showComposer="false" />
+
+        <!-- 下方：与收藏页一致的便签展示（按年份分组 + 时间线 + NoteCard） -->
+        <!-- 数据来源：服务端分页 /api/notes?q=...&page=...&size=...，滚动到底自动加载下一页 -->
+        <div class="year-groups">
+          <div v-for="g in yearGroups" :key="g.year" class="year-group">
+            <div class="year-header">
+              <span class="year-title">{{ g.year }}</span>
+            </div>
+            <el-timeline>
+              <transition-group name="list" tag="div">
+                <el-timeline-item
+                  v-for="n in g.items"
+                  :key="n.id"
+                  :timestamp="formatMD(n.createdAt || n.created_at)"
+                  placement="top"
+                >
+                  <!-- 复用 NoteCard：支持长按动作（喜欢/收藏/删除等） -->
+                  <NoteCard
+                    :note="n"
+                    :enableLongPressActions="true"
+                    @toggle-like="toggleLike"
+                    @toggle-favorite="toggleFavorite"
+                  />
+                </el-timeline-item>
+              </transition-group>
+            </el-timeline>
+          </div>
+        </div>
+
+        <!-- 服务端分页 + 触底加载（无限滚动）
+             说明：
+             - 当列表靠近底部时，自动请求下一页并追加到现有数组；
+             - 同时提供按钮手动触发，便于桌面端调试与回退；
+             - 当 hasNext=false 或正在加载时禁用按钮。 -->
+        <div class="load-more" v-if="hasNext || isLoading">
+          <!-- 触底自动加载：默认隐藏按钮，仅在不支持 IntersectionObserver 时显示回退按钮 -->
+          <button v-if="!supportsIO" class="load-btn" :disabled="!hasNext || isLoading" @click="loadMore">{{ isLoading ? '加载中…' : '加载更多' }}</button>
+          <!-- 触底哨兵：进入视口尝试自动加载下一页 -->
+          <div ref="loadMoreSentinel" class="load-sentinel" aria-hidden="true"></div>
+        </div>
       </div>
     </template>
   </TwoPaneLayout>
@@ -22,35 +61,169 @@
 </template>
 
 <script setup>
-import { ref, watch, defineAsyncComponent } from 'vue';
+// 搜索结果页：
+// - 去除左侧侧边栏，仅保留全宽顶栏与正文；
+// - 弹幕流由 NotesBody 展示；在其下方增加与收藏页一致的“按年份分组 + 时间线 + NoteCard”的列表；
+// - 数据加载方式为服务端分页（/api/notes），支持 q + page + size，并提供触底自动加载与按钮手动加载。
+import { ref, watch, defineAsyncComponent, onMounted, onUnmounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
-const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
-import { useRoute, useRouter } from 'vue-router';
+const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
+const NotesBody = defineAsyncComponent(() => import('./notes/NotesBody.vue'))
+const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
+import { http } from '@/api/http'
+import { ElMessage } from 'element-plus'
 
-const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'));
-const NotesBody = defineAsyncComponent(() => import('./notes/NotesBody.vue'));
-import { sideNavSections as sections } from '@/config/navSections'
+const route = useRoute()
+const router = useRouter()
 
-const route = useRoute();
-const router = useRouter();
-
-const query = ref(String(route.query.q || ''));
-const activeId = ref('')
+// 搜索关键词：跟随顶栏输入与路由 query 同步
+const query = ref(String(route.query.q || ''))
+watch(() => route.query.q, (nv) => { query.value = String(nv || '') })
 
 function onSearch(q){
-  query.value = q || '';
-  router.replace({ path: '/search', query: { q: query.value } });
+  // 顶栏搜索：更新关键词与路由，并重置列表为第 1 页重新加载
+  query.value = q || ''
+  router.replace({ path: '/search', query: { q: query.value } })
+  reload()
 }
 
-watch(() => route.query.q, (nv) => {
-  query.value = String(nv || '');
-});
+// 下方列表数据（与收藏页一致的展示效果）
+const listItems = ref([])
+// 服务端分页状态
+const page = ref(1)
+const size = ref(20)
+const total = ref(0)
+const isLoading = ref(false)
+const hasNext = computed(() => listItems.value.length < total.value)
+const loadMoreSentinel = ref(null)
+// 浏览器能力检测：是否支持 IntersectionObserver，用于决定是否显示手动按钮
+const supportsIO = ref(true)
+let io = null
+
+function normalizeNote(it){
+  // 统一字段命名与类型，便于 NoteCard 使用
+  return {
+    id: it.id,
+    content: String(it.content ?? it.text ?? ''),
+    tags: Array.isArray(it.tags) ? it.tags : String(it.tags || '').split(',').filter(Boolean),
+    color: String(it.color ?? '#ffd966'),
+    authorName: String(it.authorName ?? it.author_name ?? ''),
+    likeCount: Number(it.likeCount ?? it.like_count ?? 0),
+    liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
+    favoriteCount: Number(it.favoriteCount ?? it.favorite_count ?? 0),
+    favorited: Boolean(it.favoritedByMe ?? it.favorited ?? false),
+    isPublic: Boolean(it.isPublic ?? it.is_public ?? false),
+    createdAt: it.createdAt ?? it.created_at,
+    updatedAt: it.updatedAt ?? it.updated_at,
+  }
+}
+
+/** 加载一页搜索结果（服务端分页） */
+async function fetchPage(p = 1){
+  if (isLoading.value) return
+  isLoading.value = true
+  try{
+    // 使用 /notes 接口：传递 q + page + size；不强制 mineOnly，以保持“公开 + 我的”的联合搜索
+    const { data } = await http.get('/notes', { params: { q: query.value, page: p, size: size.value }, suppress401Redirect: true })
+    const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
+    const mapped = (items || []).map(normalizeNote)
+    const t = (data?.total ?? data?.count ?? null)
+    if (typeof t === 'number') total.value = t
+    if (p <= 1) listItems.value = mapped
+    else listItems.value = listItems.value.concat(mapped)
+    page.value = p
+  }catch(e){ ElMessage.error('加载搜索结果失败') }
+  finally{
+    isLoading.value = false
+    // 若服务端未返回 total，则根据实际数量粗略估计，以便在小数据集下给出“已无更多”的提示
+    if (!total.value){
+      const lastCount = listItems.value.length % size.value
+      if (lastCount !== 0) total.value = listItems.value.length
+    }
+  }
+}
+function reload(){ page.value = 1; total.value = 0; listItems.value = []; fetchPage(1) }
+function loadMore(){ if (hasNext.value && !isLoading.value) fetchPage(page.value + 1) }
+function setupInfiniteScroll(){
+  try{
+    if (!('IntersectionObserver' in window)) return
+    io = new IntersectionObserver((entries) => { for (const e of entries){ if (e.isIntersecting) loadMore() } })
+    if (loadMoreSentinel.value) io.observe(loadMoreSentinel.value)
+  }catch{}
+}
+function teardownInfiniteScroll(){ try{ if (io) io.disconnect(); io = null }catch{} }
+
+onMounted(() => {
+  // 初始化支持能力：默认 true，实际根据 window 能力检测更新
+  try { supportsIO.value = 'IntersectionObserver' in window } catch { supportsIO.value = false }
+  reload();
+  setupInfiniteScroll();
+})
+onUnmounted(() => { teardownInfiniteScroll() })
+
+// 工具：月-日 时:分 格式（中文样式）与年份分组
+function pad(n){ return String(n).padStart(2, '0') }
+function formatMD(t){
+  if (!t) return ''
+  try{
+    const d = new Date(t)
+    if (isNaN(d.getTime())) return ''
+    const M = pad(d.getMonth()+1), D = pad(d.getDate()), h = pad(d.getHours()), m = pad(d.getMinutes())
+    return `${M}月${D}日 ${h}:${m}`
+  }catch{ return '' }
+}
+const yearGroups = computed(() => {
+  const map = new Map()
+  for (const n of listItems.value){
+    const t = new Date(n.createdAt || n.created_at || 0)
+    const year = isNaN(t.getTime()) ? '未知' : t.getFullYear()
+    if (!map.has(year)) map.set(year, [])
+    map.get(year).push(n)
+  }
+  const groups = []
+  for (const [year, items] of map.entries()) groups.push({ year, items })
+  return groups
+})
+
+// 喜欢与收藏动作：复用收藏页的交互逻辑
+async function toggleLike(n){
+  if (n.likeLoading) return
+  n.likeLoading = true
+  try{
+    const url = n.liked ? `/notes/${n.id}/unlike` : `/notes/${n.id}/like`
+    const { data } = await http.post(url)
+    n.likeCount = Number(data?.count ?? data?.like_count ?? (n.likeCount || 0))
+    n.liked = Boolean((data?.likedByMe ?? data?.liked_by_me ?? n.liked))
+  }catch{ ElMessage.error('操作失败') }
+  finally{ n.likeLoading = false }
+}
+async function toggleFavorite(n){
+  if (n.favoriteLoading) return
+  n.favoriteLoading = true
+  try{
+    const url = n.favorited ? `/notes/${n.id}/unfavorite` : `/notes/${n.id}/favorite`
+    const { data } = await http.post(url)
+    n.favoriteCount = Number(data?.count ?? data?.favorite_count ?? (n.favoriteCount || 0))
+    n.favorited = Boolean((data?.favoritedByMe ?? data?.favorited_by_me ?? n.favorited))
+  }catch{ ElMessage.error('操作失败') }
+  finally{ n.favoriteLoading = false }
+}
 </script>
 
 <style scoped>
 .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-/* 回退说明：
-   - 移除了页面级 :deep(.topbar) 吸顶与层级覆写；
-   - 移除了内容区域的顶部渐隐遮罩；
-   - 恢复到最初的布局展示，避免对顶栏组件产生间接影响。 */
+/* 年份分组时间线样式（与收藏页保持一致体验） */
+.year-groups { margin-top: 12px; }
+.year-group { margin-bottom: 16px; }
+.year-header { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:#ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.06); position: sticky; top: 6px; z-index: 10; }
+.year-title { font-size:22px; font-weight:700; color:#303133; letter-spacing:0.5px; }
+.year-header::before { content:''; display:block; width:6px; height:24px; border-radius:6px; background:#409eff; margin-right:10px; opacity:0.85; }
+
+/* 分页与触底加载区域 */
+.load-more { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:10px; }
+.load-btn { padding:8px 12px; border-radius:6px; border:1px solid #dcdfe6; background:#fff; color:#303133; cursor:pointer; }
+.load-btn:disabled { cursor:not-allowed; color:#c0c4cc; background:#f5f7fa; border-color:#ebeef5; }
+.load-btn:hover:not(:disabled) { background:#f5f7ff; border-color:#e0e9ff; }
+.load-sentinel { width: 100%; height: 1px; }
 </style>

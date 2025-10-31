@@ -77,11 +77,26 @@ export const sideNavSections = [
     // - 子项 id 为 'tool-magnet'，用于与内容区锚点一致；
     // - 展示文案为“磁力工具”，对应内容卡片的标签筛选也为“磁力工具”。
     { id: 'tool-magnet', label: '磁力工具' },
+    // 新增子导航：插件工具（按需扩展第三方/浏览器插件类工具）
+    // 说明：
+    // - 子项 id 为 'tool-plugin'，与内容区锚点保持一致（例如 SquareBody 中的 #tool-plugin 卡片）；
+    // - 仅新增导航项，不影响其他分类滚动与高亮逻辑。
+    { id: 'tool-plugin', label: '插件工具' },
     { id: 'tool-other', label: '其他工具' }
   ] },
   // AI 集：将原“AI便签”改为“AI集”，并将子导航“AI·绘图”改为“AI绘图”
   // 说明：
   // - 仅更新展示文案，不改动 id（仍为 ai / ai-draw），以保证锚点与滚动定位稳定；
   // - 与广场页内容区标题保持一致，避免用户在侧边导航与内容区看到不同文案。
-  { id: 'ai', label: 'AI集', aliasTargets: ['ai-draw'], children: [ { id: 'ai-draw', label: 'AI绘图' } ] },
+  // AI 集：新增语音/视频/工具子导航
+  // 说明：
+  // - 保持父项 id 为 'ai'，并保留 aliasTargets 指向首子项以保证点击父项时滚动定位稳定；
+  // - 子项 id 与内容区锚点一致（如 #ai-voice/#ai-video/#ai-tool），有助于右侧滚动联动高亮；
+  // - 如内容区暂未创建对应卡片，点击子项仅变更高亮，不会触发滚动错误。
+  { id: 'ai', label: 'AI集', aliasTargets: ['ai-draw'], children: [ 
+    { id: 'ai-draw', label: 'AI绘图' },
+    { id: 'ai-voice', label: 'AI语音' },
+    { id: 'ai-video', label: 'AI视频' },
+    { id: 'ai-tool', label: 'AI工具' }
+  ] },
 ]
