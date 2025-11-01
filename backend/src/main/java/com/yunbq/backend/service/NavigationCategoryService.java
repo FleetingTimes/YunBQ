@@ -61,7 +61,7 @@ public class NavigationCategoryService {
      * @param page 页码
      * @param size 每页大小
      * @param name 分类名称（模糊查询）
-     * @param parentId 父级分类ID（null表示查询一级分类）
+     * @param parentId 父级分类ID（null表示查询所有分类，包括一级和二级；具体值表示查询该父级下的子分类）
      * @param isEnabled 是否启用
      * @return 分页结果
      */
@@ -74,19 +74,21 @@ public class NavigationCategoryService {
         }
         
         // 父级分类过滤
-        if (parentId == null) {
-            queryWrapper.isNull("parent_id");
-        } else {
+        // 修改逻辑：只有明确传递了parentId参数时才进行过滤
+        // 如果parentId为null（未传递），则查询所有分类（包括一级和二级）
+        // 如果parentId为具体值，则查询该父级下的子分类
+        if (parentId != null) {
             queryWrapper.eq("parent_id", parentId);
         }
+        // 注意：这里不再添加 isNull("parent_id") 条件，允许返回所有分类
         
         // 启用状态过滤
         if (isEnabled != null) {
             queryWrapper.eq("is_enabled", isEnabled);
         }
         
-        // 按排序权重和ID排序
-        queryWrapper.orderByAsc("sort_order", "id");
+        // 按父级分类、排序权重和ID排序，确保一级分类在前，二级分类在后
+        queryWrapper.orderByAsc("parent_id", "sort_order", "id");
         
         return categoryMapper.selectPage(Page.of(page, size), queryWrapper);
     }

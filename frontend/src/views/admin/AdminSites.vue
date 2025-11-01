@@ -141,24 +141,36 @@
           />
         </el-form-item>
         <el-form-item label="分类" prop="categoryId">
-          <el-select v-model="siteForm.categoryId" placeholder="请选择分类" style="width: 100%;">
-            <el-option
-              v-for="category in categories"
-              :key="category.id"
-              :label="category.name"
-              :value="category.id"
-            />
-          </el-select>
+          <!-- 级联选择器：支持一级分类->二级分类的层级选择 -->
+          <!-- 如果选择一级分类，直接使用一级分类ID；如果选择二级分类，使用二级分类ID -->
+          <el-cascader
+            v-model="cascaderValue"
+            :options="cascaderOptions"
+            :props="cascaderProps"
+            placeholder="请选择分类"
+            style="width: 100%;"
+            clearable
+            @change="handleCascaderChange"
+          />
         </el-form-item>
-        <el-form-item label="图标链接" prop="icon">
-          <el-input v-model="siteForm.icon" placeholder="请输入图标链接（可选）" />
-          <div class="icon-preview" v-if="siteForm.icon">
-            <img 
-              :src="siteForm.icon" 
-              alt="图标预览"
-              style="width: 32px; height: 32px; border-radius: 4px; margin-top: 8px;"
-              @error="handleImageError"
-            />
+        <el-form-item label="图标" prop="icon">
+          <!-- 文本输入方式：填写 Font Awesome 类名或图片URL，保持与后端字段一致 -->
+          <el-input v-model="siteForm.icon" placeholder="请输入图标类名（如：fas fa-code）或图片URL" />
+          <!-- 小预览：基于值类型判断显示类名或图片 -->
+          <div class="icon-preview" v-if="siteForm.icon" style="margin-top: 8px;">
+            <template v-if="isClassIcon(siteForm.icon)">
+              <i :class="['fa-fw', siteForm.icon]" style="font-size:22px;"></i>
+              <span style="margin-left:8px; color:#909399;">图标预览（类名）</span>
+            </template>
+            <template v-else>
+              <img 
+                :src="siteForm.icon" 
+                alt="图标预览"
+                style="width: 32px; height: 32px; border-radius: 4px;"
+                @error="handleImageError"
+              />
+              <span style="margin-left:8px; color:#909399;">图标预览（图片）</span>
+            </template>
           </div>
         </el-form-item>
         <el-form-item label="排序" prop="sortOrder">
@@ -195,6 +207,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Link } from '@element-plus/icons-vue'
 import { http } from '@/api/http'
+// 引入通用图标选择组件，用于图标类名或URL选择
+// 撤回：不再使用图标选择器组件，恢复为文本输入
 
 // 响应式数据
 const loading = ref(false)
@@ -208,6 +222,18 @@ const pageSize = ref(20)
 const showAddDialog = ref(false)
 const editingSite = ref(null)
 const formRef = ref()
+
+// 级联选择器相关数据
+const cascaderValue = ref([])  // 级联选择器的值，数组形式：[一级分类ID] 或 [一级分类ID, 二级分类ID]
+const cascaderOptions = ref([])  // 级联选择器的选项数据
+const cascaderProps = {
+  // 级联选择器配置
+  value: 'id',           // 选项的值为 id 字段
+  label: 'name',         // 选项的标签为 name 字段  
+  children: 'children',  // 子选项的字段名为 children
+  emitPath: false,       // 只返回最后一级的值，而不是完整路径
+  checkStrictly: true    // 允许选择任意一级
+}
 
 // 表单数据
 const siteForm = reactive({
@@ -246,6 +272,15 @@ const formRules = {
   ]
 }
 
+// 工具函数：判断当前图标值是否为类名（Font Awesome 等）
+// 说明：类名通常包含 "fa" 前缀或 "fa-" 子串；URL 通常以 http/https 开头
+const isClassIcon = (val) => {
+  if (!val) return false
+  return /\bfa[srb]?\b/.test(val) || /\bfa-/.test(val)
+}
+
+
+
 // 定义 props 用于更新父组件的统计信息
 const props = defineProps({
   updateSummary: Function
@@ -259,10 +294,62 @@ const fetchCategories = async () => {
     if (response.data) {
       // 返回的列表已是启用的分类
       categories.value = response.data
+      
+      // 构建级联选择器的数据结构
+      buildCascaderOptions()
     }
   } catch (error) {
     console.error('获取分类列表失败:', error)
   }
+}
+
+// 构建级联选择器的数据结构
+const buildCascaderOptions = () => {
+  // 分离一级分类和二级分类
+  const rootCategories = categories.value.filter(cat => !cat.parent_id && !cat.parentId)
+  const subCategories = categories.value.filter(cat => cat.parent_id || cat.parentId)
+  
+  // 构建级联选择器的选项数据
+  cascaderOptions.value = rootCategories.map(rootCat => {
+    // 查找该一级分类下的子分类
+    const children = subCategories
+      .filter(subCat => {
+        const parentId = subCat.parent_id || subCat.parentId
+        return parentId === rootCat.id
+      })
+      .map(subCat => ({
+        id: subCat.id,
+        name: subCat.name,
+        // 二级分类没有子级，所以不需要 children 字段
+      }))
+      .sort((a, b) => {
+          // 按 sort_order 排序，从原始分类数据中获取
+          const aCat = subCategories.find(cat => cat.id === a.id)
+          const bCat = subCategories.find(cat => cat.id === b.id)
+          const aOrder = aCat?.sort_order || aCat?.sortOrder || 0
+          const bOrder = bCat?.sort_order || bCat?.sortOrder || 0
+          return aOrder - bOrder
+        })
+    
+    const option = {
+      id: rootCat.id,
+      name: rootCat.name
+    }
+    
+    // 如果有子分类，添加 children 字段
+    if (children.length > 0) {
+      option.children = children
+    }
+    
+    return option
+  }).sort((a, b) => {
+    // 按 sort_order 排序，从原始分类数据中获取
+    const aCat = rootCategories.find(cat => cat.id === a.id)
+    const bCat = rootCategories.find(cat => cat.id === b.id)
+    const aOrder = aCat?.sort_order || aCat?.sortOrder || 0
+    const bOrder = bCat?.sort_order || bCat?.sortOrder || 0
+    return aOrder - bOrder
+  })
 }
 
 // 获取站点列表
@@ -367,6 +454,10 @@ const editSite = (row) => {
     // 使用后端字段 isEnabled
     isEnabled: row.isEnabled
   })
+  
+  // 设置级联选择器的值
+  setCascaderValueByCategoryId(row.categoryId)
+  
   showAddDialog.value = true
 }
 
@@ -408,6 +499,58 @@ const deleteSite = async (row) => {
   }
 }
 
+// 级联选择器值变化处理
+const handleCascaderChange = (value) => {
+  // value 是选中的分类ID（因为设置了 emitPath: false）
+  // 将选中的分类ID赋值给表单的categoryId字段
+  siteForm.categoryId = value || ''
+  
+  // 同时更新级联选择器的显示值
+  if (value) {
+    // 根据选中的分类ID构建级联路径
+    const category = findCategoryById(value)
+    if (category) {
+      const parentId = category.parent_id || category.parentId
+       if (parentId) {
+         // 如果是二级分类，路径为 [一级分类ID, 二级分类ID]
+         cascaderValue.value = [parentId, category.id]
+      } else {
+        // 如果是一级分类，路径为 [一级分类ID]
+        cascaderValue.value = [category.id]
+      }
+    }
+  } else {
+    cascaderValue.value = []
+  }
+}
+
+// 根据分类ID查找分类信息（包含父级信息）
+const findCategoryById = (categoryId) => {
+  return categories.value.find(cat => cat.id === categoryId)
+}
+
+// 根据分类ID设置级联选择器的值
+const setCascaderValueByCategoryId = (categoryId) => {
+  if (!categoryId) {
+    cascaderValue.value = []
+    return
+  }
+  
+  const category = findCategoryById(categoryId)
+  if (category) {
+    const parentId = category.parent_id || category.parentId
+    if (parentId) {
+      // 二级分类：[一级分类ID, 二级分类ID]
+      cascaderValue.value = [parentId, categoryId]
+    } else {
+      // 一级分类：[一级分类ID]
+      cascaderValue.value = [categoryId]
+    }
+  } else {
+    cascaderValue.value = []
+  }
+}
+
 // 保存站点
 const saveSite = async () => {
   if (!formRef.value) return
@@ -416,7 +559,27 @@ const saveSite = async () => {
     await formRef.value.validate()
     saving.value = true
     
-    const data = { ...siteForm }
+    // 说明：后端开启了 Jackson 的 SNAKE_CASE 命名策略（application.yml 中 property-naming-strategy: SNAKE_CASE）。
+    // 为避免因字段命名不匹配导致后端实体绑定失败（例如 categoryId -> category_id），
+    // 在提交前对表单数据进行一次“camelCase → snake_case”的转换，确保后端能正确接收必填字段。
+    // 注意：name、url、description、icon 等字段在两端同名，无需转换；
+    //      重点转换：categoryId、sortOrder、isEnabled（必要字段与布尔开关）。
+    const toSnakeSitePayload = (site) => ({
+      // 直通字段：两端同名
+      name: site.name,
+      url: site.url,
+      description: site.description,
+      icon: site.icon,
+      // 需转换字段：camelCase -> snake_case
+      category_id: site.categoryId, // 分类ID为必填，DB列 NOT NULL
+      sort_order: site.sortOrder ?? 0,
+      is_enabled: site.isEnabled ?? true
+      // 预留：如后续添加 faviconUrl、isFeatured、tags 等字段，亦应在此添加映射
+      // favicon_url: site.faviconUrl,
+      // is_featured: site.isFeatured,
+      // tags: site.tags
+    })
+    const data = toSnakeSitePayload({ ...siteForm })
     
     if (editingSite.value) {
       // 更新
@@ -455,6 +618,9 @@ const resetForm = () => {
     // 默认启用
     isEnabled: true
   })
+  // 重置级联选择器的值
+  cascaderValue.value = []
+  
   if (formRef.value) {
     formRef.value.resetFields()
   }
@@ -522,6 +688,9 @@ onMounted(() => {
 .icon-preview {
   margin-top: 8px;
 }
+
+
+
 
 /* 响应式设计 */
 @media (max-width: 768px) {

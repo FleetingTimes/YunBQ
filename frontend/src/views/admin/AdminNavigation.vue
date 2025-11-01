@@ -3,7 +3,7 @@
     <!-- 页面标题和操作按钮 -->
     <div class="header">
       <h2>导航管理</h2>
-      <el-button type="primary" @click="showAddDialog = true">
+      <el-button type="primary" @click="openAddDialog">
         <el-icon><Plus /></el-icon>
         添加导航分类
       </el-button>
@@ -19,7 +19,26 @@
         style="width: 100%"
       >
         <el-table-column prop="id" label="ID" width="80" />
-        <el-table-column prop="name" label="分类名称" min-width="150" />
+        <el-table-column prop="name" label="分类名称" min-width="150">
+          <!-- 为二级分类添加缩进显示，增强层级视觉效果 -->
+          <template #default="{ row }">
+            <span v-if="row.parentId" style="margin-left: 20px; color: #909399;">
+              └─ {{ row.name }}
+            </span>
+            <span v-else style="font-weight: 600;">
+              {{ row.name }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="parentId" label="父级分类" width="120">
+          <!-- 显示父级分类名称，如果是一级分类则显示"-" -->
+          <template #default="{ row }">
+            <span v-if="row.parentId">
+              {{ getCategoryName(row.parentId) }}
+            </span>
+            <span v-else style="color: #c0c4cc;">-</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" />
         <el-table-column prop="icon" label="图标" width="100">
           <!-- 说明：后端返回的 icon 是 Font Awesome 类名（如："fas fa-code"、"fab fa-github"）
@@ -92,6 +111,26 @@
         :rules="formRules"
         label-width="100px"
       >
+        <!-- 父级分类选择（创建二级分类时选择父级；留空为一级）。
+             说明：选择父级后，当前分类将作为其子分类，即二级导航。 -->
+        <el-form-item label="父级分类" prop="parentId">
+          <el-select
+            v-model="navigationForm.parentId"
+            placeholder="请选择父级分类（留空为一级）"
+            clearable
+            filterable
+            style="width: 100%"
+          >
+            <el-option :value="null" label="无（一级分类）" />
+            <el-option
+              v-for="cat in rootCategories"
+              :key="cat.id"
+              :label="cat.name"
+              :value="cat.id"
+            />
+          </el-select>
+          <div class="form-tip">选择父级分类可创建二级导航；不选择则创建一级。</div>
+        </el-form-item>
         <el-form-item label="分类名称" prop="name">
           <el-input v-model="navigationForm.name" placeholder="请输入分类名称" />
         </el-form-item>
@@ -104,12 +143,11 @@
           />
         </el-form-item>
         <el-form-item label="图标" prop="icon">
-          <!-- 说明：此处填写 Font Awesome 的类名，例如："fas fa-code" 或 "fab fa-github"。 -->
-          <el-input v-model="navigationForm.icon" placeholder="请输入 Font Awesome 类名（如：fas fa-code）" />
-          <!-- 小预览：当填写了类名时，实时展示图标效果，便于校验输入是否正确。 -->
-          <div v-if="navigationForm.icon" style="margin-top:8px;">
-            <i :class="['fa-fw', navigationForm.icon]" style="font-size:22px;"></i>
-            <span style="margin-left:8px; color:#909399;">图标预览</span>
+          <el-input v-model="navigationForm.icon" placeholder="请输入图标类名或URL" />
+          <!-- 图标预览：根据输入值类型显示不同预览 -->
+          <div v-if="navigationForm.icon" class="icon-preview">
+            <i v-if="isClassIcon(navigationForm.icon)" :class="navigationForm.icon"></i>
+            <img v-else :src="navigationForm.icon" alt="图标预览" style="width: 20px; height: 20px;" />
           </div>
         </el-form-item>
         <el-form-item label="排序" prop="sortOrder">
@@ -144,6 +182,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+// 引入通用图标选择组件
+// 撤回：不再使用图标选择器组件
 import { Plus } from '@element-plus/icons-vue'
 import { http } from '@/api/http'
 
@@ -157,9 +197,15 @@ const pageSize = ref(20)
 const showAddDialog = ref(false)
 const editingNavigation = ref(null)
 const formRef = ref()
+// 根分类列表：父级选择的数据源（仅 parentId 为 null 的分类）
+const rootCategories = ref([])
+// 分类ID到名称的映射，用于显示父级分类名称
+const categoryNameMap = ref(new Map())
 
 // 表单数据
 const navigationForm = reactive({
+  // 父级分类ID；null 为一级分类；设置为根分类 id 表示二级
+  parentId: null,
   name: '',
   description: '',
   icon: '',
@@ -231,10 +277,18 @@ const fetchNavigationList = async () => {
       // 分页总数
       total.value = Number(response.data.total || 0)
 
+      // 构建分类ID到名称的映射，用于显示父级分类名称
+      const nameMap = new Map()
+      navigationList.value.forEach(category => {
+        nameMap.set(category.id, category.name)
+      })
+      categoryNameMap.value = nameMap
+
       // 调试输出：首项的原始字段与映射后的字段，方便定位不渲染问题
       if (rawItems.length) {
         console.log('原始首项字段:', rawItems[0])
         console.log('映射后首项字段:', navigationList.value[0])
+        console.log('分类名称映射:', Object.fromEntries(categoryNameMap.value))
       }
 
       // 更新父组件统计信息（若存在）
@@ -248,6 +302,36 @@ const fetchNavigationList = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 获取根分类列表用于父级选择（管理员接口拉取全部并筛选 parentId 为 null）
+const fetchRootCategories = async () => {
+  try {
+    const resp = await http.get('/navigation/admin/categories', {
+      params: { page: 1, size: 1000 }
+    })
+    const items = Array.isArray(resp.data?.items) ? resp.data.items : []
+    const mapped = items.map(it => ({
+      id: it.id,
+      name: it.name,
+      description: it.description,
+      icon: it.icon,
+      sortOrder: it.sort_order ?? it.sortOrder ?? 0,
+      isEnabled: it.is_enabled ?? it.isEnabled ?? false,
+      createdAt: it.created_at ?? it.createdAt ?? null,
+      updatedAt: it.updated_at ?? it.updatedAt ?? null,
+      parentId: it.parent_id ?? it.parentId ?? null
+    }))
+    rootCategories.value = mapped.filter(c => c.parentId == null)
+  } catch (e) {
+    console.error('获取父级分类失败:', e)
+    rootCategories.value = []
+  }
+}
+
+// 根据分类ID获取分类名称
+const getCategoryName = (categoryId) => {
+  return categoryNameMap.value.get(categoryId) || '未知分类'
 }
 
 // 分页处理
@@ -266,6 +350,7 @@ const handleCurrentChange = (val) => {
 const editNavigation = (row) => {
   editingNavigation.value = row
   Object.assign(navigationForm, {
+    parentId: row.parentId ?? null,
     name: row.name,
     description: row.description || '',
     icon: row.icon || '',
@@ -274,6 +359,8 @@ const editNavigation = (row) => {
     isEnabled: row.isEnabled
   })
   showAddDialog.value = true
+  // 编辑弹窗打开时刷新父级选项，确保最新数据可选
+  fetchRootCategories()
 }
 
 // 切换状态
@@ -324,15 +411,34 @@ const saveNavigation = async () => {
     
     const data = { ...navigationForm }
     
+    // 调试日志：打印即将发送的表单数据
+    console.log('准备保存的分类数据:', data)
+    console.log('parentId 值:', data.parentId)
+    console.log('parentId 类型:', typeof data.parentId)
+    
+    // 重要：由于后端 Jackson 配置为 SNAKE_CASE，需要将 parentId 转换为 parent_id
+    if (data.parentId !== undefined && data.parentId !== null && data.parentId !== '') {
+      data.parent_id = data.parentId
+      console.log('转换后的 parent_id:', data.parent_id)
+    }
+    // 删除原来的 parentId 字段，避免混淆
+    delete data.parentId
+    
+    console.log('最终发送的数据:', data)
+    
     if (editingNavigation.value) {
       // 更新
       // 调整为后端真实接口：PUT /api/navigation/admin/categories/{id}
-      await http.put(`/navigation/admin/categories/${editingNavigation.value.id}`, data)
+      console.log('编辑模式，ID:', editingNavigation.value.id)
+      const result = await http.put(`/navigation/admin/categories/${editingNavigation.value.id}`, data)
+      console.log('更新分类返回结果:', result)
       ElMessage.success('更新成功')
     } else {
       // 添加
       // 调整为后端真实接口：POST /api/navigation/admin/categories
-      await http.post('/navigation/admin/categories', data)
+      console.log('新增模式，调用 POST 接口')
+      const result = await http.post('/navigation/admin/categories', data)
+      console.log('创建分类返回结果:', result)
       ElMessage.success('添加成功')
     }
     
@@ -352,6 +458,7 @@ const saveNavigation = async () => {
 const resetForm = () => {
   editingNavigation.value = null
   Object.assign(navigationForm, {
+    parentId: null,
     name: '',
     description: '',
     icon: '',
@@ -374,6 +481,21 @@ const formatDate = (dateString) => {
 onMounted(() => {
   fetchNavigationList()
 })
+
+// 打开新增弹窗：同时刷新父级分类选项
+const openAddDialog = () => {
+  showAddDialog.value = true
+  fetchRootCategories()
+}
+// 工具函数：判断图标值是否为类名（Font Awesome 等）
+// 保留原预览分支使用：类名包含 fa 系列标识，否则视为图片URL
+const isClassIcon = (val) => {
+  if (!val) return false
+  return /\bfa[srb]?\b/.test(val) || /\bfa-/.test(val)
+}
+
+
+
 </script>
 
 <style scoped>
@@ -411,6 +533,8 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 10px;
 }
+
+
 
 /* 响应式设计 */
 @media (max-width: 768px) {

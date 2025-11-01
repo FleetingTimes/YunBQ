@@ -107,12 +107,17 @@ public class NavigationController {
     @PostMapping("/admin/categories")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<NavigationCategory> createCategory(@Valid @RequestBody NavigationCategory category) {
-        log.info("[NavigationController] POST /api/navigation/admin/categories called, name={}", category.getName());
+        log.info("[NavigationController] POST /api/navigation/admin/categories called");
+        log.info("[NavigationController] 接收到的分类数据: name={}, parentId={}, icon={}, description={}, sortOrder={}, isEnabled={}", 
+                category.getName(), category.getParentId(), category.getIcon(), 
+                category.getDescription(), category.getSortOrder(), category.getIsEnabled());
         try {
             NavigationCategory created = categoryService.createCategory(category);
+            log.info("[NavigationController] 创建成功，返回数据: id={}, name={}, parentId={}", 
+                    created.getId(), created.getName(), created.getParentId());
             return ResponseEntity.ok(created);
         } catch (Exception e) {
-            log.error("Failed to create category: {}", e.getMessage());
+            log.error("Failed to create category: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().build();
         }
     }

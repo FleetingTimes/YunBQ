@@ -205,53 +205,119 @@ CREATE TABLE IF NOT EXISTS navigation_sites (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='导航站点表';
 
--- 插入示例数据
--- 注意：这些category_id值应与navigation_categories表中的实际ID匹配
--- 根分类
-INSERT INTO navigation_categories (name, icon, description, sort_order, is_enabled) VALUES
-('开发工具', 'fas fa-code', '编程开发工具和资源', 1, TRUE),
-('设计资源', 'fas fa-palette', '设计相关工具和资源', 2, TRUE),
-('学习教育', 'fas fa-graduation-cap', '在线学习和教育平台', 3, TRUE),
-('生活服务', 'fas fa-life-ring', '日常生活相关服务', 4, TRUE),
-('娱乐休闲', 'fas fa-gamepad', '娱乐和休闲网站', 5, TRUE);
+-- 说明：为避免在已有数据的情况下因外键约束导致初始化失败，
+-- 下方示例数据采用条件插入（仅当同名分类不存在时才插入）。
+-- 同时，子分类与站点的数据通过按名称查询父级ID来建立关系，避免使用固定的ID常量。
 
--- 子分类
-INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled) VALUES
--- 开发工具子分类
-(1, '代码托管', 'fab fa-git-alt', 'Git仓库和版本控制', 1, TRUE),
-(1, '在线编辑器', 'fas fa-edit', '在线代码编辑器和运行环境', 2, TRUE),
-(1, '开发文档', 'fas fa-book', '编程语言和框架文档', 3, TRUE),
--- 设计资源子分类
-(2, '图标资源', 'fas fa-icons', '免费图标资源网站', 1, TRUE),
-(2, '配色方案', 'fas fa-fill-drip', '颜色搭配和调色板工具', 2, TRUE),
-(2, '字体资源', 'fas fa-font', '免费字体下载网站', 3, TRUE),
--- 学习教育子分类
-(3, '编程学习', 'fas fa-laptop-code', '编程技能学习平台', 1, TRUE),
-(3, '在线课程', 'fas fa-chalkboard-teacher', '各类在线课程平台', 2, TRUE),
-(3, '技术博客', 'fas fa-blog', '技术分享和博客网站', 3, TRUE);
+-- 根分类（条件插入）
+INSERT INTO navigation_categories (name, icon, description, sort_order, is_enabled)
+SELECT '开发工具', 'fas fa-code', '编程开发工具和资源', 1, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '开发工具');
 
--- 插入示例站点数据
--- 注意：这些category_id值应与实际的分类ID匹配
-INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id) VALUES
--- 代码托管站点（假设代码托管分类ID为6）
-(6, 'GitHub', 'https://github.com', '全球最大的代码托管平台', 'fab fa-github', 'git,代码,开源', 1, TRUE, TRUE, NULL),
-(6, 'GitLab', 'https://gitlab.com', '企业级Git代码管理平台', 'fab fa-gitlab', 'git,代码,cicd', 2, TRUE, TRUE, NULL),
-(6, 'Bitbucket', 'https://bitbucket.org', 'Atlassian代码托管服务', 'fab fa-bitbucket', 'git,代码,团队', 3, TRUE, FALSE, NULL),
+INSERT INTO navigation_categories (name, icon, description, sort_order, is_enabled)
+SELECT '设计资源', 'fas fa-palette', '设计相关工具和资源', 2, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '设计资源');
 
--- 在线编辑器站点（假设在线编辑器分类ID为7）
-(7, 'CodePen', 'https://codepen.io', '前端代码在线编辑器和分享', 'fab fa-codepen', '前端,html,css,js', 1, TRUE, TRUE, NULL),
-(7, 'JSFiddle', 'https://jsfiddle.net', 'JavaScript在线测试工具', 'fas fa-code', 'javascript,测试,在线', 2, TRUE, TRUE, NULL),
-(7, 'CodeSandbox', 'https://codesandbox.io', '现代Web应用在线开发', 'fas fa-cube', 'react,vue,开发', 3, TRUE, TRUE, NULL),
+INSERT INTO navigation_categories (name, icon, description, sort_order, is_enabled)
+SELECT '学习教育', 'fas fa-graduation-cap', '在线学习和教育平台', 3, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '学习教育');
 
--- 图标资源站点（假设图标资源分类ID为9）
-(9, 'Feather Icons', 'https://feathericons.com', '简洁美观的开源图标', 'fas fa-feather-alt', '图标,简洁,开源', 2, TRUE, TRUE, NULL),
-(9, 'Heroicons', 'https://heroicons.com', 'Tailwind CSS官方图标库', 'fas fa-star', '图标,tailwind,svg', 3, TRUE, FALSE, NULL),
+INSERT INTO navigation_categories (name, icon, description, sort_order, is_enabled)
+SELECT '生活服务', 'fas fa-life-ring', '日常生活相关服务', 4, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '生活服务');
 
--- 配色方案站点（假设配色方案分类ID为10）
-(10, 'Coolors', 'https://coolors.co', '快速配色方案生成器', 'fas fa-palette', '颜色,生成器,设计', 1, TRUE, TRUE, NULL),
-(10, 'Adobe Color', 'https://color.adobe.com', 'Adobe官方配色工具', 'fas fa-fill-drip', '颜色,adobe,专业', 2, TRUE, TRUE, NULL),
+INSERT INTO navigation_categories (name, icon, description, sort_order, is_enabled)
+SELECT '娱乐休闲', 'fas fa-gamepad', '娱乐和休闲网站', 5, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '娱乐休闲');
 
--- 编程学习站点（假设编程学习分类ID为12）
-(12, 'MDN Web Docs', 'https://developer.mozilla.org', '权威的Web开发文档', 'fab fa-firefox', 'web,文档,权威', 1, TRUE, TRUE, NULL),
-(12, 'W3Schools', 'https://www.w3schools.com', 'Web技术在线教程', 'fas fa-graduation-cap', 'web,教程,在线', 2, TRUE, TRUE, NULL),
-(12, 'Stack Overflow', 'https://stackoverflow.com', '程序员问答社区', 'fab fa-stack-overflow', '问答,编程,社区', 3, TRUE, TRUE, NULL);
+-- 子分类（条件插入，按父分类名称查找ID）
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '开发工具' LIMIT 1), '代码托管', 'fab fa-git-alt', 'Git仓库和版本控制', 1, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '代码托管');
+
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '开发工具' LIMIT 1), '在线编辑器', 'fas fa-edit', '在线代码编辑器和运行环境', 2, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '在线编辑器');
+
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '开发工具' LIMIT 1), '开发文档', 'fas fa-book', '编程语言和框架文档', 3, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '开发文档');
+
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '设计资源' LIMIT 1), '图标资源', 'fas fa-icons', '免费图标资源网站', 1, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '图标资源');
+
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '设计资源' LIMIT 1), '配色方案', 'fas fa-fill-drip', '颜色搭配和调色板工具', 2, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '配色方案');
+
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '设计资源' LIMIT 1), '字体资源', 'fas fa-font', '免费字体下载网站', 3, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '字体资源');
+
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '学习教育' LIMIT 1), '编程学习', 'fas fa-laptop-code', '编程技能学习平台', 1, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '编程学习');
+
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '学习教育' LIMIT 1), '在线课程', 'fas fa-chalkboard-teacher', '各类在线课程平台', 2, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '在线课程');
+
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled)
+SELECT (SELECT id FROM navigation_categories WHERE name = '学习教育' LIMIT 1), '技术博客', 'fas fa-blog', '技术分享和博客网站', 3, TRUE
+WHERE NOT EXISTS (SELECT 1 FROM navigation_categories WHERE name = '技术博客');
+
+-- 插入示例站点数据（条件插入，按分类名称查找ID）
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '代码托管' LIMIT 1), 'GitHub', 'https://github.com', '全球最大的代码托管平台', 'fab fa-github', 'git,代码,开源', 1, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'GitHub');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '代码托管' LIMIT 1), 'GitLab', 'https://gitlab.com', '企业级Git代码管理平台', 'fab fa-gitlab', 'git,代码,cicd', 2, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'GitLab');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '代码托管' LIMIT 1), 'Bitbucket', 'https://bitbucket.org', 'Atlassian代码托管服务', 'fab fa-bitbucket', 'git,代码,团队', 3, TRUE, FALSE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'Bitbucket');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '在线编辑器' LIMIT 1), 'CodePen', 'https://codepen.io', '前端代码在线编辑器和分享', 'fab fa-codepen', '前端,html,css,js', 1, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'CodePen');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '在线编辑器' LIMIT 1), 'JSFiddle', 'https://jsfiddle.net', 'JavaScript在线测试工具', 'fas fa-code', 'javascript,测试,在线', 2, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'JSFiddle');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '在线编辑器' LIMIT 1), 'CodeSandbox', 'https://codesandbox.io', '现代Web应用在线开发', 'fas fa-cube', 'react,vue,开发', 3, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'CodeSandbox');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '图标资源' LIMIT 1), 'Feather Icons', 'https://feathericons.com', '简洁美观的开源图标', 'fas fa-feather-alt', '图标,简洁,开源', 2, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'Feather Icons');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '图标资源' LIMIT 1), 'Heroicons', 'https://heroicons.com', 'Tailwind CSS官方图标库', 'fas fa-star', '图标,tailwind,svg', 3, TRUE, FALSE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'Heroicons');
+
+-- 配色方案站点（按分类名称关联）
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '配色方案' LIMIT 1), 'Coolors', 'https://coolors.co', '快速配色方案生成器', 'fas fa-palette', '颜色,生成器,设计', 1, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'Coolors');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '配色方案' LIMIT 1), 'Adobe Color', 'https://color.adobe.com', 'Adobe官方配色工具', 'fas fa-fill-drip', '颜色,adobe,专业', 2, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'Adobe Color');
+
+-- 编程学习站点（按分类名称关联）
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '编程学习' LIMIT 1), 'MDN Web Docs', 'https://developer.mozilla.org', '权威的Web开发文档', 'fab fa-firefox', 'web,文档,权威', 1, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'MDN Web Docs');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '编程学习' LIMIT 1), 'W3Schools', 'https://www.w3schools.com', 'Web技术在线教程', 'fas fa-graduation-cap', 'web,教程,在线', 2, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'W3Schools');
+
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id)
+SELECT (SELECT id FROM navigation_categories WHERE name = '编程学习' LIMIT 1), 'Stack Overflow', 'https://stackoverflow.com', '程序员问答社区', 'fab fa-stack-overflow', '问答,编程,社区', 3, TRUE, TRUE, NULL
+WHERE NOT EXISTS (SELECT 1 FROM navigation_sites WHERE name = 'Stack Overflow');
