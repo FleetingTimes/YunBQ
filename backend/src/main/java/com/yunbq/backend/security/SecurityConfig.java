@@ -12,6 +12,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -23,10 +24,15 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
+    // 注入请求日志过滤器，用于采集 requestId/UA/IP 等并入库
+    private final RequestLoggingFilter requestLoggingFilter;
     private final com.yunbq.backend.config.CorsProperties corsProperties;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtFilter, com.yunbq.backend.config.CorsProperties corsProperties) {
+    public SecurityConfig(JwtAuthenticationFilter jwtFilter,
+                          RequestLoggingFilter requestLoggingFilter,
+                          com.yunbq.backend.config.CorsProperties corsProperties) {
         this.jwtFilter = jwtFilter;
+        this.requestLoggingFilter = requestLoggingFilter;
         this.corsProperties = corsProperties;
     }
 
@@ -69,6 +75,10 @@ public class SecurityConfig {
                 .authenticationEntryPoint((req, res, ex) -> res.sendError(HttpServletResponse.SC_UNAUTHORIZED))
                 .accessDeniedHandler((req, res, ex) -> res.sendError(HttpServletResponse.SC_FORBIDDEN))
             )
+            // 说明：确保请求日志过滤器更早运行（在 SecurityContextHolderFilter 之前），以便生成并传播 requestId；
+            // Spring Security 6 要求 addFilterBefore/After 的锚点必须是“有注册顺序的内置过滤器类”。
+            // 使用自定义过滤器类（如 JwtAuthenticationFilter）作为锚点会导致启动失败。
+            .addFilterBefore(requestLoggingFilter, SecurityContextHolderFilter.class)
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

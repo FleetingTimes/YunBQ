@@ -49,11 +49,13 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         final String method = request.getMethod();
         final String uri = request.getRequestURI();
         final String query = request.getQueryString();
-        final Long uid = AuthUtil.currentUserId();
+        // 注意：此处不要过早读取用户ID，避免在 JWT 过滤器设置上下文之前读取到 null。
+        // 在 filterChain.doFilter 之后再读取一次，确保认证完成后能拿到正确的 userId。
+        Long uidBefore = AuthUtil.currentUserId();
 
         // 进入链路前记录请求基线信息。
         log.info("[RequestLoggingFilter] Incoming request: method={}, uri={}, query={}, uid={}",
-                method, uri, query, uid);
+                method, uri, query, uidBefore);
 
         // 采集入参以便持久化：客户端 IP 与 UA。
         final String ip = clientIp(request);
@@ -72,12 +74,14 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         // 记录响应状态码，帮助快速确认是否到达控制器（通常 2xx/4xx 来自控制器），
         // 或在安全链路阶段被拦截（如 401 未认证、403 权限不足）。
         int status = response.getStatus();
+        // 在认证过滤器运行后再次获取用户ID，记录到请求日志中。
+        Long uidAfter = AuthUtil.currentUserId();
         log.info("[RequestLoggingFilter] Response: method={}, uri={}, status={}, uid={}",
-                method, uri, status, uid);
+                method, uri, status, uidAfter);
 
         // 将请求指标持久化到数据库，便于后续在管理后台检索与分析。
         try {
-            logService.logRequest(method, uri, query, ip, ua, status, (int) cost, uid, requestId);
+            logService.logRequest(method, uri, query, ip, ua, status, (int) cost, uidAfter, requestId);
         } catch (Exception e) {
             // 说明：日志写入失败不影响正常请求流程，仅记录到控制台避免中断业务。
             log.warn("persist request log failed: uri={} msg={}", uri, e.getMessage());
