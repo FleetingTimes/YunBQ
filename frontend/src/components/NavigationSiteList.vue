@@ -89,14 +89,42 @@ const pageInput = ref(1) // 页码输入框
  * 加载站点列表：根据分类ID获取站点数据
  */
 async function loadSites() {
+  // 1) 分类ID合法性校验：避免发起 /category/undefined 等错误请求
+  // 说明：当使用默认后备导航（无后端分类）时，传入的 categoryId 可能为 undefined；
+  // 此处先判断是否为正整数，若非法则直接清空数据并退出，保证组件稳健。
+  const isValidId = Number.isInteger(props.categoryId) && props.categoryId > 0
+  if (!isValidId) {
+    sites.value = []
+    return
+  }
+
   try {
     isLoading.value = true
     const resp = await getSitesByCategory(props.categoryId)
-    sites.value = resp?.data || []
+    // 2) 数据安全读取：后端返回为 SNAKE_CASE 字段名，前端按需映射为 camelCase
+    // 说明：后端 NavigationSite 字段包含 click_count、favicon_url 等；
+    // 为保持组件内字段访问一致性，这里做轻量映射（不改动 UI 样式）。
+    const rawList = Array.isArray(resp?.data) ? resp.data : []
+    sites.value = rawList.map(item => ({
+      // 直通字段（后端同名）
+      id: item.id,
+      name: item.name,
+      url: item.url,
+      description: item.description,
+      tags: item.tags,
+      // 映射字段（snake_case -> camelCase）
+      clickCount: item.click_count ?? 0,
+      icon: item.icon,
+      faviconUrl: item.favicon_url,
+      // 兼容可选字段，防止模板访问 undefined
+      sortOrder: item.sort_order ?? 0,
+      isEnabled: item.is_enabled ?? true
+    }))
     // 每次重新加载时将页码重置为 1，并同步页码输入
     page.value = 1
     pageInput.value = 1
   } catch (error) {
+    // 3) 失败兜底：记录错误到控制台，避免中断交互；UI 显示骨架或空态
     console.error('加载站点失败:', error)
     sites.value = []
   } finally {
@@ -129,8 +157,14 @@ onMounted(() => {
 })
 
 // 监听分类ID变化，重新加载数据
-watch(() => props.categoryId, () => {
-  loadSites()
+// 说明：仅在分类ID为有效正整数时才触发加载，避免无效 ID 造成不必要请求与错误提示
+watch(() => props.categoryId, (newId) => {
+  if (Number.isInteger(newId) && newId > 0) {
+    loadSites()
+  } else {
+    // 非法ID：清空数据，保持空态
+    sites.value = []
+  }
 })
 
 // 客户端分页：对站点列表进行切片

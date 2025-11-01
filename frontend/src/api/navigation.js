@@ -11,9 +11,14 @@ import { http } from './http'
 /**
  * 获取所有启用的一级分类
  * @returns {Promise} 返回一级分类列表
+ *
+ * 重要说明：axios 实例 `http` 的 baseURL 已设置为 `http://localhost:8080/api`，
+ * 因此前端这里的路径不应再包含 `/api` 前缀，否则会形成 `.../api/api/...` 的错误地址。
+ * 为避免重复前缀导致的 404，这里统一使用不含 `/api` 前缀的路径。
  */
 export function getRootCategories() {
-  return http.get('/api/navigation/categories')
+  // 正确路径：/navigation/categories（由 baseURL 拼接为 http://localhost:8080/api/navigation/categories）
+  return http.get('/navigation/categories')
 }
 
 /**
@@ -22,7 +27,8 @@ export function getRootCategories() {
  * @returns {Promise} 返回子分类列表
  */
 export function getSubCategories(parentId) {
-  return http.get(`/api/navigation/categories/${parentId}/children`)
+  // 子分类查询，同样去掉重复的 /api 前缀
+  return http.get(`/navigation/categories/${parentId}/children`)
 }
 
 /**
@@ -30,7 +36,8 @@ export function getSubCategories(parentId) {
  * @returns {Promise} 返回所有启用分类列表
  */
 export function getAllEnabledCategories() {
-  return http.get('/api/navigation/categories/all')
+  // 获取所有启用分类（含一级与二级），用于侧栏与广场区动态渲染
+  return http.get('/navigation/categories/all')
 }
 
 /**
@@ -39,7 +46,8 @@ export function getAllEnabledCategories() {
  * @returns {Promise} 返回站点列表
  */
 export function getSitesByCategory(categoryId) {
-  return http.get(`/api/navigation/sites/category/${categoryId}`)
+  // 根据分类ID获取站点列表，用于卡片内容数据源
+  return http.get(`/navigation/sites/category/${categoryId}`)
 }
 
 /**
@@ -48,7 +56,8 @@ export function getSitesByCategory(categoryId) {
  * @returns {Promise} 返回推荐站点列表
  */
 export function getFeaturedSites(limit = 10) {
-  return http.get('/api/navigation/sites/featured', { params: { limit } })
+  // 推荐站点列表
+  return http.get('/navigation/sites/featured', { params: { limit } })
 }
 
 /**
@@ -57,7 +66,8 @@ export function getFeaturedSites(limit = 10) {
  * @returns {Promise} 返回热门站点列表
  */
 export function getPopularSites(limit = 10) {
-  return http.get('/api/navigation/sites/popular', { params: { limit } })
+  // 热门站点列表
+  return http.get('/navigation/sites/popular', { params: { limit } })
 }
 
 /**
@@ -68,7 +78,8 @@ export function getPopularSites(limit = 10) {
  * @returns {Promise} 返回搜索结果
  */
 export function searchSites(keyword, page = 1, size = 10) {
-  return http.get('/api/navigation/sites/search', {
+  // 关键词搜索站点
+  return http.get('/navigation/sites/search', {
     params: { keyword, page, size }
   })
 }
@@ -80,7 +91,8 @@ export function searchSites(keyword, page = 1, size = 10) {
  * @returns {Promise} 返回站点列表
  */
 export function searchByTags(tags, limit = 10) {
-  return http.get(`/api/navigation/sites/tags/${tags}`, { params: { limit } })
+  // 标签搜索站点
+  return http.get(`/navigation/sites/tags/${tags}`, { params: { limit } })
 }
 
 /**
@@ -89,7 +101,8 @@ export function searchByTags(tags, limit = 10) {
  * @returns {Promise} 返回更新后的站点信息
  */
 export function incrementClickCount(id) {
-  return http.post(`/api/navigation/sites/${id}/click`)
+  // 增加点击次数
+  return http.post(`/navigation/sites/${id}/click`)
 }
 
 /**
@@ -97,7 +110,8 @@ export function incrementClickCount(id) {
  * @returns {Promise} 返回用户站点列表
  */
 export function getUserSites() {
-  return http.get('/api/navigation/sites/my')
+  // 获取当前用户添加的站点
+  return http.get('/navigation/sites/my')
 }
 
 /**
@@ -106,7 +120,8 @@ export function getUserSites() {
  * @returns {Promise} 返回创建的站点信息
  */
 export function createUserSite(site) {
-  return http.post('/api/navigation/sites', site)
+  // 修正：baseURL 已包含 /api 前缀，这里不再重复添加
+  return http.post('/navigation/sites', site)
 }
 
 // ==================== 管理员接口 ====================
@@ -117,7 +132,8 @@ export function createUserSite(site) {
  * @returns {Promise} 返回分页结果
  */
 export function listCategories(params = {}) {
-  return http.get('/api/navigation/admin/categories', { params })
+  // 管理员：分页查询导航分类
+  return http.get('/navigation/admin/categories', { params })
 }
 
 /**
@@ -126,7 +142,8 @@ export function listCategories(params = {}) {
  * @returns {Promise} 返回分类信息
  */
 export function getCategoryById(id) {
-  return http.get(`/api/navigation/categories/${id}`)
+  // 根据ID获取导航分类
+  return http.get(`/navigation/categories/${id}`)
 }
 
 /**
@@ -135,7 +152,8 @@ export function getCategoryById(id) {
  * @returns {Promise} 返回创建的分类信息
  */
 export function createCategory(category) {
-  return http.post('/api/navigation/admin/categories', category)
+  // 管理员：创建导航分类
+  return http.post('/navigation/admin/categories', category)
 }
 
 /**
@@ -145,7 +163,8 @@ export function createCategory(category) {
  * @returns {Promise} 返回更新的分类信息
  */
 export function updateCategory(id, category) {
-  return http.put(`/api/navigation/admin/categories/${id}`, category)
+  // 管理员：更新导航分类
+  return http.put(`/navigation/admin/categories/${id}`, category)
 }
 
 /**
@@ -154,7 +173,8 @@ export function updateCategory(id, category) {
  * @returns {Promise} 返回删除结果
  */
 export function deleteCategory(id) {
-  return http.delete(`/api/navigation/admin/categories/${id}`)
+  // 管理员：删除导航分类
+  return http.delete(`/navigation/admin/categories/${id}`)
 }
 
 /**
@@ -163,7 +183,8 @@ export function deleteCategory(id) {
  * @returns {Promise} 返回更新的分类信息
  */
 export function toggleCategoryEnabled(id) {
-  return http.patch(`/api/navigation/admin/categories/${id}/toggle`)
+  // 管理员：启用/停用分类
+  return http.patch(`/navigation/admin/categories/${id}/toggle`)
 }
 
 /**
@@ -173,7 +194,8 @@ export function toggleCategoryEnabled(id) {
  * @returns {Promise} 返回更新结果
  */
 export function updateCategoriesOrder(categoryIds, parentId = null) {
-  return http.put('/api/navigation/admin/categories/order', {
+  // 管理员：批量更新分类排序
+  return http.put('/navigation/admin/categories/order', {
     categoryIds,
     parentId
   })
@@ -185,7 +207,8 @@ export function updateCategoriesOrder(categoryIds, parentId = null) {
  * @returns {Promise} 返回分页结果
  */
 export function listSites(params = {}) {
-  return http.get('/api/navigation/admin/sites', { params })
+  // 管理员：分页查询站点
+  return http.get('/navigation/admin/sites', { params })
 }
 
 /**
@@ -194,7 +217,8 @@ export function listSites(params = {}) {
  * @returns {Promise} 返回站点信息
  */
 export function getSiteById(id) {
-  return http.get(`/api/navigation/sites/${id}`)
+  // 根据ID获取站点
+  return http.get(`/navigation/sites/${id}`)
 }
 
 /**
@@ -203,7 +227,8 @@ export function getSiteById(id) {
  * @returns {Promise} 返回创建的站点信息
  */
 export function createSite(site) {
-  return http.post('/api/navigation/admin/sites', site)
+  // 管理员：创建站点
+  return http.post('/navigation/admin/sites', site)
 }
 
 /**
@@ -213,7 +238,8 @@ export function createSite(site) {
  * @returns {Promise} 返回更新的站点信息
  */
 export function updateSite(id, site) {
-  return http.put(`/api/navigation/admin/sites/${id}`, site)
+  // 管理员：更新站点
+  return http.put(`/navigation/admin/sites/${id}`, site)
 }
 
 /**
@@ -222,7 +248,8 @@ export function updateSite(id, site) {
  * @returns {Promise} 返回删除结果
  */
 export function deleteSite(id) {
-  return http.delete(`/api/navigation/admin/sites/${id}`)
+  // 管理员：删除站点
+  return http.delete(`/navigation/admin/sites/${id}`)
 }
 
 /**
@@ -231,7 +258,8 @@ export function deleteSite(id) {
  * @returns {Promise} 返回更新的站点信息
  */
 export function toggleSiteEnabled(id) {
-  return http.patch(`/api/navigation/admin/sites/${id}/toggle`)
+  // 管理员：启用/停用站点
+  return http.patch(`/navigation/admin/sites/${id}/toggle`)
 }
 
 /**
@@ -240,7 +268,8 @@ export function toggleSiteEnabled(id) {
  * @returns {Promise} 返回更新的站点信息
  */
 export function toggleSiteFeatured(id) {
-  return http.patch(`/api/navigation/admin/sites/${id}/featured`)
+  // 管理员：推荐/取消推荐站点
+  return http.patch(`/navigation/admin/sites/${id}/featured`)
 }
 
 /**
