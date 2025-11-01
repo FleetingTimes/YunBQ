@@ -1,7 +1,6 @@
 com\yunbq\backend\config\CorsProperties.class
 com\yunbq\backend\mapper\NoteMapper.class
 com\yunbq\backend\security\JwtAuthenticationFilter.class
-com\yunbq\backend\security\SecurityConfig.class
 com\yunbq\backend\controller\AuthController.class
 com\yunbq\backend\controller\AccountController.class
 com\yunbq\backend\controller\CaptchaController.class

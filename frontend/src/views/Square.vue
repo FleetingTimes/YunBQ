@@ -50,8 +50,11 @@ const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
 
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const SquareBody = defineAsyncComponent(() => import('./square/SquareBody.vue'))
-// 导入公共侧栏导航配置（与广场页原逻辑一致）
-import { sideNavSections as sections } from '@/config/navSections'
+// 使用新的导航数据管理组合式函数
+import { useNavigation } from '@/composables/useNavigation'
+
+// 初始化导航数据（使用 sideNavSections，并通过 fetchCategories 加载）
+const { sideNavSections: sections, loading: sectionsLoading, error: sectionsError, fetchCategories } = useNavigation()
 
 const query = ref('')
 function onSearch(q){ query.value = q || '' }
@@ -96,7 +99,10 @@ function updateTopbarSolid(){
   }catch{ /* 忽略异常以保证滚动过程中渲染稳定 */ }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // 加载导航分类数据
+  await fetchCategories()
+  
   // 初始计算一次（避免进入页面时出现闪烁）
   updateTopbarSolid()
   // 初始与下一个渲染周期检查回到顶部目标容器

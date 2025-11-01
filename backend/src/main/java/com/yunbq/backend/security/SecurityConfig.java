@@ -50,7 +50,19 @@ public class SecurityConfig {
                 // 为确保行为符合预期，这里补充精确路径的放行以规避匹配异常。
                 .requestMatchers(HttpMethod.GET, "/api/notes/liked").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // —— 管理端接口限制 ——
+                // 说明：除方法级 @PreAuthorize("hasRole('ADMIN')") 外，
+                // 在路径层面也限制 /api/navigation/admin/** 与 /api/admin/**，实现双保险。
+                // 注意：该匹配需置于公开放行规则之前，避免被更宽的放行规则覆盖。
+                .requestMatchers("/api/navigation/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                // —— 导航系统公开接口放行 ——
+                // 说明：导航页面需要在未登录时也能浏览分类与站点，因此放行以下方法：
+                // - GET：页面数据获取
+                // - HEAD：部分客户端会在 GET 前发送 HEAD 探测请求
+                // 为防止方法匹配导致的 401，这里同时放行 GET 与 HEAD。
+                .requestMatchers(HttpMethod.GET, "/api/navigation/**").permitAll()
+                .requestMatchers(HttpMethod.HEAD, "/api/navigation/**").permitAll()
                 .anyRequest().authenticated()
             )
             .exceptionHandling(e -> e

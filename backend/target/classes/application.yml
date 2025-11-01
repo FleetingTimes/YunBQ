@@ -1,5 +1,11 @@
 server:
   port: 8080
+  # 统一请求/响应的字符编码为 UTF-8，避免中文在纯文本响应或老旧客户端下出现乱码
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
 spring:
   datasource:
     # 使用 UTF-8 作为 JDBC 连接字符集；数据库与表应配置为 utf8mb4 以支持 Emoji

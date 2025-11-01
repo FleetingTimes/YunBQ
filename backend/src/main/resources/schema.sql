@@ -144,3 +144,114 @@ CREATE TABLE IF NOT EXISTS error_logs (
   INDEX idx_exception (exception),
   INDEX idx_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------
+-- 导航模块：导航分类表和导航站点表
+-- 说明：用于管理侧边栏导航分类和具体站点信息
+-- ------------------------------------------------------------
+
+-- 导航分类表（支持两级分类）
+-- 用于侧边栏导航分类管理
+CREATE TABLE IF NOT EXISTS navigation_categories (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '分类ID',
+    parent_id BIGINT DEFAULT NULL COMMENT '父分类ID，NULL表示根分类',
+    name VARCHAR(100) NOT NULL COMMENT '分类名称',
+    icon VARCHAR(100) DEFAULT NULL COMMENT '分类图标（CSS类或图标路径）',
+    description TEXT DEFAULT NULL COMMENT '分类描述',
+    sort_order INT DEFAULT 0 COMMENT '排序顺序，数值越小越靠前',
+    is_enabled BOOLEAN DEFAULT TRUE COMMENT '是否启用',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    
+    -- 索引
+    INDEX idx_parent_id (parent_id),
+    INDEX idx_sort_order (sort_order),
+    INDEX idx_enabled (is_enabled),
+    
+    -- 外键约束（自引用）
+    FOREIGN KEY (parent_id) REFERENCES navigation_categories(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='导航分类表';
+
+-- 导航站点表
+-- 用于存储导航分类下的具体站点信息
+CREATE TABLE IF NOT EXISTS navigation_sites (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '站点ID',
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    name VARCHAR(200) NOT NULL COMMENT '站点名称',
+    url VARCHAR(500) NOT NULL COMMENT '站点URL',
+    description TEXT DEFAULT NULL COMMENT '站点描述',
+    icon VARCHAR(200) DEFAULT NULL COMMENT '站点图标（CSS类或图标路径）',
+    favicon_url VARCHAR(500) DEFAULT NULL COMMENT '站点favicon URL',
+    tags VARCHAR(500) DEFAULT NULL COMMENT '标签，逗号分隔',
+    sort_order INT DEFAULT 0 COMMENT '排序顺序，数值越小越靠前',
+    is_enabled BOOLEAN DEFAULT TRUE COMMENT '是否启用',
+    is_featured BOOLEAN DEFAULT FALSE COMMENT '是否为推荐站点',
+    click_count BIGINT DEFAULT 0 COMMENT '点击次数统计',
+    user_id BIGINT DEFAULT NULL COMMENT '添加此站点的用户ID（用于自定义站点）',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    
+    -- 索引
+    INDEX idx_category_id (category_id),
+    INDEX idx_sort_order (sort_order),
+    INDEX idx_enabled (is_enabled),
+    INDEX idx_featured (is_featured),
+    INDEX idx_click_count (click_count),
+    INDEX idx_user_id (user_id),
+    INDEX idx_tags (tags(100)),
+    
+    -- 外键约束
+    FOREIGN KEY (category_id) REFERENCES navigation_categories(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='导航站点表';
+
+-- 插入示例数据
+-- 注意：这些category_id值应与navigation_categories表中的实际ID匹配
+-- 根分类
+INSERT INTO navigation_categories (name, icon, description, sort_order, is_enabled) VALUES
+('开发工具', 'fas fa-code', '编程开发工具和资源', 1, TRUE),
+('设计资源', 'fas fa-palette', '设计相关工具和资源', 2, TRUE),
+('学习教育', 'fas fa-graduation-cap', '在线学习和教育平台', 3, TRUE),
+('生活服务', 'fas fa-life-ring', '日常生活相关服务', 4, TRUE),
+('娱乐休闲', 'fas fa-gamepad', '娱乐和休闲网站', 5, TRUE);
+
+-- 子分类
+INSERT INTO navigation_categories (parent_id, name, icon, description, sort_order, is_enabled) VALUES
+-- 开发工具子分类
+(1, '代码托管', 'fab fa-git-alt', 'Git仓库和版本控制', 1, TRUE),
+(1, '在线编辑器', 'fas fa-edit', '在线代码编辑器和运行环境', 2, TRUE),
+(1, '开发文档', 'fas fa-book', '编程语言和框架文档', 3, TRUE),
+-- 设计资源子分类
+(2, '图标资源', 'fas fa-icons', '免费图标资源网站', 1, TRUE),
+(2, '配色方案', 'fas fa-fill-drip', '颜色搭配和调色板工具', 2, TRUE),
+(2, '字体资源', 'fas fa-font', '免费字体下载网站', 3, TRUE),
+-- 学习教育子分类
+(3, '编程学习', 'fas fa-laptop-code', '编程技能学习平台', 1, TRUE),
+(3, '在线课程', 'fas fa-chalkboard-teacher', '各类在线课程平台', 2, TRUE),
+(3, '技术博客', 'fas fa-blog', '技术分享和博客网站', 3, TRUE);
+
+-- 插入示例站点数据
+-- 注意：这些category_id值应与实际的分类ID匹配
+INSERT INTO navigation_sites (category_id, name, url, description, icon, tags, sort_order, is_enabled, is_featured, user_id) VALUES
+-- 代码托管站点（假设代码托管分类ID为6）
+(6, 'GitHub', 'https://github.com', '全球最大的代码托管平台', 'fab fa-github', 'git,代码,开源', 1, TRUE, TRUE, NULL),
+(6, 'GitLab', 'https://gitlab.com', '企业级Git代码管理平台', 'fab fa-gitlab', 'git,代码,cicd', 2, TRUE, TRUE, NULL),
+(6, 'Bitbucket', 'https://bitbucket.org', 'Atlassian代码托管服务', 'fab fa-bitbucket', 'git,代码,团队', 3, TRUE, FALSE, NULL),
+
+-- 在线编辑器站点（假设在线编辑器分类ID为7）
+(7, 'CodePen', 'https://codepen.io', '前端代码在线编辑器和分享', 'fab fa-codepen', '前端,html,css,js', 1, TRUE, TRUE, NULL),
+(7, 'JSFiddle', 'https://jsfiddle.net', 'JavaScript在线测试工具', 'fas fa-code', 'javascript,测试,在线', 2, TRUE, TRUE, NULL),
+(7, 'CodeSandbox', 'https://codesandbox.io', '现代Web应用在线开发', 'fas fa-cube', 'react,vue,开发', 3, TRUE, TRUE, NULL),
+
+-- 图标资源站点（假设图标资源分类ID为9）
+(9, 'Feather Icons', 'https://feathericons.com', '简洁美观的开源图标', 'fas fa-feather-alt', '图标,简洁,开源', 2, TRUE, TRUE, NULL),
+(9, 'Heroicons', 'https://heroicons.com', 'Tailwind CSS官方图标库', 'fas fa-star', '图标,tailwind,svg', 3, TRUE, FALSE, NULL),
+
+-- 配色方案站点（假设配色方案分类ID为10）
+(10, 'Coolors', 'https://coolors.co', '快速配色方案生成器', 'fas fa-palette', '颜色,生成器,设计', 1, TRUE, TRUE, NULL),
+(10, 'Adobe Color', 'https://color.adobe.com', 'Adobe官方配色工具', 'fas fa-fill-drip', '颜色,adobe,专业', 2, TRUE, TRUE, NULL),
+
+-- 编程学习站点（假设编程学习分类ID为12）
+(12, 'MDN Web Docs', 'https://developer.mozilla.org', '权威的Web开发文档', 'fab fa-firefox', 'web,文档,权威', 1, TRUE, TRUE, NULL),
+(12, 'W3Schools', 'https://www.w3schools.com', 'Web技术在线教程', 'fas fa-graduation-cap', 'web,教程,在线', 2, TRUE, TRUE, NULL),
+(12, 'Stack Overflow', 'https://stackoverflow.com', '程序员问答社区', 'fab fa-stack-overflow', '问答,编程,社区', 3, TRUE, TRUE, NULL);
