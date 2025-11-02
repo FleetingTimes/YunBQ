@@ -25,14 +25,6 @@
              :title="site.description || '暂无描述'">
           {{ site.description || '暂无描述' }}
         </div>
-        <div class="meta">
-          <div class="left">
-            <span class="author">{{ site.tags || '无标签' }}</span>
-          </div>
-          <div class="right">
-            <span class="time">点击 {{ site.clickCount || 0 }} 次</span>
-          </div>
-        </div>
       </li>
       <!-- 空态：仅在非加载且无数据时显示 -->
       <li v-if="!isLoading && !total" class="empty">暂无{{ title }}</li>
@@ -257,7 +249,8 @@ onUnmounted(() => {
   margin: 0; 
   padding: 0; 
   display: grid; 
-  grid-template-columns: repeat(3, minmax(180px, 1fr)); 
+  /* 网格布局：一行显示4个站点，每个站点最小宽度180px，自适应分配剩余空间 */
+  grid-template-columns: repeat(4, minmax(180px, 1fr)); 
   gap: 8px; 
 }
 
@@ -265,14 +258,21 @@ onUnmounted(() => {
   background: #fff; 
   border: 1px solid #ebeef5; 
   border-radius: 12px; 
-  padding: 10px; 
-  height: 110px; 
+  /* 卡片区站点项高度调整为 160px：
+     说明：
+     - 用户需求：每个站点的卡片高度设为 100px；
+     - 原高度为 80px（在移除 meta 区域后紧凑布局），现统一提高到 160px，便于展示更舒展的标题与描述；
+     - 如后续需要根据内容动态高度，可移除固定 height，改为 min-height + 内容自适应。
+   */
+  padding: 12px; 
+  height: 100px; 
   box-shadow: 0 3px 10px rgba(0,0,0,0.05); 
   cursor: pointer; 
   transition: transform .15s ease, box-shadow .15s ease, background-color .2s ease; 
   display: flex; 
   flex-direction: column; 
-  justify-content: space-between; 
+  justify-content: flex-start; 
+  gap: 6px;
   box-sizing: border-box; 
 }
 
