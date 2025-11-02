@@ -1,6 +1,10 @@
 /* 基础布局与主题 */
 body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-.bg-overlay { position: fixed; inset: 0; pointer-events: none; background: rgba(255,255,255,0.58); }
+/* 全局背景遮罩：淡化背景图（不影响内容层）
+   修复：显式设置 z-index:0，并使 #app 提升到遮罩之上 */
+.bg-overlay { position: fixed; inset: 0; pointer-events: none; background: rgba(255,255,255,0.58); z-index: 0; }
+/* 应用内容容器：置于遮罩上方，防止文本被洗淡 */
+#app { position: relative; z-index: 1; }
 .container { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
 .header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; }
 .brand { display:flex; align-items:center; gap:10px; }

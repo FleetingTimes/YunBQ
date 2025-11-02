@@ -7,7 +7,11 @@
   <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
   <style>
     body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
-    .bg-overlay { position: fixed; inset: 0; pointer-events: none; background: rgba(255,255,255,0.58); }
+    /* 全局背景遮罩：用于淡化背景图，但不影响前景内容
+       修复：增加 z-index:0，并将 #app 置于更高层，避免文本被整体泛白 */
+    .bg-overlay { position: fixed; inset: 0; pointer-events: none; background: rgba(255,255,255,0.58); z-index: 0; }
+    /* 将应用内容提升到遮罩层之上，确保文本颜色保持纯黑显示 */
+    #app { position: relative; z-index: 1; }
     .container { max-width: 1080px; margin: 24px auto; padding: 0 16px; }
     .header { display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; }
     .brand { display:flex; align-items:center; gap:10px; }

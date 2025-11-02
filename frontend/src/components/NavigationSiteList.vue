@@ -231,9 +231,12 @@ onUnmounted(() => {
   border-radius: 12px; 
   padding: 16px; 
   background: rgba(255, 255, 255, 0.6); 
+  /* 区块下边距：拉开不同列表区块之间的垂直距离 */
+  margin-bottom: 24px; 
 }
 /* 卡片标题：使用黑色文本，与白色背景形成对比 */
 .card-title { 
+  color: #000000;
   font-weight: 600; 
   margin-bottom: 6px; 
 }
@@ -369,6 +372,10 @@ onUnmounted(() => {
     grid-template-columns: repeat(2, minmax(160px, 1fr)); 
     gap: 8px; 
   } 
+  /* 平板端区块间距：适配较窄屏幕 */
+  .card { 
+    margin-bottom: 16px; 
+  }
 }
 
 @media (max-width: 640px) { 
@@ -376,6 +383,10 @@ onUnmounted(() => {
     grid-template-columns: 1fr; 
     gap: 6px; 
   } 
+  /* 手机端区块间距：更紧凑但保持分隔感 */
+  .card { 
+    margin-bottom: 12px; 
+  }
 }
 
 /* 骨架加载样式：用于加载占位，避免空白跳变与布局抖动 */
