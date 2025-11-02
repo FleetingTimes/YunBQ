@@ -89,6 +89,10 @@ cors:
     - PUT
     - DELETE
     - OPTIONS
+    # 说明：前端管理员页面的“禁用/启用”操作使用 PATCH 方法；
+    # 如果不在 CORS 允许方法中声明 PATCH，浏览器会在预检（OPTIONS）阶段直接拦截，
+    # 导致实际请求无法到达后端并出现 403 或“操作失败”的提示。
+    - PATCH
   allowed-headers:
     - Authorization
     - Content-Type

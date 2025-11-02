@@ -57,6 +57,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/notes/liked").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // —— 管理端接口限制 ——
+                // 说明：CORS 预检请求（OPTIONS）必须无条件放行，否则浏览器会阻止实际请求
+                // 这对于 PATCH、PUT、DELETE 等非简单请求尤其重要
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // 说明：除方法级 @PreAuthorize("hasRole('ADMIN')") 外，
                 // 在路径层面也限制 /api/navigation/admin/** 与 /api/admin/**，实现双保险。
                 // 注意：该匹配需置于公开放行规则之前，避免被更宽的放行规则覆盖。
@@ -119,8 +122,15 @@ public class SecurityConfig {
             ));
         }
         // methods
+        // 说明：CORS 预检会校验目标实际方法（Access-Control-Request-Method）。
+        // 若未在允许列表中声明该方法，Spring 会返回 403，浏览器阻止后续实际请求。
+        // 这里在兜底列表中加入 PATCH，确保即使未在 application.yml 中显式配置也不会导致预检失败。
         var methods = corsProperties.getAllowedMethods();
-        config.setAllowedMethods(methods != null && !methods.isEmpty() ? methods : java.util.List.of("GET","POST","PUT","DELETE","OPTIONS"));
+        config.setAllowedMethods(
+            methods != null && !methods.isEmpty()
+                ? methods
+                : java.util.List.of("GET","POST","PUT","DELETE","OPTIONS","PATCH")
+        );
         // headers
         var headers = corsProperties.getAllowedHeaders();
         config.setAllowedHeaders(headers != null && !headers.isEmpty() ? headers : java.util.List.of("Authorization","Content-Type"));
