@@ -20,21 +20,23 @@
           <div v-for="section in navigationSections" :key="section.id">
             <!-- 有子分类：为每个子分类渲染独立卡片 -->
             <template v-if="section.children && section.children.length">
+              <!-- 子分类卡片：副标题绑定为子分类的描述；若无描述则回退为“推荐站点” -->
               <NavigationSiteList
                 v-for="child in section.children"
                 :key="child.id"
                 :id="child.id"
                 :title="child.label"
-                :subtitle="section.label + ' · ' + child.label"
+                :subtitle="child.description || '推荐站点'"
                 :categoryId="child.categoryId"
               />
             </template>
             <!-- 无子分类：直接渲染父分类卡片 -->
             <template v-else>
+              <!-- 父分类卡片：副标题绑定为该分类的描述；若无描述则回退为“推荐站点” -->
               <NavigationSiteList
                 :id="section.id"
                 :title="section.label"
-                subtitle="推荐站点"
+                :subtitle="section.description || '推荐站点'"
                 :categoryId="section.categoryId"
               />
             </template>

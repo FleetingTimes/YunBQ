@@ -81,7 +81,12 @@ export function useNavigation() {
           id: `category-${subCat.id}`,
           label: subCat.name,
           categoryId: subCat.id,
-          icon: subCat.icon
+          icon: subCat.icon,
+          // 新增：携带分类描述，供卡片副标题使用
+          // 说明：后端返回 camelCase 字段，此处直接读取 subCat.description
+          description: subCat.description,
+          // 可选：携带排序值，便于在 UI 层做稳定排序（此前为 undefined）
+          sortOrder: subCat.sortOrder
         }))
         .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
 
@@ -89,7 +94,11 @@ export function useNavigation() {
         id: `category-${rootCat.id}`,
         label: rootCat.name,
         categoryId: rootCat.id,
-        icon: rootCat.icon
+        icon: rootCat.icon,
+        // 新增：一级分类的描述，同样用于卡片副标题显示
+        description: rootCat.description,
+        // 可选：携带排序值，保持与后端排序一致
+        sortOrder: rootCat.sortOrder
       }
 
       // 如果有子分类，添加children和aliasTargets

@@ -236,14 +236,14 @@ onUnmounted(() => {
 }
 /* 卡片标题：使用黑色文本，与白色背景形成对比 */
 .card-title { 
-  color: #000000;
+  color: #505050;
   font-weight: 600; 
   margin-bottom: 6px; 
 }
 
 /* 站点描述：使用黑色文本，与白色背景形成对比 */
 .card-desc { 
-  color: #000000; 
+  color: #838383; 
   margin-bottom: 8px; 
 }
 
@@ -290,7 +290,7 @@ onUnmounted(() => {
 
 /* 站点标题：使用黑色文本，与白色背景形成对比 */
 .note-item .title { 
-  color: #303133; 
+  color: #535353; 
   font-size: 14px; 
   font-weight: 600; 
   line-height: 1.5; 
