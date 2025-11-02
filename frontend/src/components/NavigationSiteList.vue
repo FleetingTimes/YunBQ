@@ -232,14 +232,15 @@ onUnmounted(() => {
   padding: 16px; 
   background: rgba(255, 255, 255, 0.6); 
 }
-
+/* 卡片标题：使用黑色文本，与白色背景形成对比 */
 .card-title { 
   font-weight: 600; 
   margin-bottom: 6px; 
 }
 
+/* 站点描述：使用黑色文本，与白色背景形成对比 */
 .card-desc { 
-  color: #606266; 
+  color: #000000; 
   margin-bottom: 8px; 
 }
 
@@ -284,6 +285,7 @@ onUnmounted(() => {
   box-shadow: 0 8px 20px rgba(0,0,0,0.08); 
 }
 
+/* 站点标题：使用黑色文本，与白色背景形成对比 */
 .note-item .title { 
   color: #303133; 
   font-size: 14px; 
@@ -314,6 +316,7 @@ onUnmounted(() => {
   cursor: default; 
 }
 
+/* 站点元数据：使用较小字体、灰色文本，与白色背景形成对比 */
 .note-item .meta { 
   display: flex; 
   justify-content: space-between; 
@@ -323,6 +326,7 @@ onUnmounted(() => {
   font-size: 11px; 
 }
 
+/* 站点元数据左部：图标与文本组合，保持紧凑布局 */
 .note-item .meta .left { 
   display: flex; 
   align-items: center; 
@@ -330,7 +334,7 @@ onUnmounted(() => {
   min-width: 0; 
   flex: 1; 
 }
-
+/* 站点元数据右部：作者信息、创建时间等，使用较小字体、灰色文本，与白色背景形成对比 */
 .note-item .meta .right { 
   display: flex; 
   align-items: center; 
@@ -409,13 +413,9 @@ onUnmounted(() => {
   100% { left: 100%; } 
 }
 
-/* 分页控件样式：轻量按钮与页数指示，保持页面风格一致 */
+/* 分页控件已移除：组件不再显示传统分页 */
 .pagination { 
-  display: flex; 
-  align-items: center; 
-  justify-content: flex-end; 
-  gap: 8px; 
-  margin-top: 10px; 
+  display: none !important; 
 }
 
 .pager-btn { 
