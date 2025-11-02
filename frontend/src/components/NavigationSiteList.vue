@@ -225,12 +225,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 卡片基础样式 */
+/* 卡片基础样式：半透明背景提供柔和的视觉层次 */
 .card { 
   border: 1px solid #e5e7eb; 
   border-radius: 12px; 
   padding: 16px; 
-  background: #fff; 
+  background: rgba(255, 255, 255, 0.6); 
 }
 
 .card-title { 
@@ -255,7 +255,8 @@ onUnmounted(() => {
 }
 
 .note-item { 
-  background: #fff; 
+  /* 站点卡片半透明背景：与页面背景自然融合，保持层次感 */
+  background: rgba(255, 255, 255, 0.4); 
   border: 1px solid #ebeef5; 
   border-radius: 12px; 
   /* 卡片区站点项高度调整为 160px：
@@ -348,7 +349,8 @@ onUnmounted(() => {
 
 .note-list .empty { 
   color: #909399; 
-  background: #fff; 
+  /* 空状态半透明背景：与整体组件风格保持一致 */
+  background: rgba(255, 255, 255, 0.3); 
   border: 1px dashed #e5e7eb; 
   display: flex;
   align-items: center;
