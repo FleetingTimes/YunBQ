@@ -268,10 +268,23 @@ defineExpose({
 
 .content-scroll {
   height: 100%;
+  /* 右侧卡片区滚动容器：保持滚动，但隐藏滚动条
+     需求：
+     - “卡片的滚动条隐藏”，指用户不希望看到垂直滚动条占位影响视觉；
+     - 保持滚动功能，采用各浏览器的隐藏滚动条方案：
+       * WebKit（Chrome/Edge/Safari）：::-webkit-scrollbar 宽高设为 0；
+       * Firefox：scrollbar-width: none；
+       * 旧版 IE/Edge：-ms-overflow-style: none；
+     注意：如果某些平台仍显示滚动指示，可考虑在容器内增加额外的内边距以弱化视觉干扰。
+   */
   overflow-y: auto;
   padding: 24px;
   scroll-behavior: smooth;
 }
+
+/* 隐藏滚动条（各浏览器兼容方案） */
+.content-scroll::-webkit-scrollbar { width: 0; height: 0; }
+.content-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 
 .empty-state {
   display: flex;

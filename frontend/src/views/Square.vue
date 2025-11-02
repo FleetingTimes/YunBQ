@@ -150,7 +150,16 @@ onUnmounted(() => {
    height: 100%;
    display: flex;
    flex-direction: column;
-   max-width: 960px; margin: 0 auto; padding: 16px;
+   /* 改为铺满右侧列宽度：去除定宽与居中，保证卡片区占满右侧 */
+   /* 说明：
+      - 原为 max-width:960px + 居中，会导致右侧留白，不符合“铺满右侧”的需求；
+      - 使用 width:100% + max-width:none + margin:0，使容器宽度跟随右列自适应；
+      - 保留 padding:16px 作为安全内边距，避免内容贴边。
+   */
+   width: 100%;
+   max-width: none; 
+   margin: 0; 
+   padding: 16px;
    /* 设置广场标题高度为 12px：最小化标题占用空间
       说明：`.square-header` 使用 min-height，因此总高度≈min-height+padding；
       我们将上下内边距设为 0，以使总高度尽量接近 12px。
@@ -171,6 +180,17 @@ onUnmounted(() => {
       默认值分别为 16px/0px；此处设置为 36px/12px 以获得更舒适的间距。 */
   --side-nav-offset-y: 36px;  /* 垂直向下偏移（粘性顶部距离） */
   --side-nav-offset-x: 12px;  /* 水平向右偏移（列内左右空隙） */
+  }
+  
+  /* 为右侧滚动容器增加底栏安全内边距：避免固定底栏遮挡内容
+     说明：
+     - App.vue 全局插入 TransparentFooter（默认高度 48px，且 fixed 固定在底部）；
+     - TwoPaneLayout 将右侧正文设为唯一滚动容器，若不做避让，内容末尾会被底栏遮盖；
+     - 通过为 `.scrollable-content` 增加 bottom padding（默认 48px），形成安全区；
+     - 如底栏高度调整，可在此按需同步修改数值或抽取为 CSS 变量。
+   */
+  :deep(.scrollable-content) {
+    padding-bottom: 48px;
   }
   /* 回退说明：移除页面级 :deep(.topbar) 吸顶覆写与 .content-fade 渐隐遮罩，
      保持广场页原始样式与行为，仅保留标题高度与侧边栏偏移变量。 */
