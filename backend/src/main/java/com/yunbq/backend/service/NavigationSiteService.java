@@ -184,6 +184,16 @@ public class NavigationSiteService {
      */
     @Transactional
     public NavigationSite createSite(NavigationSite site, Long userId) {
+        // === 重要校验：分类ID不能为空 ===
+        // 问题背景：数据库表 navigation_sites 的字段 category_id 为 NOT NULL 且无默认值。
+        // 当请求未提供 categoryId 时，MyBatis-Plus 在 insert 语句中会省略该列（默认 NOT_NULL 插入策略），
+        // 导致数据库报错：Field 'category_id' doesn't have a default value。
+        // 解决方案：在服务层创建前强制校验 categoryId 是否为 null，避免生成不合法的插入语句，
+        // 并返回更明确的业务错误提示，便于前端和调用方定位问题。
+        if (site.getCategoryId() == null) {
+            throw new RuntimeException("分类ID不能为空，请选择一个分类后再创建站点");
+        }
+
         // 验证分类是否存在
         if (site.getCategoryId() != null) {
             NavigationCategory category = categoryMapper.selectById(site.getCategoryId());

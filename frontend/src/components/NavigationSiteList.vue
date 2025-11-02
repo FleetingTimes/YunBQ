@@ -101,25 +101,10 @@ async function loadSites() {
   try {
     isLoading.value = true
     const resp = await getSitesByCategory(props.categoryId)
-    // 2) 数据安全读取：后端返回为 SNAKE_CASE 字段名，前端按需映射为 camelCase
-    // 说明：后端 NavigationSite 字段包含 click_count、favicon_url 等；
-    // 为保持组件内字段访问一致性，这里做轻量映射（不改动 UI 样式）。
+    // 后端现在返回 camelCase 格式的字段名，直接使用即可
+    // MyBatis 和 Jackson 配置确保了字段名的一致性
     const rawList = Array.isArray(resp?.data) ? resp.data : []
-    sites.value = rawList.map(item => ({
-      // 直通字段（后端同名）
-      id: item.id,
-      name: item.name,
-      url: item.url,
-      description: item.description,
-      tags: item.tags,
-      // 映射字段（snake_case -> camelCase）
-      clickCount: item.click_count ?? 0,
-      icon: item.icon,
-      faviconUrl: item.favicon_url,
-      // 兼容可选字段，防止模板访问 undefined
-      sortOrder: item.sort_order ?? 0,
-      isEnabled: item.is_enabled ?? true
-    }))
+    sites.value = rawList
     // 每次重新加载时将页码重置为 1，并同步页码输入
     page.value = 1
     pageInput.value = 1

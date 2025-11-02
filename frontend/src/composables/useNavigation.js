@@ -28,20 +28,10 @@ export function useNavigation() {
       loading.value = true
       error.value = null
       const response = await getAllEnabledCategories()
-      // 将后端返回的 SNAKE_CASE 字段映射为前端使用的 camelCase
-      // 说明：后端返回的字段如 parent_id、is_enabled、sort_order 等；
-      // 侧栏与页面渲染统一使用 parentId、isEnabled、sortOrder，避免计算逻辑失效。
+      // 后端现在返回 camelCase 格式的字段名，直接使用即可
+      // MyBatis 和 Jackson 配置确保了字段名的一致性
       const raw = Array.isArray(response?.data) ? response.data : []
-      categories.value = raw.map(item => ({
-        id: item.id,
-        name: item.name,
-        icon: item.icon,
-        description: item.description,
-        // 字段映射（snake_case -> camelCase）
-        parentId: item.parent_id ?? null,
-        isEnabled: item.is_enabled ?? true,
-        sortOrder: item.sort_order ?? 0
-      }))
+      categories.value = raw
     } catch (err) {
       console.error('获取导航分类失败:', err)
       error.value = err.message || '获取导航分类失败'

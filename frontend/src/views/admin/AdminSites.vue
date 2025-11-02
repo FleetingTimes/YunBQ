@@ -292,8 +292,9 @@ const fetchCategories = async () => {
     // 使用后端公开接口：/api/navigation/categories/all，返回所有启用分类列表
     const response = await http.get('/navigation/categories/all')
     if (response.data) {
-      // 返回的列表已是启用的分类
-      categories.value = response.data
+      // 后端现在返回 camelCase 格式的字段名，直接使用即可
+      const rawItems = Array.isArray(response.data) ? response.data : []
+      categories.value = rawItems
       
       // 构建级联选择器的数据结构
       buildCascaderOptions()
@@ -371,42 +372,18 @@ const fetchSitesList = async () => {
     const response = await http.get('/navigation/admin/sites', { params })
 
     if (response.data) {
-      // 重要说明：后端开启了 Jackson 的 SNAKE_CASE 命名策略（application.yml 中 property-naming-strategy: SNAKE_CASE）
-      // 这会导致返回的 JSON 字段使用下划线风格，例如：category_id、sort_order、is_enabled、created_at、updated_at、click_count。
-      // 为了让表格列的 camelCase prop（如 sortOrder、isEnabled、createdAt）正确匹配并显示，这里统一将 SNAKE_CASE 映射为 camelCase。
-      // 同时保留部分基础字段（id、name、url、description、icon）原样使用。
-      console.log('收到的站点列表响应:', response.data)
+      // 后端现在返回 camelCase 格式的字段名，直接使用即可
+      // MyBatis 和 Jackson 配置确保了字段名的一致性
       const rawItems = Array.isArray(response.data.items) ? response.data.items : []
-
-      // 字段映射：将 snake_case -> camelCase，并补充 categoryName 便于显示
-      // 说明：categoryName 通过已加载的 categories 列表匹配所得，若未匹配到则置为空串。
+      
+      // 补充 categoryName 便于显示
       sitesList.value = rawItems.map(it => {
-        const categoryId = it.category_id ?? it.categoryId ?? null
-        const category = categories.value.find(c => c.id === categoryId)
+        const category = categories.value.find(c => c.id === it.categoryId)
         return {
-          // 基础字段（原样）
-          id: it.id,
-          name: it.name,
-          url: it.url,
-          description: it.description,
-          icon: it.icon,
-
-          // 统一命名（兼容不同来源）：优先使用 SNAKE_CASE，回退到 camelCase
-          categoryId,
-          categoryName: category ? category.name : '',
-          sortOrder: it.sort_order ?? it.sortOrder ?? 0,
-          isEnabled: it.is_enabled ?? it.isEnabled ?? false,
-          clickCount: it.click_count ?? it.clickCount ?? 0,
-          createdAt: it.created_at ?? it.createdAt ?? null,
-          updatedAt: it.updated_at ?? it.updatedAt ?? null
+          ...it,
+          categoryName: category ? category.name : ''
         }
       })
-
-      // 调试输出：首项原始与映射后的字段，帮助定位不渲染问题
-      if (rawItems.length) {
-        console.log('原始首项字段:', rawItems[0])
-        console.log('映射后首项字段:', sitesList.value[0])
-      }
 
       total.value = response.data.total || 0
       
@@ -559,27 +536,38 @@ const saveSite = async () => {
     await formRef.value.validate()
     saving.value = true
     
-    // 说明：后端开启了 Jackson 的 SNAKE_CASE 命名策略（application.yml 中 property-naming-strategy: SNAKE_CASE）。
-    // 为避免因字段命名不匹配导致后端实体绑定失败（例如 categoryId -> category_id），
-    // 在提交前对表单数据进行一次“camelCase → snake_case”的转换，确保后端能正确接收必填字段。
-    // 注意：name、url、description、icon 等字段在两端同名，无需转换；
-    //      重点转换：categoryId、sortOrder、isEnabled（必要字段与布尔开关）。
-    const toSnakeSitePayload = (site) => ({
-      // 直通字段：两端同名
-      name: site.name,
-      url: site.url,
-      description: site.description,
-      icon: site.icon,
-      // 需转换字段：camelCase -> snake_case
-      category_id: site.categoryId, // 分类ID为必填，DB列 NOT NULL
-      sort_order: site.sortOrder ?? 0,
-      is_enabled: site.isEnabled ?? true
-      // 预留：如后续添加 faviconUrl、isFeatured、tags 等字段，亦应在此添加映射
-      // favicon_url: site.faviconUrl,
-      // is_featured: site.isFeatured,
-      // tags: site.tags
-    })
-    const data = toSnakeSitePayload({ ...siteForm })
+    // 重要说明：后端现在统一使用 camelCase JSON 字段（已移除 Jackson 的 SNAKE_CASE 策略），
+    // 并通过 MyBatis-Plus 的驼峰映射将 camelCase 映射到数据库下划线列名。
+    // 因此前端必须直接发送 camelCase 字段，否则会出现实体绑定失败导致的业务校验报错（如“分类ID不能为空”）。
+    // 这里构造一个显式的 camelCase 请求载荷，并进行适当的类型规范化：
+    // - categoryId/sortOrder：后端期望为数字类型，UI可能产生字符串，需要 Number() 转换
+    // - isEnabled：布尔类型，确保为 true/false
+    const data = {
+      // 直通字段：与后端实体字段同名
+      name: siteForm.name,
+      url: siteForm.url,
+      description: siteForm.description,
+      icon: siteForm.icon,
+      // 关键字段：确保使用 camelCase，并做类型转换
+      categoryId: siteForm.categoryId !== '' && siteForm.categoryId != null
+        ? Number(siteForm.categoryId)
+        : null,
+      sortOrder: siteForm.sortOrder != null
+        ? Number(siteForm.sortOrder)
+        : 0,
+      isEnabled: Boolean(siteForm.isEnabled ?? true)
+      // 预留：如后续新增 faviconUrl、isFeatured、tags 等字段，保持 camelCase 直接发送
+      // faviconUrl: siteForm.faviconUrl,
+      // isFeatured: siteForm.isFeatured,
+      // tags: siteForm.tags
+    }
+    
+    // 额外防御：若分类未选择，直接给出提示并阻止提交，避免后端 400
+    if (data.categoryId == null || Number.isNaN(data.categoryId)) {
+      ElMessage.error('请选择分类')
+      saving.value = false
+      return
+    }
     
     if (editingSite.value) {
       // 更新

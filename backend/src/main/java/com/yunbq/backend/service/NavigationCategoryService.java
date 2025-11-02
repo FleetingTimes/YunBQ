@@ -154,10 +154,44 @@ public class NavigationCategoryService {
             throw new RuntimeException("导航分类不存在");
         }
         
+        // ==================== 关键修复说明 ====================
+        // 问题：编辑已有导航分类时，父ID（parentId）无法保存到数据库。
+        // 根因：历史实现仅更新 name、icon、description、sortOrder、isEnabled 等字段，
+        //      未对 parentId 进行持久化写入，导致父子关系更新丢失。
+        // 方案：补充对 parentId 的校验与更新逻辑，允许将分类移动到其他父级，
+        //      或者置为根分类（parentId=null）。
+        // 安全性：
+        //  - 禁止将分类设为它自身的父级（避免自循环）。
+        //  - 当传入非空父ID时，校验父分类必须存在。
+        //  - 暂不做更复杂的循环依赖检测（例如将父级设为其子孙），如需可在后续迭代补充。
+        // ==================== 关键修复说明 ====================
+
         // 更新字段
         UpdateWrapper<NavigationCategory> updateWrapper = new UpdateWrapper<>();
         updateWrapper.eq("id", id);
         
+        // === 父级分类更新（允许为 null 表示设为根分类） ===
+        // 前端 AdminNavigation 页面在编辑时会显式提交 parentId（数字或 null），
+        // 因此这里直接以请求体中的 parentId 为准进行写入。
+        // 注意：如果调用方不提交该字段，Jackson 会将其反序列化为 null，
+        //       在这种情况下也会被视为置为根分类。当前业务场景为管理员页面，
+        //       表单总是提交该字段（包含 null），因此符合预期。
+        if (category.getParentId() != null) {
+            // 防御性校验：父级不可为自身
+            if (id.equals(category.getParentId())) {
+                throw new RuntimeException("父级分类不可为自身");
+            }
+            // 校验父级分类是否存在
+            NavigationCategory parentCategory = categoryMapper.selectById(category.getParentId());
+            if (parentCategory == null) {
+                throw new RuntimeException("指定的父级分类不存在");
+            }
+            updateWrapper.set("parent_id", category.getParentId());
+        } else {
+            // 明确置为根分类（parent_id = NULL）
+            updateWrapper.set("parent_id", null);
+        }
+
         if (category.getName() != null) {
             updateWrapper.set("name", category.getName());
         }

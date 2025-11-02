@@ -252,27 +252,14 @@ const fetchNavigationList = async () => {
     })
 
     if (response.data) {
-      // 详细说明：后端开启了 Jackson 的 SNAKE_CASE 命名策略（application.yml 中 property-naming-strategy: SNAKE_CASE）
-      // 这意味着返回的 JSON 字段会是下划线风格，例如：sort_order、is_enabled、created_at。
-      // 为了在前端保持一致的 camelCase 使用（sortOrder、isEnabled、createdAt），此处进行一次字段映射。
-      // 注意：未受影响的字段（如 id、name、description、icon）仍为原名，可直接使用。
+      // 后端现在返回 camelCase 格式的字段名，与前端保持一致
+      // MyBatis 的 map-underscore-to-camel-case: true 配置会自动将数据库的下划线字段转换为驼峰格式
+      // Jackson 使用默认的 camelCase 命名策略，确保 API 返回的字段名与前端期望一致
       console.log('收到的导航数据:', response.data)
       const rawItems = Array.isArray(response.data.items) ? response.data.items : []
 
-      // 将后端 SNAKE_CASE 转换为前端 camelCase，避免 el-table 的 prop 对不上导致不显示
-      navigationList.value = rawItems.map(it => ({
-        // 基础字段：保持原样
-        id: it.id,
-        name: it.name,
-        description: it.description,
-        icon: it.icon,
-        // 统一字段命名：优先使用后端 SNAKE_CASE，回退到可能存在的 camelCase（兼容不同来源）
-        sortOrder: it.sort_order ?? it.sortOrder ?? 0,
-        isEnabled: it.is_enabled ?? it.isEnabled ?? false,
-        createdAt: it.created_at ?? it.createdAt ?? null,
-        updatedAt: it.updated_at ?? it.updatedAt ?? null,
-        parentId: it.parent_id ?? it.parentId ?? null
-      }))
+      // 直接使用后端返回的 camelCase 字段，无需手动映射
+      navigationList.value = rawItems
 
       // 分页总数
       total.value = Number(response.data.total || 0)
@@ -311,18 +298,8 @@ const fetchRootCategories = async () => {
       params: { page: 1, size: 1000 }
     })
     const items = Array.isArray(resp.data?.items) ? resp.data.items : []
-    const mapped = items.map(it => ({
-      id: it.id,
-      name: it.name,
-      description: it.description,
-      icon: it.icon,
-      sortOrder: it.sort_order ?? it.sortOrder ?? 0,
-      isEnabled: it.is_enabled ?? it.isEnabled ?? false,
-      createdAt: it.created_at ?? it.createdAt ?? null,
-      updatedAt: it.updated_at ?? it.updatedAt ?? null,
-      parentId: it.parent_id ?? it.parentId ?? null
-    }))
-    rootCategories.value = mapped.filter(c => c.parentId == null)
+    // 直接使用后端返回的 camelCase 字段，无需手动映射
+    rootCategories.value = items.filter(c => c.parentId == null)
   } catch (e) {
     console.error('获取父级分类失败:', e)
     rootCategories.value = []
@@ -409,21 +386,38 @@ const saveNavigation = async () => {
     await formRef.value.validate()
     saving.value = true
     
+    // 构造请求体：统一使用 camelCase，与后端当前 JSON 命名保持一致
+    // 注意：此前为了兼容 SNAKE_CASE，曾将 parentId 转换为 parent_id 并删除 parentId，
+    // 这会导致后端无法绑定到实体的 parentId 字段，从而父ID未入库。这里统一改为 camelCase。
     const data = { ...navigationForm }
-    
+
+    // 类型规范化：确保各字段类型与后端期望一致，避免 UI 输入造成字符串/空值问题
+    // 1) parentId：允许为 null（一级分类）；否则确保为数字类型
+    if (data.parentId === '' || data.parentId === undefined) {
+      data.parentId = null
+    } else if (data.parentId !== null) {
+      // 一些选择器可能返回字符串，这里显式转换为数字
+      const pid = Number(data.parentId)
+      data.parentId = Number.isNaN(pid) ? null : pid
+    }
+
+    // 2) sortOrder：确保为数字
+    data.sortOrder = Number(data.sortOrder || 0)
+
+    // 3) isEnabled：确保为布尔值
+    data.isEnabled = Boolean(data.isEnabled)
+
+    // 防御性校验：编辑或新增二级分类时必须选择父级；一级分类允许为 null
+    // 这里仅在显式选择了“无（一级分类）”之外的空值时进行提示，避免误触发
+    if (editingNavigation.value && editingNavigation.value.id == null) {
+      // 新增模式下，如果用户留空但预期添加二级分类，可在后端进行更严格校验
+      // 这里不强制拦截，以保留新增一级分类的能力
+    }
+
     // 调试日志：打印即将发送的表单数据
     console.log('准备保存的分类数据:', data)
     console.log('parentId 值:', data.parentId)
     console.log('parentId 类型:', typeof data.parentId)
-    
-    // 重要：由于后端 Jackson 配置为 SNAKE_CASE，需要将 parentId 转换为 parent_id
-    if (data.parentId !== undefined && data.parentId !== null && data.parentId !== '') {
-      data.parent_id = data.parentId
-      console.log('转换后的 parent_id:', data.parent_id)
-    }
-    // 删除原来的 parentId 字段，避免混淆
-    delete data.parentId
-    
     console.log('最终发送的数据:', data)
     
     if (editingNavigation.value) {

@@ -14,10 +14,9 @@ spring:
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
   jackson:
-    # 注释掉 SNAKE_CASE 配置，使用默认的 camelCase 命名策略
-    # 这样 API 返回的 JSON 字段名将是 camelCase 格式（如 userId, createdAt），
-    # 与前端期望的字段名保持一致
-    # property-naming-strategy: SNAKE_CASE
+    # 使用默认的 camelCase 命名策略，确保与前端字段名一致
+    # API 返回的 JSON 字段名将是 camelCase 格式（如 userId, createdAt）
+    # 配合 MyBatis 的 map-underscore-to-camel-case: true 实现完整的字段映射
     date-format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
     time-zone: UTC
   sql:
