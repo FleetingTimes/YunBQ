@@ -3,9 +3,21 @@
   <div class="container">
     <!-- 页面头部：云便签广场标题 -->
     <header class="square-header">
-      <div class="brand">
-        <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="28" height="28" />
-        <h1>云便签 · 广场</h1>
+      <!-- 标题区美化：增加品牌图标容器、渐变标题与副标题
+           设计目标：
+           - 在不改变整体布局的前提下，提升页面识别度与质感；
+           - 使用轻量阴影与柔和渐变，保证与内容区的协调；
+           - 文本与图标均可访问（ARIA 标签），兼顾语义与兼容。 -->
+      <div class="brand" aria-label="云便签 · 广场 标题区">
+        <!-- 品牌图标容器：圆角背景 + 轻微阴影，强调视觉焦点 -->
+        <div class="logo-wrap" aria-hidden="true">
+          <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
+        </div>
+        <!-- 标题与副标题：主标题采用渐变文本，副标题为轻提示语 -->
+        <div class="title-wrap">
+          <h1 class="title">云便签 · 广场</h1>
+          <p class="subtitle">精选站点与工具，发现更高效的灵感</p>
+        </div>
       </div>
     </header>
 
@@ -112,19 +124,33 @@ function scrollTo(id){
   const el = (contentRef.value || container).querySelector('#' + id)
   if (!el) return
 
-  // 计算滚动偏移量，避免标题遮挡
-  const isRightMain = container.classList?.contains('right-main')
-  const titleEl = !isRightMain ? document.querySelector('.square-header') : null
-  const titleH = titleEl ? titleEl.offsetHeight : 0
+  // 修复滚动偏移计算：针对 TwoPaneLayout 布局优化
+  // 说明：
+  // - 在 TwoPaneLayout 中，.square-header 与卡片内容都在同一个 .scrollable-content 容器内；
+  // - 标题不会"遮挡"卡片，因为它们是垂直排列的，标题在上方，卡片在下方；
+  // - 因此不需要减去标题高度，只需要一个小的安全间距即可。
+  const isScrollableContent = container.classList?.contains('scrollable-content')
   const containerStyles = getComputedStyle(container)
   const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
-  const extra = isRightMain ? 12 : 24
+  
+  // 设置合适的安全间距：
+  // - 在 TwoPaneLayout (.scrollable-content) 中使用较小的间距 (16px)
+  // - 在其他布局中保持原有逻辑以确保兼容性
+  let offset = containerPadTop
+  if (isScrollableContent) {
+    // TwoPaneLayout：只需要小的安全间距，不减去标题高度
+    offset += 16
+  } else {
+    // 其他布局：保持原有逻辑（向后兼容）
+    const titleEl = document.querySelector('.square-header')
+    const titleH = titleEl ? titleEl.offsetHeight : 0
+    offset += titleH + 24
+  }
 
   // 基于可见位置计算滚动距离
   const elRect = el.getBoundingClientRect()
   const containerRect = container.getBoundingClientRect()
   const visibleDelta = elRect.top - containerRect.top
-  const offset = titleH + containerPadTop + extra
   const targetTop = Math.max(0, container.scrollTop + visibleDelta - offset)
   
   container.scrollTo({ top: targetTop, behavior: 'smooth' })
@@ -143,13 +169,23 @@ function handleScroll(){
   const container = getScrollContainer()
   if (!container) return
 
-  // 计算滚动偏移
-  const isRightMain = container.classList?.contains('right-main')
-  const titleEl = !isRightMain ? document.querySelector('.square-header') : null
-  const titleH = titleEl ? titleEl.offsetHeight : 0
+  // 修复滚动偏移计算：与 scrollTo 方法保持一致
+  // 说明：高亮判断的偏移量应该与滚动定位的偏移量一致，确保交互的连贯性
+  const isScrollableContent = container.classList?.contains('scrollable-content')
   const containerStyles = getComputedStyle(container)
   const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
-  const offset = titleH + containerPadTop + (isRightMain ? 12 : 24)
+  
+  // 使用与 scrollTo 相同的偏移计算逻辑
+  let offset = containerPadTop
+  if (isScrollableContent) {
+    // TwoPaneLayout：只需要小的安全间距
+    offset += 16
+  } else {
+    // 其他布局：保持原有逻辑
+    const titleEl = document.querySelector('.square-header')
+    const titleH = titleEl ? titleEl.offsetHeight : 0
+    offset += titleH + 24
+  }
 
   // 收集所有锚点元素
   const nodes = []
@@ -259,23 +295,60 @@ defineExpose({
 }
 
 .square-header {
+  /* 标题区卡片化：柔和渐变背景 + 圆角 + 轻阴影
+     说明：
+     - 用浅色渐变提升层次，同时保持整体清爽；
+     - 圆角与阴影仅在标题区内，避免影响右侧滚动容器；
+     - 保留 flex-shrink 防止滚动时被压缩。 */
   padding: 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #fff;
+  background: linear-gradient(180deg, #f9fbff 0%, #ffffff 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px -12px rgba(31, 41, 55, 0.25);
   flex-shrink: 0;
 }
 
 .brand {
+  /* 标题行：图标 + 文本块 */
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
-.brand h1 {
+/* 品牌图标容器：独立的圆角卡片，增强识别度 */
+.logo-wrap {
+  width: 40px;
+  height: 40px;
+  display: grid;           /* 居中图标 */
+  place-items: center;
+  background: #ffffff;
+  border: 1px solid #e6effa;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px -10px rgba(64, 158, 255, 0.35);
+}
+
+/* 文本块：主标题 + 副标题 */
+.title-wrap { display: flex; flex-direction: column; }
+
+/* 渐变主标题：使用背景裁剪实现柔和品牌色过渡 */
+.title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  /* 渐变文本：从 #409eff 过渡到更浅的品牌色 */
+  background-image: linear-gradient(90deg, #409eff 0%, #67a6ff 50%, #a0cfff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;          /* 让渐变作为文本填充 */
+  letter-spacing: 0.2px;
+}
+
+/* 副标题：低对比度提示语，减少视觉负担 */
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6b7280;
 }
 
 .layout {
@@ -303,6 +376,7 @@ defineExpose({
 .content-scroll::-webkit-scrollbar { width: 0; height: 0; }
 .content-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 
+/* 空状态容器：垂直居中，保持内容居中对齐 */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -325,6 +399,7 @@ defineExpose({
   color: #374151;
 }
 
+/* 空状态描述：低对比度、中等宽度，保持可读性 */
 .empty-desc {
   font-size: 14px;
   max-width: 400px;
@@ -338,11 +413,11 @@ defineExpose({
   }
   
   .square-header {
+    /* 移动端：收敛内边距与阴影大小，避免喧宾夺主 */
     padding: 12px 16px;
+    box-shadow: 0 6px 18px -12px rgba(31, 41, 55, 0.25);
   }
   
-  .brand h1 {
-    font-size: 18px;
-  }
+  .title { font-size: 18px; }
 }
 </style>

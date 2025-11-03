@@ -1,4 +1,5 @@
 <template>
+<!-- 笔记卡片：展示笔记内容、标签、操作按钮（如喜欢、收藏、编辑、删除） -->
   <div ref="rootRef" class="note-card" :style="noteCardStyle(note)" :data-note-id="note.id"
     @mousedown="enableLongPressActions && startPress($event)"
     @mouseup="enableLongPressActions && cancelPress()"
