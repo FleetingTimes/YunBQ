@@ -4,20 +4,22 @@
     <div class="header">
       <h2>站点管理</h2>
       <div class="header-actions">
-        <el-select
-          v-model="selectedCategory"
-          placeholder="选择分类筛选"
+        <!-- 分类筛选改为级联选择器（Cascader）
+             设计说明：
+             - 支持一级/二级分类的层级展示与选择；
+             - 为避免改变后端筛选语义，仍然按“选中的分类ID”进行过滤；
+             - 选中一级分类不会自动包含子分类（保持与原后端参数一致），如需包含子级可后续扩展为传递 includeChildren 参数或在后端实现；
+             - 使用 emitPath: false 和 checkStrictly: true，允许选择任意层级并仅返回最后一级值（即分类ID）。
+        -->
+        <el-cascader
+          v-model="filterCascaderValue"
+          :options="cascaderOptions"
+          :props="cascaderProps"
+          placeholder="选择分类筛选（支持层级）"
           clearable
-          @change="handleCategoryChange"
-          style="width: 200px; margin-right: 10px;"
-        >
-          <el-option
-            v-for="category in categories"
-            :key="category.id"
-            :label="category.name"
-            :value="category.id"
-          />
-        </el-select>
+          style="width: 240px; margin-right: 10px;"
+          @change="handleFilterCascaderChange"
+        />
         <el-button type="primary" @click="showAddDialog = true">
           <el-icon><Plus /></el-icon>
           添加站点
@@ -215,7 +217,10 @@ const loading = ref(false)
 const saving = ref(false)
 const sitesList = ref([])
 const categories = ref([])
+// 顶部列表筛选：选中分类 ID（与后端参数一致）
 const selectedCategory = ref('')
+// 顶部列表筛选：级联选择器当前路径值（如：[rootId] 或 [rootId, childId]）
+const filterCascaderValue = ref([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
@@ -406,13 +411,24 @@ const handleCategoryChange = () => {
   fetchSitesList()
 }
 
+// 顶部筛选：级联选择器值变化处理
+function handleFilterCascaderChange(value){
+  // 说明：
+  // - 由于设置 emitPath=false，value 为选中项的“分类ID”（最后一级）；
+  // - 为保持与后端筛选语义一致，这里直接用该 ID 作为筛选参数；
+  // - 若希望选择一级分类时包含其所有子分类，可扩展为传递 includeChildren 参数并调整后端。
+  selectedCategory.value = value || ''
+  currentPage.value = 1
+  fetchSitesList()
+}
+
 // 分页处理
 const handleSizeChange = (val) => {
   pageSize.value = val
   currentPage.value = 1
   fetchSitesList()
 }
-
+// 分页当前页变化处理
 const handleCurrentChange = (val) => {
   currentPage.value = val
   fetchSitesList()
@@ -429,11 +445,14 @@ const editSite = (row) => {
     icon: row.icon || '',
     sortOrder: row.sortOrder || 0,
     // 使用后端字段 isEnabled
+    // 确保与后端一致的字段名
     isEnabled: row.isEnabled
   })
   
   // 设置级联选择器的值
   setCascaderValueByCategoryId(row.categoryId)
+  // 顶部筛选级联值也根据当前行分类进行同步，便于编辑后视觉一致（不影响筛选结果）
+  setFilterCascaderByCategoryId(row.categoryId)
   
   showAddDialog.value = true
 }
@@ -525,6 +544,25 @@ const setCascaderValueByCategoryId = (categoryId) => {
     }
   } else {
     cascaderValue.value = []
+  }
+}
+
+// 根据分类ID设置顶部筛选的级联选择器值（仅同步显示路径，不触发筛选）
+const setFilterCascaderByCategoryId = (categoryId) => {
+  if (!categoryId){
+    filterCascaderValue.value = []
+    return
+  }
+  const category = findCategoryById(categoryId)
+  if (category){
+    const parentId = category.parent_id || category.parentId
+    if (parentId){
+      filterCascaderValue.value = [parentId, categoryId]
+    } else {
+      filterCascaderValue.value = [categoryId]
+    }
+  } else {
+    filterCascaderValue.value = []
   }
 }
 
@@ -629,6 +667,10 @@ const formatDate = (dateString) => {
 onMounted(() => {
   fetchCategories()
   fetchSitesList()
+  // 初始化筛选级联路径（若首次加载 selectedCategory 有值）
+  if (selectedCategory.value){
+    setFilterCascaderByCategoryId(selectedCategory.value)
+  }
 })
 </script>
 
