@@ -575,8 +575,139 @@ function onHoverLeave(){
   margin-left: 24px; /* 左边距：12px，数值可根据视觉需求微调 */
 }
 .topbar .brand h1 { font-size: 18px; margin: 0; color: #303133; }
-.center-search { display: flex; justify-content: center; }
-.top-search-input { --el-input-bg-color: #fff; --el-input-border-color: transparent; --el-input-hover-border-color: transparent; --el-input-focus-border-color: var(--el-color-primary); box-shadow: 0 8px 26px rgba(64,158,255,0.12), 0 2px 10px rgba(0,0,0,0.08); border-radius: 999px; padding-right: 4px; max-width: 520px; }
+/* 搜索框容器：居中布局，提供响应式适配 */
+.center-search { 
+  display: flex; 
+  justify-content: center; 
+  align-items: center;
+  position: relative;
+}
+
+/* 搜索框美化样式：现代化设计，提升用户体验
+   设计要点：
+   - 采用毛玻璃背景，与顶栏整体风格保持一致
+   - 圆角胶囊形状，符合现代UI趋势
+   - 渐变阴影，增加层次感和立体效果
+   - 平滑过渡动画，提升交互体验
+   - 响应式宽度，适配不同屏幕尺寸 */
+.top-search-input { 
+  /* Element Plus 变量覆写：自定义输入框颜色 */
+  --el-input-bg-color: rgba(255, 255, 255, 0.85);
+  --el-input-border-color: rgba(255, 255, 255, 0.3);
+  --el-input-hover-border-color: rgba(64, 158, 255, 0.4);
+  --el-input-focus-border-color: var(--el-color-primary);
+  --el-input-text-color: #303133;
+  --el-input-placeholder-color: #909399;
+  
+  /* 基础布局与尺寸 */
+  max-width: 520px;
+  min-width: 280px;
+  width: 100%;
+  
+  /* 毛玻璃背景效果 */
+  backdrop-filter: saturate(130%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  
+  /* 圆角胶囊造型 */
+  border-radius: 24px;
+  
+  /* 渐变立体阴影：营造浮起效果 */
+  box-shadow: 
+    0 4px 20px rgba(64, 158, 255, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  
+  /* 平滑过渡动画 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 内边距调整：为图标和清除按钮预留空间 */
+  padding: 0 16px 0 12px;
+}
+
+/* 搜索框悬停状态：增强视觉反馈 */
+.top-search-input:hover {
+  /* 增强阴影效果 */
+  box-shadow: 
+    0 6px 24px rgba(64, 158, 255, 0.12),
+    0 3px 12px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  
+  /* 轻微上浮效果 */
+  transform: translateY(-1px);
+}
+
+/* 搜索框聚焦状态：突出当前操作 */
+.top-search-input.is-focus {
+  /* 聚焦时的强化阴影 */
+  box-shadow: 
+    0 8px 32px rgba(64, 158, 255, 0.16),
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 0 0 3px rgba(64, 158, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  
+  /* 聚焦时的上浮效果 */
+  transform: translateY(-2px);
+}
+
+/* 深度选择器：自定义 Element Plus 内部组件样式 */
+.top-search-input :deep(.el-input__wrapper) {
+  /* 移除默认边框和背景，使用父级样式 */
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 12px 0;
+  
+  /* 圆角继承 */
+  border-radius: inherit;
+}
+
+.top-search-input :deep(.el-input__inner) {
+  /* 文本样式优化 */
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--el-input-text-color);
+  
+  /* 占位符样式 */
+  &::placeholder {
+    color: var(--el-input-placeholder-color);
+    font-weight: 300;
+  }
+}
+
+/* 搜索图标样式优化 */
+.top-search-input :deep(.el-input__prefix) {
+  /* 图标容器定位 */
+  left: 16px;
+  
+  /* 图标样式 */
+  img {
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+  }
+}
+
+/* 聚焦时图标高亮 */
+.top-search-input.is-focus :deep(.el-input__prefix img) {
+  opacity: 0.8;
+}
+
+/* 清除按钮样式优化 */
+.top-search-input :deep(.el-input__suffix) {
+  right: 16px;
+}
+
+.top-search-input :deep(.el-input__clear) {
+  /* 清除按钮样式 */
+  color: #909399;
+  font-size: 16px;
+  transition: color 0.2s ease, transform 0.2s ease;
+  
+  &:hover {
+    color: #606266;
+    transform: scale(1.1);
+  }
+}
 .right-actions { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .icon-btn { border-radius: 50%; padding: 6px; transition: transform .15s ease, filter .15s ease; }
 .icon-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
@@ -608,12 +739,90 @@ function onHoverLeave(){
 .edit-form-card :deep(.el-input__count){ right:8px; bottom:6px; background:rgba(0,0,0,0.04); padding:0 6px; border-radius:6px; }
 .fade-slide-enter-active, .fade-slide-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .fade-slide-enter-from, .fade-slide-leave-to { opacity: 0; transform: translateY(6px) scale(0.98); }
+/* 搜索框响应式优化：适配不同屏幕尺寸 */
+@media (max-width: 768px) {
+  .top-search-input {
+    /* 平板尺寸：适度缩小最大宽度 */
+    max-width: 400px;
+    min-width: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .center-search {
+    /* 移动端：调整容器布局 */
+    padding: 0 8px;
+  }
+  
+  .top-search-input {
+    /* 移动端：进一步缩小尺寸，优化触摸体验 */
+    max-width: 100%;
+    min-width: 200px;
+    border-radius: 20px;
+    
+    /* 移动端阴影简化：减少性能消耗 */
+    box-shadow: 
+      0 2px 12px rgba(64, 158, 255, 0.06),
+      0 1px 4px rgba(0, 0, 0, 0.04),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  
+  .top-search-input:hover {
+    /* 移动端悬停效果简化 */
+    transform: none;
+    box-shadow: 
+      0 3px 16px rgba(64, 158, 255, 0.08),
+      0 2px 6px rgba(0, 0, 0, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+  
+  .top-search-input.is-focus {
+    /* 移动端聚焦效果优化 */
+    transform: translateY(-1px);
+    box-shadow: 
+      0 4px 20px rgba(64, 158, 255, 0.12),
+      0 2px 8px rgba(0, 0, 0, 0.06),
+      0 0 0 2px rgba(64, 158, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  }
+  
+  .top-search-input :deep(.el-input__wrapper) {
+    /* 移动端内边距调整 */
+    padding: 10px 0;
+  }
+  
+  .top-search-input :deep(.el-input__inner) {
+    /* 移动端字体大小优化 */
+    font-size: 14px;
+  }
+}
+
 @media (max-width: 460px){
   .info-card { padding:10px; border-radius:10px; }
   .edit-form-card { padding:10px; border-radius:10px; }
   .info-list { gap:6px; }
   .info-row { padding:6px 8px; gap:6px; }
   .info-row .label { width:64px; font-size:12px; }
+  
+  /* 超小屏幕：搜索框进一步优化 */
+  .top-search-input {
+    min-width: 180px;
+    border-radius: 18px;
+    padding: 0 12px 0 10px;
+  }
+  
+  .top-search-input :deep(.el-input__prefix) {
+    left: 12px;
+  }
+  
+  .top-search-input :deep(.el-input__suffix) {
+    right: 12px;
+  }
+  
+  .top-search-input :deep(.el-input__prefix img) {
+    width: 16px;
+    height: 16px;
+  }
 }
 .send-code-btn {
   position: relative;
