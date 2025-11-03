@@ -1,6 +1,6 @@
 <template>
   <!-- 导航站点列表组件：根据导航分类动态显示站点卡片 -->
-  <div class="card" :id="id">
+  <div class="card" :id="id" ref="cardRef">
     <div class="card-title">{{ title }}</div>
     <div class="card-desc" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
       <span>{{ subtitle }}</span>
@@ -68,7 +68,15 @@ const props = defineProps({
   subtitle: { type: String, default: '' },
   categoryId: { type: Number, required: true },
   pageSize: { type: Number, default: 12 },
-  showPagination: { type: Boolean, default: true }
+  showPagination: { type: Boolean, default: true },
+  /**
+   * 性能优化：是否延迟数据加载（懒加载）
+   * 说明：广场页通常会同时渲染较多分类卡片；如果每个卡片在挂载时都立即发起请求，
+   * 会造成并发请求数量过多、首屏加载缓慢。开启 deferLoad 后，组件会在「进入可视区域」时再触发加载。
+   * - 默认：true（推荐）
+   * - 关闭：将其设为 false 时，仍保持旧行为（挂载即加载）。
+   */
+  deferLoad: { type: Boolean, default: true }
 })
 
 // 响应式数据
@@ -76,6 +84,10 @@ const sites = ref([]) // 站点列表
 const isLoading = ref(false) // 加载状态
 const page = ref(1) // 当前页码
 const pageInput = ref(1) // 页码输入框
+// 懒加载相关：记录是否已触发过加载，避免重复请求
+const hasLoaded = ref(false)
+// 根节点引用：用于 IntersectionObserver 观察是否进入视口
+const cardRef = ref(null)
 
 /**
  * 加载站点列表：根据分类ID获取站点数据
@@ -100,12 +112,58 @@ async function loadSites() {
     // 每次重新加载时将页码重置为 1，并同步页码输入
     page.value = 1
     pageInput.value = 1
+    // 标记已完成首次加载（用于懒加载 gating）
+    hasLoaded.value = true
   } catch (error) {
     // 3) 失败兜底：记录错误到控制台，避免中断交互；UI 显示骨架或空态
     console.error('加载站点失败:', error)
     sites.value = []
   } finally {
     isLoading.value = false
+  }
+}
+
+/**
+ * 懒加载（可视区域触发）
+ * 设计目的：减少首屏并发请求数量，显著提升广场页初次加载速度。
+ * 实现细节：
+ * - 当 `deferLoad` 为 true 时，组件不会在挂载时立即请求；
+ * - 使用 IntersectionObserver 观察卡片根元素，当其「接近视口」时触发 `loadSites()`；
+ * - 触发一次后即断开观察，防止重复请求；
+ * - 在不支持 IntersectionObserver 的环境中，安全回退为“立即加载”。
+ */
+function setupLazyLoad(){
+  // 若禁用懒加载或已加载过，直接触发
+  if (!props.deferLoad || hasLoaded.value) {
+    loadSites()
+    return
+  }
+  try{
+    // 优雅降级：API/环境不支持时，直接加载
+    if (!('IntersectionObserver' in window)) {
+      loadSites()
+      return
+    }
+    const el = cardRef.value
+    if (!el) {
+      // 根元素尚未可用时直接加载，避免错过首屏
+      loadSites()
+      return
+    }
+    // 使用 rootMargin 预读取（提前 200px），提升滚动到达前的体验
+    const io = new IntersectionObserver((entries, observer) => {
+      const e = entries?.[0]
+      if (e && e.isIntersecting && !hasLoaded.value) {
+        loadSites()
+        // 仅触发一次，随后断开观察
+        observer.disconnect()
+      }
+    }, { threshold: 0.1, root: null, rootMargin: '200px 0px' })
+    io.observe(el)
+  }catch(e){
+    // 兜底：任何异常均直接加载，确保功能不受影响
+    console.warn('懒加载初始化失败，回退为立即加载：', e)
+    loadSites()
   }
 }
 
@@ -129,7 +187,8 @@ async function openSite(site) {
 
 // 初次挂载时加载数据
 onMounted(() => {
-  loadSites()
+  // 替换为懒加载触发：仅在进入视口后再请求，降低首屏并发与等待时间
+  setupLazyLoad()
   setupMobileMatch()
 })
 
@@ -137,6 +196,9 @@ onMounted(() => {
 // 说明：仅在分类ID为有效正整数时才触发加载，避免无效 ID 造成不必要请求与错误提示
 watch(() => props.categoryId, (newId) => {
   if (Number.isInteger(newId) && newId > 0) {
+    // 分类变更一般由导航结构刷新触发，此时直接加载新分类数据
+    // 说明：这里不使用懒加载 gating，以确保数据能即时刷新；如需继续懒加载，可将此处改为 `setupLazyLoad()`。
+    hasLoaded.value = false
     loadSites()
   } else {
     // 非法ID：清空数据，保持空态
