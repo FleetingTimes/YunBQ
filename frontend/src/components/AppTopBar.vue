@@ -564,7 +564,16 @@ function onHoverLeave(){
 /* 回退：移除图标按钮的额外背景与按压反馈，保留基础样式在文件后部定义 */
 
 /* 回退：移除额外响应式调整，保持原有布局行为 */
-.topbar .brand { display: inline-flex; align-items: center; gap: 8px; }
+.topbar .brand {
+  /* 品牌区域（云便签）：左侧增加边距，避免贴边
+     设计目的：
+     - 保持品牌与窗口左侧有舒适留白，提高整体视觉平衡；
+     - 在小屏设备上同样生效，因为顶栏为粘性定位。 */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 24px; /* 左边距：12px，数值可根据视觉需求微调 */
+}
 .topbar .brand h1 { font-size: 18px; margin: 0; color: #303133; }
 .center-search { display: flex; justify-content: center; }
 .top-search-input { --el-input-bg-color: #fff; --el-input-border-color: transparent; --el-input-hover-border-color: transparent; --el-input-focus-border-color: var(--el-color-primary); box-shadow: 0 8px 26px rgba(64,158,255,0.12), 0 2px 10px rgba(0,0,0,0.08); border-radius: 999px; padding-right: 4px; max-width: 520px; }
@@ -627,7 +636,16 @@ function onHoverLeave(){
 
 <style scoped>
 /* 自定义悬浮：定位卡片贴着头像展开 */
-.profile-trigger { position: relative; display:inline-block; }
+.profile-trigger {
+  /* 头像触发器：右侧增加边距，避免贴近顶栏右缘
+     说明：
+     - 顶栏右侧采用 flex-end 对齐，头像与右缘的距离受此边距控制；
+     - 添加右边距后，悬浮卡片的定位不受影响（absolute 定位基于本容器）。 */
+  position: relative;
+  display:inline-block;
+  margin-right: 36px; /* 右边距：12px，提供舒适的右侧留白 */
+  margin-left: 20px;
+}
 .profile-trigger .profile-card { position: absolute; right: 0; top: calc(100% + 2px); z-index: 2000; }
 .profile-card {
   width: 320px;
