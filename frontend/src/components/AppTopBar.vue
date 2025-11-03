@@ -25,9 +25,14 @@
       </el-input>
     </div>
     <div class="right-actions" aria-label="快捷入口">
-      <el-tooltip content="消息" placement="bottom">
-        <el-button link class="icon-btn" @click="goMessages">
-          <img src="https://api.iconify.design/mdi/message-outline.svg" alt="消息" width="22" height="22" />
+      <!-- 顶栏添加便签入口（原“记录”与“消息”已交换位置，且“记录”改为“添加便签”）
+           设计说明：
+           - 与头像悬停卡片中的“添加便签”入口保持一致：复用 goNotes 跳转逻辑；
+           - 图标风格沿用顶栏一贯的线性样式，避免突兀（无需着色参数）；
+           - 这样首个快捷入口即为“添加便签”，提升便签创建的触达效率。 -->
+      <el-tooltip content="添加便签" placement="bottom">
+        <el-button link class="icon-btn" @click="goNotes">
+          <img src="https://api.iconify.design/mdi/note-plus-outline.svg" alt="添加便签" width="22" height="22" />
         </el-button>
       </el-tooltip>
       <el-tooltip content="喜欢" placement="bottom">
@@ -40,9 +45,10 @@
           <img src="https://api.iconify.design/mdi/bookmark-outline.svg" alt="收藏" width="22" height="22" />
         </el-button>
       </el-tooltip>
-      <el-tooltip content="记录" placement="bottom">
-        <el-button link class="icon-btn" @click="goHistory">
-          <img src="https://api.iconify.design/mdi/history.svg" alt="记录" width="22" height="22" />
+      <!-- 将“消息”移动到原“记录”的位置，实现两者调换位置 -->
+      <el-tooltip content="消息" placement="bottom">
+        <el-button link class="icon-btn" @click="goMessages">
+          <img src="https://api.iconify.design/mdi/message-outline.svg" alt="消息" width="22" height="22" />
         </el-button>
       </el-tooltip>
       <template v-if="authed">
@@ -443,7 +449,9 @@ function goAdmin(){
   router.push('/admin')
 }
 function goNotes(){
-  // 跳转到 notes 页面
+  // 添加便签统一入口：
+  // - 顶栏“添加便签”按钮与头像悬停卡片的“添加便签”均复用此跳转；
+  // - 交互保持一致性，避免出现两个入口逻辑不一致的情况；
   profileVisible.value = false
   router.push('/notes')
 }
@@ -460,6 +468,8 @@ function goFavorites(){
   // 收藏页需要登录：同上，统一交给路由守卫判断
   router.push('/favorites')
 }
+// 顶栏已不再使用“历史记录”入口（已改为“添加便签”并交换位置），
+// 如其他页面仍需要历史记录入口，可继续复用此方法。
 function goHistory(){
   // 历史页需要登录：交给路由守卫处理
   router.push('/history')
