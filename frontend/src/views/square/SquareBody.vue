@@ -1,4 +1,5 @@
 <template>
+  <!-- 页面主体容器：负责布局、滚动等核心功能 -->
   <div class="container">
     <!-- 页面头部：云便签广场标题 -->
     <header class="square-header">
@@ -241,6 +242,20 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: column;
+
+  /* 局部覆盖全局 .container 的居中定宽规则
+     背景：
+     - 全局 style.css 为 .container 设定了 max-width:1080px 与 margin: 24px auto；
+       这会导致本组件根容器被定宽并水平居中，从而在右侧列产生两侧空白。
+     目标：
+     - 广场正文需要“铺满父容器宽度”，不受全局规则影响；
+     处理：
+     - 在 scoped 样式中显式覆盖宽度、最大宽度与外边距；
+     - 同时移除左右 padding，改由内部 .square-header/.content-scroll 控制自身安全边距。
+   */
+  width: 85%;          /* 占满父容器可用宽度 */
+  max-width: none;      /* 取消 1080px 上限 */
+  padding: 0px;           /* 移除全局左右 16px 内边距 */
 }
 
 .square-header {
@@ -280,7 +295,7 @@ defineExpose({
      注意：如果某些平台仍显示滚动指示，可考虑在容器内增加额外的内边距以弱化视觉干扰。
    */
   overflow-y: auto;
-  padding: 24px;
+  padding: 4px;
   scroll-behavior: smooth;
 }
 

@@ -159,7 +159,12 @@ onUnmounted(() => {
    width: 100%;
    max-width: none; 
    margin: 0; 
-   padding: 16px;
+   /* 视觉优化：移除容器左右安全边距，避免出现额外留白
+      说明：
+      - 此处原为 padding:16px，会与内部 .square-header/.content-scroll 的内边距叠加，导致左右出现较宽空白；
+      - 将容器 padding 改为 0，保留内部元素自身的内边距（header=24px，content=24px），整体更贴近“占满右侧列”效果；
+      - 如需在移动端保留更小的安全边距，可后续通过媒体查询为 .content-scroll 设置较小 padding。 */
+   padding: 0px;
    /* 设置广场标题高度为 12px：最小化标题占用空间
       说明：`.square-header` 使用 min-height，因此总高度≈min-height+padding；
       我们将上下内边距设为 0，以使总高度尽量接近 12px。

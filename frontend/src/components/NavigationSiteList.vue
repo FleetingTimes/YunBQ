@@ -316,8 +316,8 @@ onUnmounted(() => {
   padding: 0; 
   display: grid; 
   /* 网格布局：一行显示4个站点，每个站点最小宽度180px，自适应分配剩余空间 */
-  grid-template-columns: repeat(4, minmax(180px, 1fr)); 
-  gap: 8px; 
+  grid-template-columns: repeat(5, minmax(180px, 1fr)); 
+  gap: 16px; 
 }
 
 .note-item { 

@@ -176,7 +176,7 @@ function onChildClick(id){
 /* 侧边栏总体布局：窄列、粘性定位、竖向导航，支持滚动 */
 .side-nav { 
   /* 组件整体宽度：集中由 CSS 变量控制，默认 200px，可通过 prop 覆盖 */
-  width: var(--side-nav-width, 200px); 
+  width: var(--side-nav-width, 400px); 
   flex: none; 
   position: sticky; 
   /* 垂直偏移（向下移动）
@@ -184,7 +184,7 @@ function onChildClick(id){
      通过 top 控制它在滚动容器顶部的贴附位置。
      将该值改为更大可使侧栏整体“向下”移动。
      可通过父容器声明 CSS 变量 --side-nav-offset-y 自定义此值。 */
-  top: var(--side-nav-offset-y, 16px); 
+  top: var(--side-nav-offset-y, 80px); 
   /* 水平偏移（向右移动）
      说明：sticky 元素相对其所在的布局列对齐；
      使用 margin-left 可以为侧栏在该列中增加向右的空隙。
@@ -202,7 +202,7 @@ function onChildClick(id){
 }
 /* 撤销：移除 fixed-left 固定定位样式，保持粘性定位 */
 .nav-title { font-weight: 600; color: #303133; margin-bottom: 8px; }
-.nav-list { list-style: none; margin: 0; padding: 0; margin-left: 120px; /* 添加左边距，增强导航层次感 */ }
+.nav-list { list-style: none; margin: 0; padding: 0; margin-left: 80px; /* 添加左边距，增强导航层次感 */ }
 .nav-list li { display: block; margin: 6px 0; }
 .nav-list li.has-children > a { display: inline-block; margin-bottom: 6px; }
 .nav-list a { display: inline-block; padding: 6px 8px; border-radius: 6px; color: #606266; text-decoration: none; transition: background-color .15s ease; }
