@@ -244,7 +244,7 @@ const { solid = false, transparent = false, fluid = false } = defineProps({
 import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { http, avatarFullUrl } from '@/api/http'
-import { clearToken } from '@/utils/auth'
+import { clearToken, getToken } from '@/utils/auth'
 import { ElMessage } from 'element-plus'
 
 const emit = defineEmits(['search'])
@@ -453,19 +453,24 @@ function goNotes(){
   // - 顶栏“添加便签”按钮与头像悬停卡片的“添加便签”均复用此跳转；
   // - 交互保持一致性，避免出现两个入口逻辑不一致的情况；
   profileVisible.value = false
+  // 需求变更：未登录时不要跳转登录，仅提示“请先登录”
+  // 说明：使用 token 判断登录态，避免顶栏 me 状态未刷新导致误判
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
   router.push('/notes')
 }
 function goMessages(){
-  // 改为“始终发起跳转”，未登录时交由路由守卫 (meta.requiresAuth) 统一重定向到登录页
-  // 原逻辑依赖顶栏的 me.username（authed）判断，登录后未刷新顶栏可能导致误判为未登录从而阻断跳转
+  // 需求变更：未登录点击“消息”不重定向登录，仅弹出提示
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
   router.push('/messages')
 }
 function goLikes(){
-  // 喜欢页需要登录：让路由守卫处理未登录情况，避免顶栏状态未刷新时阻断跳转
+  // 需求变更：未登录点击“喜欢”不重定向登录，仅弹出提示
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
   router.push('/likes')
 }
 function goFavorites(){
-  // 收藏页需要登录：同上，统一交给路由守卫判断
+  // 需求变更：未登录点击“收藏”不重定向登录，仅弹出提示
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
   router.push('/favorites')
 }
 // 顶栏已不再使用“历史记录”入口（已改为“添加便签”并交换位置），
