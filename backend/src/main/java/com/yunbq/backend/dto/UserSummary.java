@@ -14,4 +14,14 @@ public class UserSummary {
     private String email;
     private String role;
     private java.time.LocalDateTime createdAt;
+    /**
+     * 头像地址（相对路径或完整 URL）。
+     * 前端可根据部署情况拼接成可访问的完整资源地址。
+     */
+    private String avatarUrl;
+    /**
+     * 是否已设置密码（不返回真实密码或哈希）。
+     * 说明：用于在管理界面上显示“已设置/未设置”的状态标签。
+     */
+    private boolean hasPassword;
 }

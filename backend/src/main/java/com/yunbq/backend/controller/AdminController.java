@@ -73,9 +73,20 @@ public class AdminController {
         }
         qw.orderByDesc("id");
         Page<User> p = userMapper.selectPage(Page.of(page, size), qw);
-        List<UserSummary> items = p.getRecords().stream().map(u -> new UserSummary(
-                u.getId(), u.getUsername(), u.getNickname(), u.getEmail(), u.getRole(), u.getCreatedAt()
-        )).collect(Collectors.toList());
+        // 映射用户列表到摘要，补充头像地址与密码状态（不暴露真实密码或哈希）
+        List<UserSummary> items = p.getRecords().stream().map(u -> {
+            boolean hasPassword = u.getPasswordHash() != null && !u.getPasswordHash().isBlank();
+            return new UserSummary(
+                u.getId(),
+                u.getUsername(),
+                u.getNickname(),
+                u.getEmail(),
+                u.getRole(),
+                u.getCreatedAt(),
+                u.getAvatarUrl(),
+                hasPassword
+            );
+        }).collect(Collectors.toList());
         PageResult<UserSummary> resp = new PageResult<>(items, p.getTotal(), p.getCurrent(), p.getSize());
         return ResponseEntity.ok(resp);
     }

@@ -18,12 +18,37 @@
       />
     </div>
 
+    <!--
+      用户列表表格：展示基础信息 + 头像地址 + 密码状态
+      说明：
+      - 密码不展示真实值，仅展示“已设置/未设置”状态标签；
+      - 头像地址显示为可点击链接，同时展示 32×32 缩略图；
+      - 角色沿用后端返回的字符串（ADMIN/USER）。
+    -->
     <el-table :data="items" v-loading="loading" border stripe style="width:100%">
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="username" label="用户名" width="160" />
       <el-table-column prop="nickname" label="昵称" width="160" />
       <el-table-column prop="email" label="邮箱" width="220" />
       <el-table-column prop="role" label="角色" width="120" />
+      <!-- 密码状态列：不显示密码，仅显示是否已设置 -->
+      <el-table-column label="密码" width="120">
+        <template #default="{ row }">
+          <el-tag :type="row.hasPassword ? 'success' : 'warning'">
+            {{ row.hasPassword ? '已设置' : '未设置' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <!-- 头像地址列：显示缩略图与可点击链接 -->
+      <el-table-column label="头像地址" width="260">
+        <template #default="{ row }">
+          <div class="avatar-cell" v-if="row.avatarUrl">
+            <img :src="avatarFullUrl(row.avatarUrl)" alt="avatar" class="avatar-thumb" />
+            <a :href="avatarFullUrl(row.avatarUrl)" target="_blank" rel="noopener">{{ avatarFullUrl(row.avatarUrl) }}</a>
+          </div>
+          <span v-else class="text-muted">(无)</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" />
     </el-table>
 
@@ -59,6 +84,22 @@ const q = ref('');
 // 导入相关状态与引用
 const importing = ref(false);
 const userImportInput = ref(null);
+
+/**
+ * 将后端返回的头像地址转换为可访问的完整 URL。
+ * 兼容情况：
+ * - 若已是完整 URL（以 http:// 或 https:// 开头）直接返回；
+ * - 若为相对路径（如 /uploads/avatars/xxx.png），拼接后端基础地址。
+ */
+function avatarFullUrl(url) {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  // 约定：后端上传目录通过静态资源映射为 /uploads/** 可直接访问；
+  // 若生产环境有反向代理，请将 BASE_API 指向网关域名。
+  const BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080/api';
+  // 当 url 已以 / 开头，去掉 api 前缀，确保访问的是静态资源路径
+  return url.startsWith('/') ? (BASE.replace(/\/api$/, '') + url) : (BASE.replace(/\/api$/, '') + '/' + url);
+}
 
 async function fetchData() {
   loading.value = true;
@@ -142,4 +183,8 @@ async function onUserFileChange(e) {
 .admin-users { display: grid; grid-template-rows: auto 1fr auto; gap: 12px; }
 .toolbar { display: flex; align-items: center; gap: 8px; }
 .pager { display: flex; justify-content: flex-end; }
+/* 头像缩略图样式：32x32，圆角 */
+.avatar-cell { display: flex; align-items: center; gap: 8px; }
+.avatar-thumb { width: 32px; height: 32px; border-radius: 4px; object-fit: cover; }
+.text-muted { color: #999; }
 </style>
