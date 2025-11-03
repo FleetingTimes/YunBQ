@@ -12,8 +12,22 @@
         <div class="page-header">
           <h2>我喜欢的</h2>
         </div>
-        <DanmuWall :items="danmuItems" :rows="6" :speed-scale="1.35" />
-        <div class="year-groups">
+        <!-- 空状态：当非加载中且没有任何“喜欢”的便签时，展示友好引导 -->
+        <!-- 设计说明：
+             - 使用 Element Plus 的 ElEmpty（<el-empty>）组件展示占位图片与文案；
+             - 不强制使用自定义图片，默认内置图片即可；如需品牌化可将 emptyImage 替换为你的 URL；
+             - 提供引导按钮跳转到“广场”页，鼓励用户去浏览并点赞。 -->
+        <div class="empty-wrap" v-if="isEmpty">
+          <el-empty :image="emptyImage" description="喜欢列表为空，快去添加喜欢的便签">
+            <el-button type="primary" @click="goExplore">去广场看看</el-button>
+          </el-empty>
+        </div>
+
+        <!-- 弹幕墙：仅在非空时展示，用于增强页面动效与氛围 -->
+        <DanmuWall v-if="!isEmpty" :items="danmuItems" :rows="6" :speed-scale="1.35" />
+
+        <!-- 年份分组时间线：在非空时按年分组展示喜欢的便签列表 -->
+        <div class="year-groups" v-if="!isEmpty">
           <div v-for="g in yearGroups" :key="g.year" class="year-group">
             <div class="year-header">
               <span class="year-title">{{ g.year }}</span>
@@ -42,7 +56,7 @@
              - 当列表靠近底部时，自动请求下一页并追加到现有数组；
              - 同时提供按钮手动触发，便于桌面端调试与回退；
              - 当 hasNext=false 或正在加载时禁用按钮。 -->
-        <div class="load-more" v-if="hasNext || isLoading">
+        <div class="load-more" v-if="!isEmpty && (hasNext || isLoading)">
           <button class="load-btn" :disabled="!hasNext || isLoading" @click="loadMore">{{ isLoading ? '加载中…' : '加载更多' }}</button>
           <div ref="loadMoreSentinel" class="load-sentinel" aria-hidden="true"></div>
         </div>
@@ -63,6 +77,10 @@ const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
 
 const query = ref('')
 const danmuItems = ref([])
+// 空状态计算：当“未在加载中且列表为空”时视为空
+const isEmpty = computed(() => !isLoading.value && danmuItems.value.length === 0)
+// 空状态图片：留空使用 Element Plus 默认图片；如需品牌化可设置为自定义图片 URL
+const emptyImage = ''
 // 服务端分页状态（响应式）
 // - page/size 控制请求翻页；
 // - total/hasNext 基于服务端 total 计算是否还有下一页；
@@ -89,6 +107,14 @@ onMounted(() => {
   setupInfiniteScroll()
 })
 onUnmounted(() => { teardownInfiniteScroll() })
+
+/**
+ * 跳转到广场（首页）进行浏览与点赞
+ * 说明：广场路径为 '/'（参见 router/index.js），使用 hash 路由进行跳转。
+ */
+function goExplore(){
+  try{ window.location.hash = '#/' }catch{}
+}
 
 function normalizeNote(it){
   return {
@@ -264,6 +290,12 @@ function sampleDanmu(){
 .year-group { margin-bottom: 16px; }
 .year-header { display:flex; align-items:center; padding:10px 12px; border-radius:12px; background:#ffffff; box-shadow: 0 6px 20px rgba(0,0,0,0.06); position: sticky; top: 6px; z-index: 10; }
 .year-title { font-size:22px; font-weight:700; color:#303133; letter-spacing:0.5px; }
+/* 空状态容器：居中布局，适度留白 */
+.empty-wrap { display:flex; align-items:center; justify-content:center; padding: 48px 12px; }
+/* 调整空状态图片尺寸与自适应 */
+:deep(.el-empty__image) { width: 160px; height: auto; }
+/* 空状态文案颜色与间距 */
+:deep(.el-empty__description) { color:#909399; margin-top: 8px; }
 /* 隐藏便签卡片上的公开/私有标签，仅保留作者标签 */
 :deep(.meta.bottom-left .el-tag--success),
 :deep(.meta.bottom-left .el-tag--info) {
