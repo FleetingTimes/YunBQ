@@ -30,6 +30,72 @@ public class NavigationSiteService {
         this.siteMapper = siteMapper;
         this.categoryMapper = categoryMapper;
     }
+
+    /**
+     * 获取所有站点（管理员导出使用）
+     * 返回按排序权重升序、ID 升序的完整站点列表。
+     *
+     * 设计说明：
+     * - 导出功能需要全量数据，不做启用状态筛选；
+     * - 通过 MyBatis-Plus 的 QueryWrapper 指定排序；
+     * - 如后续需要按时间、用户等维度筛选，可在 Controller 接口参数中扩展并在此处应用条件。
+     */
+    public java.util.List<NavigationSite> getAllSites() {
+        return siteMapper.selectList(
+            new QueryWrapper<NavigationSite>()
+                .orderByAsc("sort_order", "id")
+        );
+    }
+
+    /**
+     * 将站点列表导出为 CSV 字符串
+     *
+     * CSV 格式约定：
+     * - 第一行是表头，字段顺序与 NavigationSite 属性一致（便于导入与对齐）；
+     * - 文本字段统一进行转义：包含逗号、双引号、换行时使用双引号包裹，并将内部双引号替换为两个双引号；
+     * - 空值输出为空字符串；
+     * - 时间字段使用 toString()（ISO-8601），便于后续解析。
+     */
+    public String exportSitesToCsv(java.util.List<NavigationSite> sites) {
+        StringBuilder sb = new StringBuilder();
+        // 表头
+        sb.append("id,categoryId,name,url,description,icon,faviconUrl,tags,sortOrder,isEnabled,isFeatured,clickCount,userId,createdAt,updatedAt\n");
+        for (NavigationSite s : sites) {
+            sb.append(csv(s.getId())).append(',')
+              .append(csv(s.getCategoryId())).append(',')
+              .append(csv(s.getName())).append(',')
+              .append(csv(s.getUrl())).append(',')
+              .append(csv(s.getDescription())).append(',')
+              .append(csv(s.getIcon())).append(',')
+              .append(csv(s.getFaviconUrl())).append(',')
+              .append(csv(s.getTags())).append(',')
+              .append(csv(s.getSortOrder())).append(',')
+              .append(csv(s.getIsEnabled())).append(',')
+              .append(csv(s.getIsFeatured())).append(',')
+              .append(csv(s.getClickCount())).append(',')
+              .append(csv(s.getUserId())).append(',')
+              .append(csv(s.getCreatedAt())).append(',')
+              .append(csv(s.getUpdatedAt())).append('\n');
+        }
+        return sb.toString();
+    }
+
+    /**
+     * CSV 字段转义工具
+     * 规则：
+     * - null 输出为空；
+     * - 将值转为字符串；
+     * - 若包含逗号、双引号、换行（\n/\r），则使用双引号包裹，并将内部双引号替换为两个双引号。
+     */
+    private String csv(Object val) {
+        if (val == null) return "";
+        String str = String.valueOf(val);
+        String escaped = str.replace("\"", "\"\"");
+        if (str.contains(",") || str.contains("\"") || str.contains("\n") || str.contains("\r")) {
+            return "\"" + escaped + "\"";
+        }
+        return escaped;
+    }
     
     /**
      * 根据分类ID获取站点列表

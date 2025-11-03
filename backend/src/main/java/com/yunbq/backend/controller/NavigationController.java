@@ -10,12 +10,15 @@ import com.yunbq.backend.util.AuthUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
+import java.nio.charset.StandardCharsets;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * 导航控制器
@@ -32,10 +35,17 @@ public class NavigationController {
     
     private final NavigationCategoryService categoryService;
     private final NavigationSiteService siteService;
+    // 使用 Spring 管理的 ObjectMapper（已注册 JavaTimeModule 等），避免 LocalDateTime 序列化失败
+    private final ObjectMapper objectMapper;
     
-    public NavigationController(NavigationCategoryService categoryService, NavigationSiteService siteService) {
+    public NavigationController(
+            NavigationCategoryService categoryService,
+            NavigationSiteService siteService,
+            ObjectMapper objectMapper
+    ) {
         this.categoryService = categoryService;
         this.siteService = siteService;
+        this.objectMapper = objectMapper;
     }
     
     // ==================== 分类相关接口 ====================
@@ -186,6 +196,52 @@ public class NavigationController {
         } catch (Exception e) {
             log.error("Failed to update categories order: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /**
+     * 导出全部分类（管理员接口）
+     * 支持 CSV 和 JSON 格式导出
+     * 
+     * @param format 导出格式，支持 csv（默认）和 json
+     * @return 导出的文件数据
+     */
+    @GetMapping("/admin/categories/export")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> exportAllCategories(@RequestParam(defaultValue = "csv") String format) {
+        log.info("[NavigationController] GET /api/navigation/admin/categories/export called, format={}", format);
+        try {
+            // 获取所有分类数据（包括一级和二级分类）
+            List<NavigationCategory> categories = categoryService.getAllCategories();
+            final String lower = format == null ? "csv" : format.toLowerCase();
+            
+            if ("json".equals(lower)) {
+                // JSON 导出：使用 Jackson 序列化为字节数组
+                // 说明：
+                // - 以二进制（octet-stream）形式返回，避免部分浏览器或前端库对 application/json 的特殊处理；
+                // - 通过 Content-Disposition: attachment 指示下载，文件名为 categories.json。
+                // 使用 Spring 注入的 objectMapper，确保已注册 JavaTimeModule 支持 LocalDateTime
+                byte[] json = objectMapper.writeValueAsBytes(categories);
+                return ResponseEntity.ok()
+                        .header("Content-Disposition", "attachment; filename=categories.json")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(json);
+            } else {
+                // CSV 导出：由服务层生成带表头的 CSV 文本
+                // 乱码修复：
+                // - 为了在 Windows Excel 中正确识别 UTF-8 中文，需在文本前添加 BOM（\uFEFF）；
+                // - 同时设置 Content-Type 为 text/csv; charset=UTF-8。
+                String csv = categoryService.exportCategoriesToCsv(categories);
+                String withBom = "\uFEFF" + csv; // 前置 UTF-8 BOM
+                byte[] bytes = withBom.getBytes(StandardCharsets.UTF_8);
+                return ResponseEntity.ok()
+                        .header("Content-Disposition", "attachment; filename=categories.csv")
+                        .contentType(MediaType.valueOf("text/csv; charset=UTF-8"))
+                        .body(bytes);
+            }
+        } catch (Exception e) {
+            log.error("Failed to export categories: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("导出失败".getBytes(StandardCharsets.UTF_8));
         }
     }
     
@@ -390,6 +446,51 @@ public class NavigationController {
         } catch (Exception e) {
             log.error("Failed to toggle site featured {}: {}", id, e.getMessage());
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 一键导出所有站点信息（管理员接口）
+     *
+     * 功能说明：
+     * - 支持导出为 CSV 或 JSON（通过 format 参数指定，默认 csv）；
+     * - 设置 Content-Disposition 为附件下载，文件名根据格式自动切换；
+     * - CSV 使用 UTF-8 编码，包含表头；JSON 使用标准数组格式。
+     */
+    @GetMapping("/admin/sites/export")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<byte[]> exportAllSites(@RequestParam(defaultValue = "csv") String format) {
+        log.info("[NavigationController] GET /api/navigation/admin/sites/export called, format={}", format);
+        try {
+            List<NavigationSite> sites = siteService.getAllSites();
+            final String lower = format == null ? "csv" : format.toLowerCase();
+            if ("json".equals(lower)) {
+                // JSON 导出：使用 Jackson 序列化为字节数组
+                // 说明：
+                // - 以二进制（octet-stream）形式返回，避免部分浏览器或前端库对 application/json 的特殊处理；
+                // - 通过 Content-Disposition: attachment 指示下载，文件名为 sites.json。
+                // 使用 Spring 注入的 objectMapper，确保已注册 JavaTimeModule 支持 LocalDateTime
+                byte[] json = objectMapper.writeValueAsBytes(sites);
+                return ResponseEntity.ok()
+                        .header("Content-Disposition", "attachment; filename=sites.json")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(json);
+            } else {
+                // CSV 导出：由服务层生成带表头的 CSV 文本
+                // 乱码修复：
+                // - 为了在 Windows Excel 中正确识别 UTF-8 中文，需在文本前添加 BOM（\uFEFF）；
+                // - 同时设置 Content-Type 为 text/csv; charset=UTF-8。
+                String csv = siteService.exportSitesToCsv(sites);
+                String withBom = "\uFEFF" + csv; // 前置 UTF-8 BOM
+                byte[] bytes = withBom.getBytes(StandardCharsets.UTF_8);
+                return ResponseEntity.ok()
+                        .header("Content-Disposition", "attachment; filename=sites.csv")
+                        .contentType(MediaType.valueOf("text/csv; charset=UTF-8"))
+                        .body(bytes);
+            }
+        } catch (Exception e) {
+            log.error("Failed to export sites: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("导出失败".getBytes(StandardCharsets.UTF_8));
         }
     }
     

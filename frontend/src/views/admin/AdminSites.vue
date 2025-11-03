@@ -24,6 +24,19 @@
           <el-icon><Plus /></el-icon>
           添加站点
         </el-button>
+        <!-- 导出功能：一键导出所有站点信息（CSV/JSON） -->
+        <el-dropdown style="margin-left: 10px;">
+          <el-button type="success">
+            导出全部站点
+            <el-icon style="margin-left:4px"><Link /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="exportAll('csv')">导出为 CSV</el-dropdown-item>
+              <el-dropdown-item @click="exportAll('json')">导出为 JSON</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
@@ -209,6 +222,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Link } from '@element-plus/icons-vue'
 import { http } from '@/api/http'
+// 导出 API：封装的导出接口（获取 Blob）
+import { exportAllSites } from '@/api/navigation'
 // 引入通用图标选择组件，用于图标类名或URL选择
 // 撤回：不再使用图标选择器组件，恢复为文本输入
 
@@ -517,6 +532,38 @@ const handleCascaderChange = (value) => {
     }
   } else {
     cascaderValue.value = []
+  }
+}
+
+// 一键导出所有站点
+// 说明：
+// - 调用后端 /navigation/admin/sites/export 接口获取 Blob（二进制）；
+// - 根据 format 设置文件名与 MIME 类型；
+// - 通过创建临时 <a> 标签触发浏览器下载；
+// - 成功后提示，失败时给出错误信息。
+const exportAll = async (format = 'csv') => {
+  try {
+    const resp = await exportAllSites(format)
+    const blob = resp?.data
+    if (!blob) throw new Error('导出失败：未获取到文件内容')
+
+    // 修复：直接使用后端返回的 Blob，不要二次包装
+    // 后端已经设置了正确的 Content-Type，axios responseType: 'blob' 会自动处理
+    const filename = format === 'json' ? 'sites.json' : 'sites.csv'
+    
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    ElMessage.success('导出成功，正在下载文件…')
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error(error?.message || '导出失败')
   }
 }
 

@@ -33,6 +33,25 @@
           <el-icon><Plus /></el-icon>
           添加导航分类
         </el-button>
+        <!-- 导出全部分类：支持 CSV 与 JSON 格式 -->
+        <!-- 设计说明：
+             - 通过后端 /navigation/admin/categories/export 接口获取二进制数据（Blob）；
+             - CSV 响应包含 UTF-8 BOM 并设置 text/csv; charset=UTF-8，避免 Windows Excel 中文乱码；
+             - JSON 响应为 application/octet-stream，避免浏览器对 application/json 的特殊行为；
+             - 前端不进行 Blob 的二次包装，直接创建下载链接。
+        -->
+        <el-dropdown @command="exportAll">
+          <el-button>
+            导出全部分类
+            <el-icon style="margin-left: 4px"><i class="fa fa-download" /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="csv">导出为 CSV</el-dropdown-item>
+              <el-dropdown-item command="json">导出为 JSON</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
     </div>
 
@@ -213,6 +232,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 // 撤回：不再使用图标选择器组件
 import { Plus } from '@element-plus/icons-vue'
 import { http } from '@/api/http'
+// 导出 API：调用后端分类导出接口
+import { exportAllCategories } from '@/api/navigation'
 
 // 响应式数据
 const loading = ref(false)
@@ -535,6 +556,33 @@ const openAddDialog = () => {
 const isClassIcon = (val) => {
   if (!val) return false
   return /\bfa[srb]?\b/.test(val) || /\bfa-/.test(val)
+}
+
+// 导出全部分类
+// 说明：
+// - 参数 format 取值 'csv' 或 'json'；默认为 'csv'。
+// - 直接使用后端返回的 Blob 创建下载链接，文件名随格式变更。
+const exportAll = async (format = 'csv') => {
+  try {
+    const resp = await exportAllCategories(format)
+    const blob = resp?.data
+    if (!blob) {
+      ElMessage.error('导出失败：未获取到文件数据')
+      return
+    }
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = format === 'json' ? 'categories.json' : 'categories.csv'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('分类导出成功')
+  } catch (e) {
+    console.error('导出分类失败:', e)
+    ElMessage.error('导出分类失败')
+  }
 }
 
 

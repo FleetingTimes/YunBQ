@@ -15,6 +15,7 @@ import com.yunbq.backend.model.RequestLog;
 import com.yunbq.backend.model.AuthLog;
 import com.yunbq.backend.model.ErrorLog;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,17 +35,23 @@ public class AdminController {
     private final RequestLogMapper requestLogMapper;
     private final AuthLogMapper authLogMapper;
     private final ErrorLogMapper errorLogMapper;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final com.yunbq.backend.service.LogService logService;
 
     public AdminController(UserMapper userMapper,
                            AuditLogMapper auditLogMapper,
                            RequestLogMapper requestLogMapper,
                            AuthLogMapper authLogMapper,
-                           ErrorLogMapper errorLogMapper) {
+                           ErrorLogMapper errorLogMapper,
+                           com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+                           com.yunbq.backend.service.LogService logService) {
         this.userMapper = userMapper;
         this.auditLogMapper = auditLogMapper;
         this.requestLogMapper = requestLogMapper;
         this.authLogMapper = authLogMapper;
         this.errorLogMapper = errorLogMapper;
+        this.objectMapper = objectMapper;
+        this.logService = logService;
     }
 
     @GetMapping("/health")
@@ -90,6 +97,35 @@ public class AdminController {
         return ResponseEntity.ok(resp);
     }
 
+    /**
+     * 导出审计日志（支持 csv 或 json）。
+     * 说明：JSON 导出直接序列化到字节；CSV 导出通过服务层构建文本并添加 UTF-8 BOM。
+     */
+    @GetMapping("/logs/export")
+    @PreAuthorize("hasRole('ADMIN')")
+    public org.springframework.http.ResponseEntity<byte[]> exportAuditLogs(
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam(required = false) String level
+    ) throws Exception {
+        java.util.List<AuditLog> items = logService.listAuditLogs(level);
+        String filename = "audit-logs." + ("json".equalsIgnoreCase(format) ? "json" : "csv");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=" + filename);
+        if ("json".equalsIgnoreCase(format)) {
+            byte[] json = objectMapper.writeValueAsBytes(items);
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM); // 使用通用类型便于前端 blob 下载
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(json);
+        } else {
+            String csv = logService.exportAuditLogsToCsv(items);
+            byte[] bom = new byte[]{(byte)0xEF, (byte)0xBB, (byte)0xBF};
+            byte[] bytes = (new java.io.ByteArrayOutputStream(){
+                { try { this.write(bom); this.write(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)); } catch (java.io.IOException ignored) {} }
+            }).toByteArray();
+            headers.setContentType(MediaType.valueOf("text/csv; charset=UTF-8"));
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(bytes);
+        }
+    }
+
     @GetMapping("/request-logs")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResult<RequestLog>> listRequestLogs(
@@ -109,6 +145,36 @@ public class AdminController {
         Page<RequestLog> p = requestLogMapper.selectPage(Page.of(page, size), qw);
         PageResult<RequestLog> resp = new PageResult<>(p.getRecords(), p.getTotal(), p.getCurrent(), p.getSize());
         return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 导出请求日志（支持 csv 或 json），可带筛选。
+     */
+    @GetMapping("/request-logs/export")
+    @PreAuthorize("hasRole('ADMIN')")
+    public org.springframework.http.ResponseEntity<byte[]> exportRequestLogs(
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam(required = false) String uri,
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) String requestId
+    ) throws Exception {
+        java.util.List<RequestLog> items = logService.listRequestLogs(uri, status, requestId);
+        String filename = "request-logs." + ("json".equalsIgnoreCase(format) ? "json" : "csv");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=" + filename);
+        if ("json".equalsIgnoreCase(format)) {
+            byte[] json = objectMapper.writeValueAsBytes(items);
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(json);
+        } else {
+            String csv = logService.exportRequestLogsToCsv(items);
+            byte[] bom = new byte[]{(byte)0xEF, (byte)0xBB, (byte)0xBF};
+            byte[] bytes = (new java.io.ByteArrayOutputStream(){
+                { try { this.write(bom); this.write(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)); } catch (java.io.IOException ignored) {} }
+            }).toByteArray();
+            headers.setContentType(MediaType.valueOf("text/csv; charset=UTF-8"));
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(bytes);
+        }
     }
 
     @GetMapping("/auth-logs")
@@ -132,6 +198,36 @@ public class AdminController {
         return ResponseEntity.ok(resp);
     }
 
+    /**
+     * 导出认证日志（支持 csv 或 json），可带筛选。
+     */
+    @GetMapping("/auth-logs/export")
+    @PreAuthorize("hasRole('ADMIN')")
+    public org.springframework.http.ResponseEntity<byte[]> exportAuthLogs(
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam(required = false) Boolean success,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String requestId
+    ) throws Exception {
+        java.util.List<AuthLog> items = logService.listAuthLogs(success, username, requestId);
+        String filename = "auth-logs." + ("json".equalsIgnoreCase(format) ? "json" : "csv");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=" + filename);
+        if ("json".equalsIgnoreCase(format)) {
+            byte[] json = objectMapper.writeValueAsBytes(items);
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(json);
+        } else {
+            String csv = logService.exportAuthLogsToCsv(items);
+            byte[] bom = new byte[]{(byte)0xEF, (byte)0xBB, (byte)0xBF};
+            byte[] bytes = (new java.io.ByteArrayOutputStream(){
+                { try { this.write(bom); this.write(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)); } catch (java.io.IOException ignored) {} }
+            }).toByteArray();
+            headers.setContentType(MediaType.valueOf("text/csv; charset=UTF-8"));
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(bytes);
+        }
+    }
+
     @GetMapping("/error-logs")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResult<ErrorLog>> listErrorLogs(
@@ -149,5 +245,34 @@ public class AdminController {
         Page<ErrorLog> p = errorLogMapper.selectPage(Page.of(page, size), qw);
         PageResult<ErrorLog> resp = new PageResult<>(p.getRecords(), p.getTotal(), p.getCurrent(), p.getSize());
         return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 导出错误日志（支持 csv 或 json），可带筛选。
+     */
+    @GetMapping("/error-logs/export")
+    @PreAuthorize("hasRole('ADMIN')")
+    public org.springframework.http.ResponseEntity<byte[]> exportErrorLogs(
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam(required = false) String exception,
+            @RequestParam(required = false) String requestId
+    ) throws Exception {
+        java.util.List<ErrorLog> items = logService.listErrorLogs(exception, requestId);
+        String filename = "error-logs." + ("json".equalsIgnoreCase(format) ? "json" : "csv");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=" + filename);
+        if ("json".equalsIgnoreCase(format)) {
+            byte[] json = objectMapper.writeValueAsBytes(items);
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(json);
+        } else {
+            String csv = logService.exportErrorLogsToCsv(items);
+            byte[] bom = new byte[]{(byte)0xEF, (byte)0xBB, (byte)0xBF};
+            byte[] bytes = (new java.io.ByteArrayOutputStream(){
+                { try { this.write(bom); this.write(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)); } catch (java.io.IOException ignored) {} }
+            }).toByteArray();
+            headers.setContentType(MediaType.valueOf("text/csv; charset=UTF-8"));
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(bytes);
+        }
     }
 }

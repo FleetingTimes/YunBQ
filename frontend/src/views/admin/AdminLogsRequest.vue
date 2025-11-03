@@ -9,6 +9,18 @@
       <el-input v-model="requestId" placeholder="按 requestId 精确匹配" clearable style="width: 240px" />
       <el-button type="primary" :loading="loading" @click="reload">筛选</el-button>
       <el-button @click="reset">重置</el-button>
+      <!-- 导出请求日志：支持CSV/JSON；携带当前筛选条件 -->
+      <el-dropdown>
+        <el-button type="success">
+          导出请求日志<el-icon style="margin-left:4px"><i-ep-arrow-down /></el-icon>
+        </el-button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="exportAll('csv')">导出为 CSV</el-dropdown-item>
+            <el-dropdown-item @click="exportAll('json')">导出为 JSON</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
 
     <!-- 列表：请求日志数据 -->
@@ -47,6 +59,7 @@
 // 说明：requestId 可用于跨表串联到认证/错误日志页面，支持快速排障定位。
 import { ref, onMounted } from 'vue';
 import { http } from '@/api/http';
+import { exportRequestLogs } from '@/api/admin';
 
 const props = defineProps({ updateSummary: { type: Function, default: null } });
 
@@ -82,6 +95,26 @@ function onPageChange(p){ page.value = p; fetchData(); }
 function onSizeChange(s){ size.value = s; page.value = 1; fetchData(); }
 
 onMounted(fetchData);
+
+/**
+ * 导出请求日志（CSV/JSON）。
+ * 实现：调用后端导出接口获取Blob，创建临时链接并触发下载；文件名随格式变化。
+ */
+async function exportAll(format){
+  const params = {};
+  if (uri.value) params.uri = uri.value;
+  if (typeof status.value === 'number') params.status = status.value;
+  if (requestId.value) params.requestId = requestId.value;
+  const blob = await exportRequestLogs(params, format || 'csv');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `request-logs.${format==='json'?'json':'csv'}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 </script>
 
 <style scoped>

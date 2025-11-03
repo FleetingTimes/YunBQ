@@ -8,6 +8,18 @@
       </el-select>
       <el-button type="primary" :loading="loading" @click="reload">筛选</el-button>
       <el-button @click="reset">重置</el-button>
+      <!-- 导出审计日志：支持CSV/JSON；携带当前筛选条件 -->
+      <el-dropdown>
+        <el-button type="success">
+          导出审计日志<el-icon style="margin-left:4px"><i-ep-arrow-down /></el-icon>
+        </el-button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="exportAll('csv')">导出为 CSV</el-dropdown-item>
+            <el-dropdown-item @click="exportAll('json')">导出为 JSON</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
 
     <el-table :data="items" v-loading="loading" border stripe style="width:100%">
@@ -36,6 +48,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { http } from '@/api/http';
+import { exportAuditLogs } from '@/api/admin';
 
 const props = defineProps({ updateSummary: { type: Function, default: null } });
 
@@ -80,6 +93,24 @@ function onSizeChange(s) {
 }
 
 onMounted(fetchData);
+
+/**
+ * 导出审计日志（CSV/JSON）。
+ * 实现：调用后端导出接口获取Blob，创建临时链接并触发下载；文件名随格式变化。
+ */
+async function exportAll(format){
+  const params = {};
+  if (level.value) params.level = level.value;
+  const blob = await exportAuditLogs(params, format || 'csv');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `audit-logs.${format==='json'?'json':'csv'}`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 </script>
 
 <style scoped>

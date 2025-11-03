@@ -54,6 +54,68 @@ public class NavigationCategoryService {
     public List<NavigationCategory> getAllEnabledCategories() {
         return categoryMapper.selectAllEnabled();
     }
+
+    /**
+     * 获取所有分类（管理员导出使用）
+     * 返回包含一级与二级分类的完整列表，按父级、排序权重与ID升序。
+     * 
+     * 设计说明：
+     * - 导出功能通常需要全量数据，因此不对 is_enabled 做过滤；
+     * - 按 parent_id、sort_order、id 排序可以保证层级与顺序稳定，便于对齐；
+     * - 如需在导出时支持筛选条件（仅启用、仅某父级等），可在 Controller 扩展参数并在此处应用条件。
+     */
+    public List<NavigationCategory> getAllCategories() {
+        return categoryMapper.selectList(
+            new QueryWrapper<NavigationCategory>()
+                .orderByAsc("parent_id", "sort_order", "id")
+        );
+    }
+
+    /**
+     * 将分类列表导出为 CSV 字符串
+     * 
+     * CSV 格式约定：
+     * - 第一行是表头，字段顺序与 NavigationCategory 属性一致（便于导入与比对）；
+     * - 文本字段统一进行转义：包含逗号、双引号、换行时使用双引号包裹，并将内部双引号替换为两个双引号；
+     * - 空值输出为空字符串；
+     * - 时间字段使用 toString()（ISO-8601），与站点导出保持一致，便于解析。
+     */
+    public String exportCategoriesToCsv(List<NavigationCategory> categories) {
+        StringBuilder sb = new StringBuilder();
+        // 表头：与实体字段的 camelCase 保持一致
+        sb.append("id,parentId,name,icon,description,sortOrder,isEnabled,createdAt,updatedAt\n");
+        for (NavigationCategory c : categories) {
+            sb.append(csv(c.getId())).append(',')
+              .append(csv(c.getParentId())).append(',')
+              .append(csv(c.getName())).append(',')
+              .append(csv(c.getIcon())).append(',')
+              .append(csv(c.getDescription())).append(',')
+              .append(csv(c.getSortOrder())).append(',')
+              .append(csv(c.getIsEnabled())).append(',')
+              .append(csv(c.getCreatedAt())).append(',')
+              .append(csv(c.getUpdatedAt())).append('\n');
+        }
+        return sb.toString();
+    }
+
+    /**
+     * CSV 字段转义工具
+     * 规则：
+     * - null 输出为空；
+     * - 将值转为字符串；
+     * - 若包含逗号、双引号、换行（\n/\r），则使用双引号包裹，并将内部双引号替换为两个双引号。
+     * 
+     * 与 NavigationSiteService 中的实现保持一致，确保导出格式统一。
+     */
+    private String csv(Object val) {
+        if (val == null) return "";
+        String str = String.valueOf(val);
+        String escaped = str.replace("\"", "\"\"");
+        if (str.contains(",") || str.contains("\"") || str.contains("\n") || str.contains("\r")) {
+            return "\"" + escaped + "\"";
+        }
+        return escaped;
+    }
     
     /**
      * 分页查询导航分类

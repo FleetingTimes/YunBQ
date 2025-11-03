@@ -202,6 +202,24 @@ export function updateCategoriesOrder(categoryIds, parentId = null) {
 }
 
 /**
+ * 导出全部分类（管理员接口）
+ * @param {('csv'|'json')} format 导出格式，默认 'csv'
+ * @returns {Promise<Blob>} 返回二进制文件数据（Blob）
+ *
+ * 重要说明：
+ * - 后端响应头使用 `Content-Disposition: attachment` 指定文件名，`Content-Type` 为
+ *   CSV: `text/csv; charset=UTF-8`（含 UTF-8 BOM，保证 Windows Excel 中文不乱码）
+ *   JSON: `application/octet-stream`（避免浏览器对 `application/json` 的特殊处理）
+ * - 前端通过 `responseType: 'blob'` 获取二进制数据，直接用于下载，不进行二次包装。
+ */
+export function exportAllCategories(format = 'csv') {
+  return http.get('/navigation/admin/categories/export', {
+    responseType: 'blob',
+    params: { format }
+  })
+}
+
+/**
  * 分页查询导航站点（管理员接口）
  * @param {Object} params 查询参数
  * @returns {Promise} 返回分页结果
@@ -282,5 +300,22 @@ export function updateSitesOrder(siteIds, categoryId = null) {
   return http.put('/api/navigation/admin/sites/order', {
     siteIds,
     categoryId
+  })
+}
+
+/**
+ * 导出所有站点（管理员接口）
+ * @param {('csv'|'json')} format 导出格式，默认 'csv'
+ * @returns {Promise<Blob>} 返回文件二进制内容（Axios `data` 为 Blob）
+ *
+ * 说明：
+ * - 后端接口路径为 /navigation/admin/sites/export；
+ * - 通过 responseType: 'blob' 获取二进制，以便在前端触发下载；
+ * - 文件名及 MIME 类型在前端由调用方决定（CSV 为 text/csv，JSON 为 application/json）。
+ */
+export function exportAllSites(format = 'csv') {
+  return http.get('/navigation/admin/sites/export', {
+    params: { format },
+    responseType: 'blob'
   })
 }
