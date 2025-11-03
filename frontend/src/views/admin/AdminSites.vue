@@ -37,6 +37,17 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <!-- 导入站点：隐藏文件选择器 + 按钮触发，上传 JSON 文件 -->
+        <el-button type="success" :loading="importing" @click="triggerSiteImport" style="margin-left: 10px;">
+          导入站点
+        </el-button>
+        <input
+          ref="siteImportInput"
+          type="file"
+          accept="application/json,.json"
+          style="display:none"
+          @change="onSiteFileChange"
+        />
       </div>
     </div>
 
@@ -224,6 +235,8 @@ import { Plus, Link } from '@element-plus/icons-vue'
 import { http } from '@/api/http'
 // 导出 API：封装的导出接口（获取 Blob）
 import { exportAllSites } from '@/api/navigation'
+// 导入 API：批量导入站点
+import { importSites } from '@/api/navigation'
 // 引入通用图标选择组件，用于图标类名或URL选择
 // 撤回：不再使用图标选择器组件，恢复为文本输入
 
@@ -719,6 +732,45 @@ onMounted(() => {
     setFilterCascaderByCategoryId(selectedCategory.value)
   }
 })
+
+// 导入站点相关引用与状态
+const siteImportInput = ref(null)
+const importing = ref(false)
+
+/**
+ * 触发站点导入的隐藏文件选择器
+ */
+function triggerSiteImport() {
+  siteImportInput.value?.click()
+}
+
+/**
+ * 处理选择的站点导入文件并调用后端接口
+ * 成功后刷新分类与站点列表，确保分类名显示正确。
+ */
+async function onSiteFileChange(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  if (!file.name.endsWith('.json')) {
+    ElMessage.error('请选择 JSON 文件（后缀 .json）')
+    e.target.value = ''
+    return
+  }
+  importing.value = true
+  try {
+    const result = await importSites(file)
+    ElMessage.success(`导入完成：总计 ${result.total}，新增 ${result.created}，更新 ${result.updated}`)
+    // 刷新分类与站点列表
+    await fetchCategories()
+    await fetchSitesList()
+  } catch (err) {
+    console.error('导入站点失败：', err)
+    ElMessage.error(`导入失败：${err?.message || '请检查文件格式与服务器日志'}`)
+  } finally {
+    importing.value = false
+    e.target.value = ''
+  }
+}
 </script>
 
 <style scoped>

@@ -45,3 +45,25 @@ export function exportErrorLogs(params = {}, format = 'csv') {
   return http.get('/admin/error-logs/export', { params: { ...params, format }, responseType: 'blob' })
     .then(res => res.data);
 }
+
+/**
+ * 批量导入用户数据（管理员接口）
+ *
+ * 使用 `multipart/form-data` 方式上传一个 JSON 文件，字段名固定为 `file`。
+ * 后端会根据 `email` 或 `username` 进行去重，存在则更新，不存在则创建；
+ * 并返回导入结果统计：{ total, created, updated, errors: [] }。
+ *
+ * 约定与注意事项：
+ * - JSON 文件内容必须是数组（例如：[{ username, email, nickname, password, role, ... }, ...]）。
+ * - 如果需要更新密码，请提供明文密码，后端会统一进行哈希处理；不提供则保留原密码。
+ * - 仅管理员可调用该接口；前端页面应在调用后刷新列表数据。
+ *
+ * @param {File} file 选择的 JSON 文件对象
+ * @returns {Promise<{ total: number, created: number, updated: number, errors: Array }>} 导入统计结果
+ */
+export function importUsers(file) {
+  const form = new FormData();
+  form.append('file', file);
+  // 注意：axios 在上传 FormData 时会自动设置合适的 Content-Type（含边界），无需手动指定
+  return http.post('/admin/users/import', form).then(res => res.data);
+}

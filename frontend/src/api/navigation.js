@@ -297,7 +297,8 @@ export function toggleSiteFeatured(id) {
  * @returns {Promise} 返回更新结果
  */
 export function updateSitesOrder(siteIds, categoryId = null) {
-  return http.put('/api/navigation/admin/sites/order', {
+  // 修正：baseURL 已包含 /api 前缀，这里不应再使用 /api 开头的路径
+  return http.put('/navigation/admin/sites/order', {
     siteIds,
     categoryId
   })
@@ -318,4 +319,34 @@ export function exportAllSites(format = 'csv') {
     params: { format },
     responseType: 'blob'
   })
+}
+
+/**
+ * 批量导入导航分类（管理员接口）
+ *
+ * 说明：上传 JSON 文件（数组），后端根据 `id` 或 `(name + parentId)` 去重，存在则更新，不存在则创建。
+ * 前端使用 FormData 并将文件字段命名为 `file`。
+ *
+ * @param {File} file JSON 文件对象
+ * @returns {Promise<{ total: number, created: number, updated: number, errors: Array }>} 导入统计结果
+ */
+export function importCategories(file) {
+  const form = new FormData();
+  form.append('file', file);
+  return http.post('/navigation/admin/categories/import', form).then(res => res.data);
+}
+
+/**
+ * 批量导入导航站点（管理员接口）
+ *
+ * 说明：上传 JSON 文件（数组），后端根据 `id`、`url` 或 `(name + categoryId)` 去重，存在则更新，不存在则创建。
+ * 前端使用 FormData 并将文件字段命名为 `file`。
+ *
+ * @param {File} file JSON 文件对象
+ * @returns {Promise<{ total: number, created: number, updated: number, errors: Array }>} 导入统计结果
+ */
+export function importSites(file) {
+  const form = new FormData();
+  form.append('file', file);
+  return http.post('/navigation/admin/sites/import', form).then(res => res.data);
 }

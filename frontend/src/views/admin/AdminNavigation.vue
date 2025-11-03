@@ -52,6 +52,17 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <!-- 导入分类：隐藏文件选择器 + 按钮触发，上传 JSON 文件 -->
+        <el-button type="success" :loading="importing" @click="triggerCategoryImport" style="margin-left: 10px;">
+          导入分类
+        </el-button>
+        <input
+          ref="categoryImportInput"
+          type="file"
+          accept="application/json,.json"
+          style="display:none"
+          @change="onCategoryFileChange"
+        />
       </div>
     </div>
 
@@ -234,6 +245,8 @@ import { Plus } from '@element-plus/icons-vue'
 import { http } from '@/api/http'
 // 导出 API：调用后端分类导出接口
 import { exportAllCategories } from '@/api/navigation'
+// 导入 API：批量导入分类
+import { importCategories } from '@/api/navigation'
 
 // 响应式数据
 const loading = ref(false)
@@ -545,6 +558,45 @@ onMounted(() => {
   fetchRootCategories()
   fetchNavigationList()
 })
+
+// 导入分类相关引用与状态
+const categoryImportInput = ref(null)
+const importing = ref(false)
+
+/**
+ * 触发分类导入的隐藏文件选择器
+ */
+function triggerCategoryImport() {
+  categoryImportInput.value?.click()
+}
+
+/**
+ * 处理选择的分类导入文件并调用后端接口
+ * 成功后刷新当前列表与根分类数据源，保证父级选择器最新。
+ */
+async function onCategoryFileChange(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  if (!file.name.endsWith('.json')) {
+    ElMessage.error('请选择 JSON 文件（后缀 .json）')
+    e.target.value = ''
+    return
+  }
+  importing.value = true
+  try {
+    const result = await importCategories(file)
+    ElMessage.success(`导入完成：总计 ${result.total}，新增 ${result.created}，更新 ${result.updated}`)
+    // 刷新列表与根分类数据源
+    await fetchRootCategories()
+    await fetchNavigationList()
+  } catch (err) {
+    console.error('导入分类失败：', err)
+    ElMessage.error(`导入失败：${err?.message || '请检查文件格式与服务器日志'}`)
+  } finally {
+    importing.value = false
+    e.target.value = ''
+  }
+}
 
 // 打开新增弹窗：同时刷新父级分类选项
 const openAddDialog = () => {
