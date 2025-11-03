@@ -117,7 +117,16 @@ async function remove(n){
 async function create(){
   if (!draft.content) { ElMessage.warning('请填写内容'); return }
   try{
-    const payload = { content: draft.content, is_public: draft.isPublic, tags: (draft.tags || '').trim(), color: (draft.color || '').trim() }
+    // 说明：后端 DTO（NoteRequest.java）字段为 camelCase 的 isPublic，
+    // 若使用 is_public（snake_case）将无法被 Jackson 默认命名策略绑定，导致后端取值为 null，
+    // 进而在服务层 Boolean.TRUE.equals(req.getIsPublic()) 为 false，最终保存为“私有”。
+    // 因此此处改为 isPublic，确保后端正确接收“公开/私有”选择。
+    const payload = {
+      content: draft.content,
+      isPublic: draft.isPublic,
+      tags: (draft.tags || '').trim(),
+      color: (draft.color || '').trim()
+    }
     const { data } = await http.post('/notes', payload)
     const createdId = data?.id ?? data?.note?.id ?? data?.data?.id ?? null
     if (createdId) justCreatedId.value = createdId; else justCreatedFirst.value = true
@@ -142,7 +151,14 @@ async function togglePublic(n){
   try{
     const tagsStr = Array.isArray(n.tags) ? n.tags.join(',') : (n.tags || '')
     const currentPublic = (n.isPublic ?? n.is_public ?? false)
-    const payload = { content: n.content, tags: tagsStr, archived: n.archived, is_public: !currentPublic, color: (n.color || '').trim() }
+    // 说明：更新请求同样使用 isPublic（camelCase）与后端 DTO 保持一致，避免因 is_public 未绑定导致始终保存为“私有”。
+    const payload = {
+      content: n.content,
+      tags: tagsStr,
+      archived: n.archived,
+      isPublic: !currentPublic,
+      color: (n.color || '').trim()
+    }
     await http.put(`/notes/${n.id}`, payload)
     ElMessage.success('已更新可见性')
     load()

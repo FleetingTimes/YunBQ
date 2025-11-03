@@ -626,7 +626,10 @@ async function saveEdit(n){
       content: contentClean,
       tags: finalTagsArr.join(','),
       archived: n.archived ?? false,
-      is_public: n.isPublicEdit,
+      // 说明：后端 NoteRequest.java 使用 camelCase 字段 isPublic，
+      // 之前发送 is_public（snake_case）未被绑定，导致公开状态丢失并按默认“私有”保存。
+      // 这里改为 isPublic，确保后端正确持久化用户的公开选择。
+      isPublic: n.isPublicEdit,
       color: (typeof n.color === 'string' ? n.color.trim() : '')
     };
     const { data } = await http.put(`/notes/${n.id}`, payload);
