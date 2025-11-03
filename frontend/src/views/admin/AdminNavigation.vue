@@ -3,10 +3,37 @@
     <!-- 页面标题和操作按钮 -->
     <div class="header">
       <h2>导航管理</h2>
-      <el-button type="primary" @click="openAddDialog">
-        <el-icon><Plus /></el-icon>
-        添加导航分类
-      </el-button>
+      <!-- 头部操作区：在“添加导航分类”左侧增加父分类筛选 -->
+      <div class="header-actions">
+        <!-- 父分类筛选（仅展示一级分类用于选择父级）
+             设计说明：
+             - 选择某个父分类后，列表将展示该父分类“本身”以及其“所有子分类”；
+             - 与站点管理的筛选不同，这里明确需要“包含子分类”，因此在前端进行组合：
+               1）请求后端 /navigation/admin/categories 接口，携带 parentId 参数拉取子分类；
+               2）从已加载的 rootCategories 中找到父分类实体，将其插入列表顶部；
+             - 清空筛选时恢复为默认分页列表；
+             - 保持后端参数语义不变，不增加新的后端参数。
+        -->
+        <el-select
+          v-model="filterParentId"
+          placeholder="筛选父分类（含子类）"
+          clearable
+          filterable
+          style="width: 220px; margin-right: 10px;"
+          @change="handleParentFilterChange"
+        >
+          <el-option
+            v-for="cat in rootCategories"
+            :key="cat.id"
+            :label="cat.name"
+            :value="cat.id"
+          />
+        </el-select>
+        <el-button type="primary" @click="openAddDialog">
+          <el-icon><Plus /></el-icon>
+          添加导航分类
+        </el-button>
+      </div>
     </div>
 
     <!-- 导航分类列表 -->
@@ -201,6 +228,8 @@ const formRef = ref()
 const rootCategories = ref([])
 // 分类ID到名称的映射，用于显示父级分类名称
 const categoryNameMap = ref(new Map())
+// 父分类筛选：选中的父级分类ID；为空表示不筛选
+const filterParentId = ref(null)
 
 // 表单数据
 const navigationForm = reactive({
@@ -244,12 +273,14 @@ const fetchNavigationList = async () => {
     
     // 调整为后端真实接口：/api/navigation/admin/categories
     // 后端分页从1开始，返回 PageResult{ items, total, page, size }
-    const response = await http.get('/navigation/admin/categories', {
-      params: {
-        page: currentPage.value,
-        size: pageSize.value
-      }
-    })
+    // 根据是否选择父分类，动态设置查询参数：
+    // - 未选择：使用默认分页参数；
+    // - 已选择：携带 parentId 并增大 size 以一次拉取全部子分类，随后在前端合并父分类项。
+    const queryParams = filterParentId.value != null
+      ? { page: 1, size: 1000, parentId: filterParentId.value }
+      : { page: currentPage.value, size: pageSize.value }
+
+    const response = await http.get('/navigation/admin/categories', { params: queryParams })
 
     if (response.data) {
       // 后端现在返回 camelCase 格式的字段名，与前端保持一致
@@ -258,11 +289,20 @@ const fetchNavigationList = async () => {
       console.log('收到的导航数据:', response.data)
       const rawItems = Array.isArray(response.data.items) ? response.data.items : []
 
-      // 直接使用后端返回的 camelCase 字段，无需手动映射
-      navigationList.value = rawItems
-
-      // 分页总数
-      total.value = Number(response.data.total || 0)
+      if (filterParentId.value != null) {
+        // 已选择父分类：rawItems 是该父分类的“子分类列表”，需要将父分类实体插入到列表顶部
+        // 父分类实体来源：rootCategories（在挂载或打开对话框时拉取），字段格式与列表一致（camelCase）
+        const parentEntity = rootCategories.value.find(c => c.id === filterParentId.value) || null
+        const combined = parentEntity ? [parentEntity, ...rawItems] : rawItems
+        // 使用合并后的列表覆盖 UI 展示
+        navigationList.value = combined
+        // 由于此时我们一次性拉取所有子分类，这里 total 直接等于当前展示条目数（父+子）
+        total.value = combined.length
+      } else {
+        // 未选择父分类：维持默认分页列表
+        navigationList.value = rawItems
+        total.value = Number(response.data.total || 0)
+      }
 
       // 构建分类ID到名称的映射，用于显示父级分类名称
       const nameMap = new Map()
@@ -289,6 +329,13 @@ const fetchNavigationList = async () => {
   } finally {
     loading.value = false
   }
+}
+
+// 父分类筛选变化：更新页码并刷新列表
+function handleParentFilterChange() {
+  // 重置到第一页；若选择了父分类，将以“父+子”的组合方式渲染列表
+  currentPage.value = 1
+  fetchNavigationList()
 }
 
 // 获取根分类列表用于父级选择（管理员接口拉取全部并筛选 parentId 为 null）
@@ -473,6 +520,8 @@ const formatDate = (dateString) => {
 
 // 组件挂载时获取数据
 onMounted(() => {
+  // 初始化父级分类数据源，供筛选与弹窗父级选择使用
+  fetchRootCategories()
   fetchNavigationList()
 })
 
@@ -509,6 +558,13 @@ const isClassIcon = (val) => {
   color: #303133;
 }
 
+/* 头部操作区样式：使筛选与按钮水平排列并保持间距 */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .navigation-list {
   background: white;
   border-radius: 8px;
@@ -540,6 +596,10 @@ const isClassIcon = (val) => {
     flex-direction: column;
     gap: 10px;
     align-items: stretch;
+  }
+
+  .header-actions {
+    justify-content: space-between;
   }
   
   .navigation-list {
