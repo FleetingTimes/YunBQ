@@ -202,7 +202,7 @@ function onChildClick(id){
 }
 /* 撤销：移除 fixed-left 固定定位样式，保持粘性定位 */
 .nav-title { font-weight: 600; color: #303133; margin-bottom: 8px; }
-.nav-list { list-style: none; margin: 0; padding: 0; }
+.nav-list { list-style: none; margin: 0; padding: 0; margin-left: 120px; /* 添加左边距，增强导航层次感 */ }
 .nav-list li { display: block; margin: 6px 0; }
 .nav-list li.has-children > a { display: inline-block; margin-bottom: 6px; }
 .nav-list a { display: inline-block; padding: 6px 8px; border-radius: 6px; color: #606266; text-decoration: none; transition: background-color .15s ease; }
