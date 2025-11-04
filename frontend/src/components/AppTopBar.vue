@@ -58,7 +58,13 @@
           <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" style="width:32px;height:32px;border-radius:50%;background:#fff;" />
           <span style="font-weight:500; color:#303133;">{{ me.nickname || me.username }}</span>
         </div>
-        <div class="profile-card" v-show="profileVisible" @mouseenter="onHoverEnter" @mouseleave="onHoverLeave">
+        <div
+          class="profile-card"
+          v-show="profileVisible"
+          @mouseenter="onHoverEnter"
+          @mouseleave="onHoverLeave"
+          :style="{ '--card-extra-width': CARD_EXTRA_WIDTH + 'px' }"
+        >
           <div class="profile-header">
             <!-- 管理员：右上齿轮；右下添加便签 -->
             <div class="top-actions" v-if="isAdmin" style="position:absolute; right:10px; top:10px; display:flex; gap:8px; z-index:1;">
@@ -68,6 +74,7 @@
                 </el-button>
               </el-tooltip>
             </div>
+            <!-- 管理员：右下添加便签入口（与普通用户不同，位置更靠近头像） -->
             <div class="add-entry-bottom" v-if="isAdmin">
               <el-tooltip content="添加便签" placement="left">
                 <el-button circle size="small" @click="goNotes" title="添加便签">
@@ -83,36 +90,72 @@
                 </el-button>
               </el-tooltip>
             </div>
+            <!-- 头像与昵称采用垂直居中排版，贴近示例图
+                 说明：不影响原有右上角管理与添加入口，仅调整视觉结构。 -->
             <div class="avatar-line">
-              <div class="avatar-wrap">
+              <!-- 头像与昵称居中显示：保持与示例一致的纵向排版，不改变交互逻辑 -->
+              <div class="avatar-wrap" style="display:flex; flex-direction:column; align-items:center; gap:8px; width:100%;">
                 <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-lg" />
                 <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" class="avatar-lg" />
-              </div>
-              <div class="name-box">
-                <div class="nickname">{{ me.nickname || '未设置昵称' }}</div>
+                <div class="nickname">{{ me.nickname || me.username }}</div>
               </div>
             </div>
           </div>
           <div class="profile-info-list">
-            <div class="row">
-              <span class="label">昵称</span>
-              <span class="value">{{ me.nickname || '未设置昵称' }}</span>
-            </div>
-            
-            <div class="row">
-              <span class="label">签名</span>
-              <span class="value" :class="signatureExpanded ? 'signature-full' : 'signature-ellipsis'" :title="me.signature || '未设置'">
-                {{ me.signature || '未设置' }}
-              </span>
-              <el-button v-if="me.signature" link size="small" @click="signatureExpanded = !signatureExpanded">
-                {{ signatureExpanded ? '收起' : '展开' }}
-              </el-button>
+            <!-- 签名居中显示：无内容时展示默认文案；
+                 仅显示三行，超出省略；悬停通过 Tooltip 展示全文。 -->
+            <div class="row center-row" style="border-bottom:none;">
+              <el-tooltip :content="me.signature || defaultSig" placement="top" effect="light">
+                <span class="value signature-ellipsis center" :title="me.signature || defaultSig">
+                  {{ me.signature || defaultSig }}
+                </span>
+              </el-tooltip>
             </div>
           </div>
           <div class="profile-actions">
-            <el-button size="small" type="success" @click="goMyNotes">我的便签</el-button>
-            <el-button size="small" @click="openMyInfo">我的信息</el-button>
-            <el-button size="small" type="warning" @click="logout">退出登录</el-button>
+            <!-- 顺序：我的信息 → 我的便签 → 导出便签 → 退出登录；
+                 为每项加入线性图标，保持居中与统一间距 -->
+            <!-- 个人信息入口（唯一保留）
+                 说明：此前此处存在两个完全相同的按钮，导致出现一个按钮不在
+                 .profile-actions 容器的 40px 左内边距内，从视觉上比其他项更靠左。
+                 移除重复后，所有项目统一受容器的左内边距影响，左对齐一致。 -->
+            <el-button size="small" class="action-item" @click="openMyInfo">
+              <img class="action-icon" src="https://api.iconify.design/mdi/account-outline.svg" alt="信息" width="16" height="16" />
+              <span>个人信息</span>
+            </el-button>
+            <el-button size="small" class="action-item" @click="goMyNotes">
+              <img class="action-icon" src="https://api.iconify.design/mdi/note-text-outline.svg" alt="便签" width="16" height="16" />
+              <span>我的便签</span>
+            </el-button>
+            <!-- 导出便签入口（弹出卡片选择范围）：不改逻辑，仅换为扁平风格 -->
+            <el-popover
+              v-model:visible="exportVisible"
+              placement="top"
+              width="280"
+              popper-class="export-pop"
+            >
+              <div class="export-title">导出我的便签</div>
+              <div class="export-desc">请选择要导出的范围：</div>
+              <el-radio-group v-model="exportScope" size="small" class="export-scope">
+                <el-radio-button label="all">全部</el-radio-button>
+                <el-radio-button label="public">公开</el-radio-button>
+                <el-radio-button label="private">私有</el-radio-button>
+              </el-radio-group>
+              <div class="export-actions">
+                <el-button size="small" @click="exportVisible=false">取消</el-button>
+                <el-button size="small" type="primary" :loading="exportLoading" @click="exportMyNotes">导出</el-button>
+              </div>
+              <template #reference>
+                <el-button size="small" class="action-item">
+                  <img class="action-icon" src="https://api.iconify.design/mdi/file-export-outline.svg" alt="导出" width="16" height="16" />
+                  <span>导出便签</span>
+                </el-button>
+              </template>
+            </el-popover>
+            <el-button size="small" class="action-item" @click="logout">
+              <img class="action-icon" src="https://api.iconify.design/mdi/logout.svg" alt="退出" width="16" height="16" />
+              <span>退出登录</span>
+            </el-button>
           </div>
         </div>
       </div>
@@ -264,6 +307,11 @@ const sentOnce = ref(false)
 const codeInputRef = ref(null)
 let sendTimer = null
 let hoverHideTimer = null
+// 默认签名文案：当未设置签名时显示该提示
+const defaultSig = '写个签名开心一下吧 ^ -^'
+// 卡片额外宽度常量：最终宽度 = 头像宽度 + CARD_EXTRA_WIDTH
+// 你可以在此处修改数值以快速调整卡片宽度
+const CARD_EXTRA_WIDTH = 160
 const signatureExpanded = ref(false)
 
 // 滚动检测相关状态
@@ -497,6 +545,136 @@ function onHoverLeave(){
   if (hoverHideTimer) clearTimeout(hoverHideTimer)
   hoverHideTimer = setTimeout(() => { profileVisible.value = false }, 160)
 }
+
+// =========================
+// 导出便签（重新实现）
+// =========================
+// 说明：
+// - 导出入口在头像悬浮卡片的“导出便签”按钮中（使用 Popover 展示范围选择）；
+// - 这里重新实现导出逻辑，前端分页拉取“我的便签”，在本地按范围过滤并生成 CSV 文件；
+// - 默认导出格式为 CSV（含 UTF-8 BOM，兼容 Excel 打开）；后续如需 JSON/Excel，可继续扩展；
+// - 后端 /notes 接口支持 mineOnly=true 拉取当前用户的便签；未提供导出专用 API，因此采用前端聚合。
+
+// 导出弹窗可见性
+const exportVisible = ref(false)
+// 导出范围：all（全部）/ public（公开）/ private（私有）
+const exportScope = ref('all')
+// 导出按钮加载状态
+const exportLoading = ref(false)
+
+// 将后端返回的便签项统一映射为稳定字段，以便导出
+// 说明：不同页面/接口可能出现 camelCase 与 snake_case 混用，此处进行兜底兼容。
+function mapNoteItem(it){
+  return {
+    id: it.id,
+    userId: it.userId ?? it.user_id ?? '',
+    authorName: it.authorName ?? it.author_name ?? (me.nickname || me.username || ''),
+    content: it.content ?? '',
+    // tags 后端通常为逗号分隔字符串；若返回数组或其他结构，这里统一为字符串
+    tags: Array.isArray(it.tags) ? it.tags.join(',') : (it.tags ?? ''),
+    color: it.color ?? '',
+    archived: Boolean(it.archived ?? it.is_archived ?? false),
+    isPublic: Boolean(it.isPublic ?? it.is_public ?? false),
+    // 日期字段：优先使用 camelCase，其次 snake_case
+    createdAt: it.createdAt ?? it.created_at ?? '',
+    updatedAt: it.updatedAt ?? it.updated_at ?? '',
+    // 交互统计：兼容多种返回形态
+    likeCount: Number(it.likeCount ?? it.like_count ?? 0),
+    favoriteCount: Number(it.favoriteCount ?? it.favorite_count ?? 0),
+  }
+}
+
+// 构建 CSV 文本（包含表头）
+// 注意：
+// - 使用引号包裹字段，内部双引号需转义为两个双引号；
+// - 在最前加入 UTF-8 BOM（\uFEFF），避免 Excel 乱码；
+function buildCsv(rows){
+  const headers = [
+    'id','userId','authorName','content','tags','color','archived','isPublic','createdAt','updatedAt','likeCount','favoriteCount'
+  ]
+  // 字段转义为 CSV 单元格
+  const esc = (v) => {
+    const s = (v === null || v === undefined) ? '' : String(v)
+    // 将双引号转义为两个双引号
+    const escaped = s.replace(/"/g, '""')
+    return `"${escaped}"`
+  }
+  const lines = []
+  lines.push(headers.join(','))
+  for (const r of rows){
+    const line = [
+      esc(r.id), esc(r.userId), esc(r.authorName), esc(r.content), esc(r.tags), esc(r.color),
+      esc(r.archived), esc(r.isPublic), esc(r.createdAt), esc(r.updatedAt), esc(r.likeCount), esc(r.favoriteCount)
+    ].join(',')
+    lines.push(line)
+  }
+  // 头部加入 BOM，兼容 Excel
+  return '\uFEFF' + lines.join('\n')
+}
+
+// 触发浏览器下载（创建临时链接并点击）
+function triggerDownload(filename, text){
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+// 导出我的便签（按范围）
+// 实现步骤：
+// 1) 校验登录态；
+// 2) 分页拉取 /notes?mineOnly=true 的全部数据（页大小 200）；
+// 3) 本地按 exportScope 过滤（all/public/private）；
+// 4) 构建 CSV 并触发下载；
+// 5) 成功/失败提示，并关闭弹窗。
+async function exportMyNotes(){
+  if (!getToken()){ ElMessage.warning('请先登录'); return }
+  if (exportLoading.value) return
+  exportLoading.value = true
+  try{
+    const pageSize = 200
+    let page = 1
+    const all = []
+    // 分页拉取直至无更多数据
+    while(true){
+      const { data } = await http.get('/notes', {
+        params: { page, size: pageSize, mineOnly: true },
+        suppress401Redirect: true,
+      })
+      const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
+      const mapped = items.map(mapNoteItem)
+      all.push(...mapped)
+      // 终止条件：本页数量不足 pageSize，或没有返回数组
+      if (!Array.isArray(items) || items.length < pageSize) break
+      page += 1
+    }
+
+    // 按范围过滤
+    let filtered = all
+    if (exportScope.value === 'public') filtered = all.filter(n => n.isPublic === true)
+    else if (exportScope.value === 'private') filtered = all.filter(n => n.isPublic === false)
+
+    // 构建 CSV 并下载
+    const csv = buildCsv(filtered)
+    const now = new Date()
+    const pad = (n) => String(n).padStart(2,'0')
+    const filename = `my-notes_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.csv`
+    triggerDownload(filename, csv)
+
+    exportVisible.value = false
+    ElMessage.success(`导出成功，共 ${filtered.length} 条`)
+  }catch(e){
+    const msg = e?.response?.data?.message || '导出失败，请稍后重试'
+    ElMessage.error(msg)
+  }finally{
+    exportLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -729,7 +907,8 @@ function onHoverLeave(){
 .signature-ellipsis {
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  /* 按需显示三行，多余以省略号处理 */
+  -webkit-line-clamp: 3;
   overflow: hidden;
   word-break: break-word;
 }
@@ -860,9 +1039,11 @@ function onHoverLeave(){
   margin-right: 36px; /* 右边距：12px，提供舒适的右侧留白 */
   margin-left: 20px;
 }
-.profile-trigger .profile-card { position: absolute; right: 0; top: calc(100% + 2px); z-index: 2000; }
+/* 自定义悬浮：定位卡片贴着头像展开 */
+.profile-trigger .profile-card { position: absolute; right: 0; top: calc(100% + 12px); z-index: 2000; }
 .profile-card {
-  width: 320px;
+  /* 卡片宽度 = 头像宽度 + 常量（默认 160px，可在脚本中修改） */
+  width: calc(var(--avatar-size, 56px) + var(--card-extra-width, 160px));
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: saturate(180%) blur(12px);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
@@ -880,25 +1061,121 @@ function onHoverLeave(){
 .profile-header .top-actions { position: absolute; right: 8px; top: 8px; display:flex; gap:8px; }
 .profile-header .add-entry { position: absolute; right: 8px; top: 8px; }
 .profile-header .add-entry-bottom { position: absolute; right: 8px; bottom: 8px; }
-.profile-header .avatar-line { display:flex; align-items:center; gap:10px; }
+.profile-header .avatar-line { 
+  /* 头像与昵称垂直居中显示，更贴近示例图 */
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+}
 .profile-header .avatar-wrap { position: relative; display: inline-block; }
-.profile-header .avatar-lg { width:56px; height:56px; border-radius:50%; object-fit:cover; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.15); background:#fff; }
-.profile-header .name-box { display:flex; flex-direction:column; }
-.profile-header .nickname { font-weight:700; color:#303133; }
+.profile-header .avatar-lg { width:var(--avatar-size, 56px); height:var(--avatar-size, 56px); border-radius:50%; object-fit:cover; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.15); background:#fff; }
+.profile-header .name-box { display:flex; flex-direction:column; align-items:center; }
+.profile-header .nickname { font-weight:700; color:#303133; font-size:16px; }
 .profile-header .sub { color:#606266; font-size:12px; }
 .profile-info-list { padding: 12px; display:flex; flex-direction:column; gap:0; }
 .profile-info-list .row { display:flex; align-items:flex-start; justify-content:flex-start; gap:4px; padding:8px 0; border-bottom: 1px solid var(--el-border-color-extra-light); }
+.profile-info-list .row.center-row { justify-content: center; }
 .profile-info-list .row:last-child { border-bottom: none; }
 .profile-info-list .label { color:#606266; font-size:13px; font-weight:500; flex:0 0 40px; text-align:left; }
 .profile-info-list .value { color:#303133; font-size:13px; text-align:left; flex:1 1 auto; }
-.profile-actions { display:flex; justify-content:flex-end; gap:8px; padding: 10px 12px; border-top:1px solid var(--el-border-color-extra-light); }
+.profile-actions {
+  /*
+   * 控件容器：柔和的玻璃卡片外观
+   * - 竖直排列，留出足够的间距
+   * - 取消顶部分隔线，用背景和阴影来分组
+   * - 按需左对齐：根据需求将整体左边距设为 40px
+   *   这样控件会在视觉上与签名区域形成一致的左起始线
+   */
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  /* 控件间距：8px，保持与示例图一致 */
+  gap:8px;
+  /* 左边距 40px（其余保持 12px），满足“左对齐但左边距 40px”的要求 */
+  padding: 12px 12px 12px 40px;
+  /* 取消顶部分隔线，用背景和阴影来分组 */
+  border-top:none;
+  /* 玻璃背景与边框（可通过 CSS 变量覆写） */
+  background: var(--actions-bg, rgba(255,255,255,0.45));
+  /* 玻璃效果： backdrop-filter 与 -webkit-backdrop-filter 分别处理不同浏览器 */
+  backdrop-filter: saturate(180%) blur(10px);
+  /* 兼容 Webkit 浏览器（如 Safari）的玻璃效果 */
+  -webkit-backdrop-filter: saturate(180%) blur(10px);
+  /* 边框：1px 半透明白色，与玻璃效果协调 */
+  border: 1px solid var(--actions-border, rgba(255,255,255,0.65));
+  /* 圆角：12px，与示例图一致 */
+  border-radius: 12px;
+  /* 内外阴影：增加层次感 */
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 6px 18px rgba(0,0,0,0.08);
+}
+/* 扁平按钮样式：居中淡黑色，统一尺寸与间距 */
+.profile-actions :deep(.action-item){
+  width: 100%;
+  /* 左对齐，配合容器的左内边距形成统一起始线 */
+  justify-content: flex-start; /* 左对齐显示按钮内容 */
+  background: transparent !important;
+  /* 按钮边框透明，避免遮挡 */
+  border-color: transparent !important;
+  color: rgba(94, 94, 94, 0.80) !important; /* 淡黑色（略深提高可读性） */
+  /* 按钮圆角 */
+  border-radius: 8px;
+  /* 按钮文字：稍小更精致 */
+  font-size:  16px; /* 略小更精致 */
+  /* 按钮文字：加粗更突出 */
+  font-weight: 600;
+  /* 按钮文字：轻微增加间距，更易读 */
+  letter-spacing: 0.3px;
+  /* 按钮悬停效果 */
+  transition: background-color .18s ease, box-shadow .18s ease;
+  /* 统一高度与点击面积 */
+  min-height: 36px;
+}
+/* 修正：Element Plus 为相邻按钮（.el-button + .el-button）添加左外边距 12px。
+   在竖直排列（flex-direction: column）中，这个左外边距会让除第一个按钮外的其它按钮
+   看起来更靠右，造成“第一个更靠左”的视觉不一致。统一将相邻按钮的左外边距重置为 0。*/
+.profile-actions :deep(.el-button + .el-button){
+  margin-left: 0 !important;
+}
+.profile-actions :deep(.el-popover__reference .el-button){
+  /* 作为 Popover 引用的按钮也保持无左外边距，避免与相邻规则冲突 */
+  margin-left: 0 !important;
+}
+.profile-actions :deep(.action-icon){
+  /* 按钮左侧小图标的统一样式：尺寸、间距与对齐 */
+  width:16px; height:16px; margin-right:8px; opacity:0.9; vertical-align:middle;
+}
+.profile-actions :deep(.action-item:hover){
+  /* 悬停：轻微加深 + 柔软阴影 */
+  background: var(--action-hover-bg, rgba(0,0,0,0.08)) !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.12);
+  color: rgba(0,0,0,0.85) !important;
+}
+/* 统一焦点/激活状态：不出现默认“浅灰胶囊”导致视觉偏移 */
+.profile-actions :deep(.action-item:focus),
+.profile-actions :deep(.action-item:focus-visible),
+.profile-actions :deep(.action-item.is-focus),
+.profile-actions :deep(.action-item:active){
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: rgba(0,0,0,0.85) !important;
+}
+/* 文本容器：保证居中与一致的内边距 */
+/* 文本容器：由居中改为左对齐，增强视觉一致性 */
+.profile-actions :deep(.action-item .el-button__inner){ text-align: left; padding:10px 12px; width:100%; }
+/* 导出便签弹出卡片样式（与顶栏卡片一致） */
+.export-pop { padding: 10px 12px; }
+.export-pop .export-title { font-weight: 600; color:#303133; margin-bottom: 6px; }
+.export-pop .export-desc { font-size:12px; color:#606266; margin-bottom: 8px; }
+.export-pop .export-scope { display:flex; justify-content:flex-start; gap:6px; margin-bottom:10px; }
+.export-pop .export-actions { display:flex; justify-content:flex-end; gap:8px; }
 /* 值展示优化 */
 .profile-info-list .value { color:#303133; font-size:13px; text-align:left; overflow-wrap:anywhere; flex:1 1 auto; }
 .profile-info-list .value.link, .profile-info-list .value .link { color: var(--el-color-primary); text-decoration: none; }
-.profile-info-list .value.signature-ellipsis, .profile-info-list .value.signature-full { text-align: left; }
+.profile-info-list .value.signature-ellipsis, .profile-info-list .value.signature-full { text-align: center; }
 .profile-info-list .value.signature-full { -webkit-line-clamp: unset; display:block; }
+/* 缩窄卡片宽度：与头像宽度联动，保持紧凑 */
+.profile-card { width: calc(var(--avatar-size, 56px) + var(--card-extra-width, 160px)); }
 @media (max-width: 460px){
-  .profile-card { width: 320px; }
+  .profile-card { width: calc(var(--avatar-size, 56px) + var(--card-extra-width, 160px)); }
   .profile-info-list .row { padding:6px 8px; }
   .profile-info-list .label { font-size:12px; }
 }
