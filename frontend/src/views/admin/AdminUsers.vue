@@ -8,6 +8,18 @@
       <el-button type="success" :loading="importing" @click="triggerUserImport" style="margin-left: 8px;">
         导入用户
       </el-button>
+      <!-- 导出用户：支持 CSV 和 JSON 格式 -->
+      <el-dropdown @command="handleExport" style="margin-left: 8px;">
+        <el-button type="info" :loading="exporting">
+          导出用户 <el-icon class="el-icon--right"><arrow-down /></el-icon>
+        </el-button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="csv">导出为 CSV</el-dropdown-item>
+            <el-dropdown-item command="json">导出为 JSON</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
       <!-- 隐藏文件选择器：只接受 .json 文件，选择后触发 onUserFileChange -->
       <input
         ref="userImportInput"
@@ -21,7 +33,7 @@
     <!--
       用户列表表格：展示基础信息 + 头像地址 + 密码状态
       说明：
-      - 密码不展示真实值，仅展示“已设置/未设置”状态标签；
+      - 密码不展示真实值，仅展示"已设置/未设置"状态标签；
       - 头像地址显示为可点击链接，同时展示 32×32 缩略图；
       - 角色沿用后端返回的字符串（ADMIN/USER）。
     -->
@@ -70,6 +82,7 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
+import { ArrowDown } from '@element-plus/icons-vue';
 import { http } from '@/api/http';
 import { importUsers } from '@/api/admin';
 
@@ -84,6 +97,8 @@ const q = ref('');
 // 导入相关状态与引用
 const importing = ref(false);
 const userImportInput = ref(null);
+// 导出相关状态
+const exporting = ref(false);
 
 /**
  * 将后端返回的头像地址转换为可访问的完整 URL。
@@ -175,6 +190,63 @@ async function onUserFileChange(e) {
     importing.value = false;
     // 允许重复导入同名文件，需要清空 input 的值
     e.target.value = '';
+  }
+}
+
+/**
+ * 处理导出用户数据
+ * 支持 CSV 和 JSON 格式，会根据当前搜索条件过滤导出数据
+ * @param {string} format - 导出格式：'csv' 或 'json'
+ */
+async function handleExport(format) {
+  if (exporting.value) return;
+  
+  exporting.value = true;
+  try {
+    // 构建导出请求参数，包含当前搜索条件
+    const params = {
+      format: format,
+      q: q.value || undefined
+    };
+    
+    // 调用后端导出接口，获取文件数据
+    const response = await http.get('/admin/users/export', {
+      params,
+      responseType: 'blob' // 重要：指定响应类型为 blob 以处理二进制数据
+    });
+    
+    // 从响应头获取文件名
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = `users.${format}`;
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename=(.+)/);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    // 创建下载链接并触发下载
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    
+    // 清理资源
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    
+    // 显示成功提示
+    const formatName = format === 'csv' ? 'CSV' : 'JSON';
+    ElMessage.success(`${formatName} 文件导出成功！`);
+    
+  } catch (err) {
+    console.error('导出用户失败：', err);
+    ElMessage.error(`导出失败：${err?.message || '请检查网络连接与服务器状态'}`);
+  } finally {
+    exporting.value = false;
   }
 }
 </script>

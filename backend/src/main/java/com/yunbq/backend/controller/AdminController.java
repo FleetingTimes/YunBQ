@@ -286,4 +286,105 @@ public class AdminController {
             return org.springframework.http.ResponseEntity.ok().headers(headers).body(bytes);
         }
     }
+
+    /**
+     * 导出用户信息（支持 csv 或 json 格式）。
+     * 说明：导出所有用户或根据搜索条件过滤的用户列表，包含用户基本信息、角色、头像地址和密码状态。
+     * 注意：不导出真实密码或哈希，仅导出是否已设置密码的状态。
+     */
+    @GetMapping("/users/export")
+    @PreAuthorize("hasRole('ADMIN')")
+    public org.springframework.http.ResponseEntity<byte[]> exportUsers(
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam(required = false) String q
+    ) throws Exception {
+        // 构建查询条件，与列表接口保持一致
+        QueryWrapper<User> qw = new QueryWrapper<>();
+        if (q != null && !q.isBlank()) {
+            qw.like("username", q).or().like("nickname", q).or().like("email", q);
+        }
+        qw.orderByDesc("id");
+        
+        // 查询所有符合条件的用户（不分页）
+        List<User> users = userMapper.selectList(qw);
+        
+        // 映射为 UserSummary 对象，包含头像地址和密码状态
+        List<UserSummary> userSummaries = users.stream().map(u -> {
+            boolean hasPassword = u.getPasswordHash() != null && !u.getPasswordHash().isBlank();
+            return new UserSummary(
+                u.getId(),
+                u.getUsername(),
+                u.getNickname(),
+                u.getEmail(),
+                u.getRole(),
+                u.getCreatedAt(),
+                u.getAvatarUrl(),
+                hasPassword
+            );
+        }).collect(Collectors.toList());
+        
+        // 设置文件名和响应头
+        String filename = "users." + ("json".equalsIgnoreCase(format) ? "json" : "csv");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=" + filename);
+        
+        if ("json".equalsIgnoreCase(format)) {
+            // JSON 格式导出
+            // 说明：为了更好兼容部分浏览器/代理的处理，这里将 Content-Type 设置为 application/json。
+            //       同时 UserSummary.createdAt 已配置 @JsonFormat，避免 LocalDateTime 序列化问题。
+            byte[] json = objectMapper.writeValueAsBytes(userSummaries);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(json);
+        } else {
+            // CSV 格式导出
+            String csv = exportUsersToCsv(userSummaries);
+            // 添加 UTF-8 BOM 以确保中文正确显示
+            byte[] bom = new byte[]{(byte)0xEF, (byte)0xBB, (byte)0xBF};
+            byte[] bytes = (new java.io.ByteArrayOutputStream(){
+                { try { this.write(bom); this.write(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)); } catch (java.io.IOException ignored) {} }
+            }).toByteArray();
+            headers.setContentType(MediaType.valueOf("text/csv; charset=UTF-8"));
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(bytes);
+        }
+    }
+
+    /**
+     * 将用户列表转换为 CSV 格式字符串。
+     * 包含表头和数据行，密码状态显示为"已设置"或"未设置"。
+     */
+    private String exportUsersToCsv(List<UserSummary> users) {
+        StringBuilder csv = new StringBuilder();
+        
+        // CSV 表头
+        csv.append("用户ID,用户名,昵称,邮箱,角色,注册时间,头像地址,密码状态\n");
+        
+        // 数据行
+        for (UserSummary user : users) {
+            csv.append(escapeCsvField(String.valueOf(user.getId()))).append(",");
+            csv.append(escapeCsvField(user.getUsername())).append(",");
+            csv.append(escapeCsvField(user.getNickname())).append(",");
+            csv.append(escapeCsvField(user.getEmail())).append(",");
+            csv.append(escapeCsvField(user.getRole())).append(",");
+            csv.append(escapeCsvField(user.getCreatedAt() != null ? user.getCreatedAt().toString() : "")).append(",");
+            csv.append(escapeCsvField(user.getAvatarUrl() != null ? user.getAvatarUrl() : "")).append(",");
+            csv.append(escapeCsvField(user.isHasPassword() ? "已设置" : "未设置"));
+            csv.append("\n");
+        }
+        
+        return csv.toString();
+    }
+
+    /**
+     * 转义 CSV 字段，处理包含逗号、引号或换行符的内容。
+     */
+    private String escapeCsvField(String field) {
+        if (field == null) {
+            return "";
+        }
+        // 如果字段包含逗号、引号或换行符，需要用引号包围并转义内部引号
+        if (field.contains(",") || field.contains("\"") || field.contains("\n") || field.contains("\r")) {
+            return "\"" + field.replace("\"", "\"\"") + "\"";
+        }
+        return field;
+    }
 }

@@ -13,6 +13,12 @@ public class UserSummary {
     private String nickname;
     private String email;
     private String role;
+    /**
+     * 用户创建时间（LocalDateTime）。
+     * 为避免在 JSON 导出时出现日期序列化问题（例如未注册 JavaTimeModule 的情况），
+     * 显式指定序列化格式为 ISO-8601。
+     */
+    @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private java.time.LocalDateTime createdAt;
     /**
      * 头像地址（相对路径或完整 URL）。
