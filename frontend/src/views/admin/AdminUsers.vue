@@ -20,6 +20,10 @@
           </el-dropdown-menu>
         </template>
       </el-dropdown>
+      <!-- 高级导出：包含密码哈希，需二次确认 -->
+      <el-button type="danger" :loading="advExporting" @click="openAdvancedExportDialog" style="margin-left: 8px;">
+        高级导出
+      </el-button>
       <!-- 隐藏文件选择器：只接受 .json 文件，选择后触发 onUserFileChange -->
       <input
         ref="userImportInput"
@@ -77,6 +81,36 @@
       />
     </div>
   </div>
+
+  <!-- 高级导出确认弹窗：包含格式选择与强确认输入 -->
+  <el-dialog v-model="advExportVisible" title="高级导出确认" width="520px">
+    <!-- 提示文案：明确包含敏感信息与使用场景 -->
+    <p>
+      该操作将导出所有用户完整信息（包含敏感的 <code>passwordHash</code>）。
+      此功能仅用于数据迁移或备份，请确保在安全环境下执行并妥善保存导出文件。
+    </p>
+    <p style="color:#c33; font-weight:600;">风险提示：导出文件一旦泄露将带来严重安全风险！</p>
+
+    <!-- 导出格式选择：CSV/JSON -->
+    <div style="margin-top:12px;">
+      <label style="display:block;margin-bottom:6px;">选择导出格式：</label>
+      <el-radio-group v-model="advExportFormat">
+        <el-radio-button label="csv">CSV（含表头，UTF-8 BOM）</el-radio-button>
+        <el-radio-button label="json">JSON（完整字段）</el-radio-button>
+      </el-radio-group>
+    </div>
+
+    <!-- 强确认输入：必须输入大写 CONFIRM 才能继续 -->
+    <div style="margin-top:16px;">
+      <label style="display:block;margin-bottom:6px;">输入大写 <code>CONFIRM</code> 以确认：</label>
+      <el-input v-model="advConfirmText" placeholder="请输入 CONFIRM 以继续" />
+    </div>
+
+    <template #footer>
+      <el-button @click="cancelAdvancedExport" :disabled="advExporting">取消</el-button>
+      <el-button type="danger" :loading="advExporting" @click="confirmAdvancedExport">确认导出</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -84,7 +118,7 @@ import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { ArrowDown } from '@element-plus/icons-vue';
 import { http } from '@/api/http';
-import { importUsers } from '@/api/admin';
+import { importUsers, exportUsersAdvanced } from '@/api/admin';
 
 const props = defineProps({ updateSummary: { type: Function, default: null } });
 
@@ -99,6 +133,11 @@ const importing = ref(false);
 const userImportInput = ref(null);
 // 导出相关状态
 const exporting = ref(false);
+// 高级导出相关状态
+const advExportVisible = ref(false);
+const advExportFormat = ref('csv'); // 默认 CSV
+const advConfirmText = ref('');
+const advExporting = ref(false);
 
 /**
  * 将后端返回的头像地址转换为可访问的完整 URL。
@@ -248,6 +287,55 @@ async function handleExport(format) {
   } finally {
     exporting.value = false;
   }
+}
+
+/**
+ * 打开高级导出确认弹窗。
+ * 说明：高级导出会包含敏感字段（passwordHash），因此在触发前弹窗提示风险并要求确认。
+ */
+function openAdvancedExportDialog() {
+  advConfirmText.value = '';
+  advExportFormat.value = 'csv';
+  advExportVisible.value = true;
+}
+
+/**
+ * 执行高级导出：包含密码哈希等敏感字段。
+ * 安全措施：要求用户在确认框输入“CONFIRM”以明确同意风险。
+ */
+async function confirmAdvancedExport() {
+  if (advExporting.value) return;
+  // 简单的强确认：必须输入完整大写单词 CONFIRM
+  if (advConfirmText.value.trim() !== 'CONFIRM') {
+    ElMessage.error('请输入大写的 CONFIRM 以确认敏感导出');
+    return;
+  }
+  advExporting.value = true;
+  try {
+    const params = { q: q.value || undefined };
+    const blob = await exportUsersAdvanced(params, advExportFormat.value);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `users-advanced.${advExportFormat.value === 'json' ? 'json' : 'csv'}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    const formatName = advExportFormat.value === 'json' ? 'JSON' : 'CSV';
+    ElMessage.success(`高级导出（${formatName}）成功。请妥善保管包含密码哈希的备份文件！`);
+    advExportVisible.value = false;
+  } catch (err) {
+    console.error('高级导出失败：', err);
+    ElMessage.error(`高级导出失败：${err?.message || '请检查网络连接与服务器状态'}`);
+  } finally {
+    advExporting.value = false;
+  }
+}
+
+function cancelAdvancedExport() {
+  if (advExporting.value) return;
+  advExportVisible.value = false;
 }
 </script>
 

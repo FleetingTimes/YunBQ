@@ -14,6 +14,7 @@ import com.yunbq.backend.model.User;
 import com.yunbq.backend.model.RequestLog;
 import com.yunbq.backend.model.AuthLog;
 import com.yunbq.backend.model.ErrorLog;
+import com.yunbq.backend.util.AuthUtil; // 工具类：用于获取当前认证用户ID（从 SecurityContext）
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -372,6 +373,104 @@ public class AdminController {
         }
         
         return csv.toString();
+    }
+
+    /**
+     * 高级导出用户信息（支持 csv 或 json 格式）。
+     * 说明：
+     * - 与普通导出不同，高级导出会包含完整的用户字段，包括敏感的密码哈希（passwordHash）。
+     * - 该功能仅面向管理员，通常用于数据迁移或灾备；请谨慎使用并妥善存储导出文件。
+     * - 后端会记录审计日志，包含触发管理员ID、格式与导出数量，方便后续审计追踪。
+     * 安全性：
+     * - 接口受 @PreAuthorize("hasRole('ADMIN')") 限制；
+     * - 建议仅在受信任的网络环境中使用，并确保导出文件存储加密。
+     */
+    @GetMapping("/users/export/advanced")
+    @PreAuthorize("hasRole('ADMIN')")
+    public org.springframework.http.ResponseEntity<byte[]> exportUsersAdvanced(
+            @RequestParam(defaultValue = "csv") String format,
+            @RequestParam(required = false) String q
+    ) throws Exception {
+        // 1) 构建查询条件：与列表/普通导出保持一致，支持根据用户名/昵称/邮箱模糊查询
+        QueryWrapper<User> qw = new QueryWrapper<>();
+        if (q != null && !q.isBlank()) {
+            qw.like("username", q).or().like("nickname", q).or().like("email", q);
+        }
+        qw.orderByDesc("id");
+
+        // 2) 查询所有符合条件的用户（不分页）
+        List<User> users = userMapper.selectList(qw);
+
+        // 3) 审计记录：标记此为敏感操作，记录管理员ID、导出格式与数量
+        try {
+            Long adminId = AuthUtil.currentUserId();
+            // level 选择 WARN，以凸显敏感数据导出；message 保持简洁明了
+            logService.logAudit(adminId, "WARN",
+                    String.format("Advanced export users: format=%s, count=%d", format, users.size()));
+        } catch (Exception ignore) {
+            // 审计写入失败不影响导出主流程，但建议在系统日志中观察该异常
+        }
+
+        // 4) 设置文件名与响应头
+        String filename = "users-advanced." + ("json".equalsIgnoreCase(format) ? "json" : "csv");
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.add("Content-Disposition", "attachment; filename=" + filename);
+
+        // 5) 根据格式输出：JSON 直接序列化完整实体；CSV 构造文本并添加 UTF-8 BOM
+        if ("json".equalsIgnoreCase(format)) {
+            // JSON 导出：
+            // - 直接序列化 User 实体列表，包含所有字段（id, username, passwordHash, nickname, email, signature, avatarUrl, role, createdAt）。
+            // - Content-Type 使用 application/json，便于部分工具直接解析。
+            byte[] json = objectMapper.writeValueAsBytes(users);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(json);
+        } else {
+            // CSV 导出：构造包含完整字段的 CSV 文本
+            String csv = exportUsersAdvancedToCsv(users);
+            byte[] bom = new byte[]{(byte)0xEF, (byte)0xBB, (byte)0xBF}; // 添加 UTF-8 BOM，确保 Excel 等正确识别编码
+            byte[] bytes = (new java.io.ByteArrayOutputStream(){
+                { try { this.write(bom); this.write(csv.getBytes(java.nio.charset.StandardCharsets.UTF_8)); } catch (java.io.IOException ignored) {} }
+            }).toByteArray();
+            headers.setContentType(MediaType.valueOf("text/csv; charset=UTF-8"));
+            return org.springframework.http.ResponseEntity.ok().headers(headers).body(bytes);
+        }
+    }
+
+    /**
+     * 高级导出：将完整的 User 实体列表转换为 CSV。
+     * 字段顺序与表头如下：
+     * id,username,nickname,email,signature,avatarUrl,role,createdAt,passwordHash
+     * 格式化说明：
+     * - 对所有文本字段进行转义（逗号、引号、换行），确保 CSV 合规；
+     * - 时间使用 LocalDateTime#toString()（ISO-8601），便于通用解析；
+     * - 空值输出为空字符串。
+     */
+    private String exportUsersAdvancedToCsv(List<User> users) {
+        StringBuilder sb = new StringBuilder();
+        // 表头
+        sb.append("id,username,nickname,email,signature,avatarUrl,role,createdAt,passwordHash\n");
+        // 数据行
+        for (User u : users) {
+            sb.append(escapeCsvField(u.getId() != null ? String.valueOf(u.getId()) : ""))
+              .append(',')
+              .append(escapeCsvField(u.getUsername()))
+              .append(',')
+              .append(escapeCsvField(u.getNickname()))
+              .append(',')
+              .append(escapeCsvField(u.getEmail()))
+              .append(',')
+              .append(escapeCsvField(u.getSignature()))
+              .append(',')
+              .append(escapeCsvField(u.getAvatarUrl()))
+              .append(',')
+              .append(escapeCsvField(u.getRole()))
+              .append(',')
+              .append(escapeCsvField(u.getCreatedAt() != null ? u.getCreatedAt().toString() : ""))
+              .append(',')
+              .append(escapeCsvField(u.getPasswordHash()))
+              .append('\n');
+        }
+        return sb.toString();
     }
 
     /**

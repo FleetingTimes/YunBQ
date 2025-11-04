@@ -47,6 +47,25 @@ export function exportErrorLogs(params = {}, format = 'csv') {
 }
 
 /**
+ * 高级导出用户信息（包含敏感字段：passwordHash）。
+ * 使用说明：
+ * - 仅管理员可调用；
+ * - format 支持 'csv' 或 'json'；
+ * - 可选筛选参数 q（按用户名/昵称/邮箱模糊搜索）。
+ * 安全提示：导出文件包含密码哈希，务必妥善保存与传输。
+ *
+ * @param {Object} params 可选筛选参数：{ q }
+ * @param {'csv'|'json'} format 导出格式，默认 'csv'
+ * @returns {Promise<Blob>} 文件二进制内容
+ */
+export function exportUsersAdvanced(params = {}, format = 'csv') {
+  return http.get('/admin/users/export/advanced', {
+    params: { ...params, format },
+    responseType: 'blob'
+  }).then(res => res.data);
+}
+
+/**
  * 批量导入用户数据（管理员接口）
  *
  * 使用 `multipart/form-data` 方式上传一个 JSON 文件，字段名固定为 `file`。
