@@ -2,10 +2,11 @@
   <!-- 两栏布局：左侧 SideNav，右侧上方顶栏、右侧下方正文（NotesBody）
        说明：统一全站页面结构，不影响 NotesBody 已实现功能；侧栏仅提供结构与视觉一致性。 -->
   <TwoPaneLayout>
-    <!-- 左侧：通用侧栏（仅展示，不做快捷填充或滚动） -->
+    <!-- 左侧：通用侧栏（仅展示，不做快捷填充或滚动）
     <template #left>
       <SideNav :sections="sectionsNotes" v-model:activeId="activeId" :alignCenter="true" />
     </template>
+     -->
     <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
     <template #topFull>
       <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
