@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
 
 /**
  * 导航分类服务层
@@ -346,5 +348,129 @@ public class NavigationCategoryService {
         
         categoryMapper.update(null, updateWrapper);
         return categoryMapper.selectById(id);
+    }
+
+    /**
+     * 根据导入记录匹配已存在的分类（用于去重与更新）
+     *
+     * 优先级：
+     * 1) id 精确匹配；
+     * 2) name + parentId 组合匹配（父级允许为 null）；
+     * 3) 当 parentId 为空（根分类），按 name 唯一匹配。
+     *
+     * 返回：命中则返回已有分类，否则返回 null。
+     */
+    public NavigationCategory findExistingByKeys(NavigationCategory c) {
+        if (c == null) return null;
+        // 1) 主键匹配
+        if (c.getId() != null) {
+            NavigationCategory byId = categoryMapper.selectById(c.getId());
+            if (byId != null) return byId;
+        }
+        // 2) 名称 + 父级组合匹配（父级允许为 null）
+        if (c.getName() != null && !c.getName().trim().isEmpty()) {
+            QueryWrapper<NavigationCategory> qw = new QueryWrapper<>();
+            qw.eq("name", c.getName().trim());
+            if (c.getParentId() == null) {
+                qw.isNull("parent_id");
+            } else {
+                qw.eq("parent_id", c.getParentId());
+            }
+            NavigationCategory byNameParent = categoryMapper.selectOne(qw);
+            if (byNameParent != null) return byNameParent;
+            // 3) 根分类按名称唯一（当 parentId 为空）
+            if (c.getParentId() == null) {
+                NavigationCategory byRootName = categoryMapper.selectOne(
+                        new QueryWrapper<NavigationCategory>().eq("name", c.getName().trim()).isNull("parent_id")
+                );
+                if (byRootName != null) return byRootName;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 批量导入导航分类（逐条处理，汇总统计）
+     *
+     * 事务策略：
+     * - 使用同一事务上下文，逐条处理并捕获异常，不因单条失败而整体回滚；
+     * - 成功的记录会提交，失败的记录收集到 errors 列表中返回。
+     *
+     * 字段处理：
+     * - 创建：填充 createdAt/updatedAt、isEnabled、sortOrder；
+     * - 更新：仅更新非空字段，并刷新 updatedAt；允许更新 parentId（含 null）。
+     *
+     * 返回统计：total/created/updated/errors。
+     */
+    @Transactional
+    public Map<String, Object> importCategories(List<NavigationCategory> categories) {
+        int total = categories == null ? 0 : categories.size();
+        int created = 0;
+        int updated = 0;
+        List<Map<String, Object>> errors = new ArrayList<>();
+
+        if (categories == null || categories.isEmpty()) {
+            return Map.of("total", 0, "created", 0, "updated", 0, "errors", errors);
+        }
+
+        for (int i = 0; i < categories.size(); i++) {
+            NavigationCategory c = categories.get(i);
+            try {
+                NavigationCategory existing = findExistingByKeys(c);
+                if (existing != null) {
+                    // 更新：仅更新传入的非空字段，刷新更新时间；允许 parentId 为 null 表示设为根分类
+                    UpdateWrapper<NavigationCategory> uw = new UpdateWrapper<>();
+                    uw.eq("id", existing.getId());
+                    // 显式写入 parent_id，null 表示根分类
+                    uw.set("parent_id", c.getParentId());
+                    if (c.getName() != null) uw.set("name", c.getName());
+                    if (c.getIcon() != null) uw.set("icon", c.getIcon());
+                    if (c.getDescription() != null) uw.set("description", c.getDescription());
+                    if (c.getSortOrder() != null) uw.set("sort_order", c.getSortOrder());
+                    if (c.getIsEnabled() != null) uw.set("is_enabled", c.getIsEnabled());
+                    uw.set("updated_at", LocalDateTime.now());
+                    categoryMapper.update(null, uw);
+                    updated++;
+                } else {
+                    // 创建：名称必填
+                    if (c.getName() == null || c.getName().trim().isEmpty()) {
+                        throw new RuntimeException("分类名称不能为空");
+                    }
+                    // 默认字段填充
+                    LocalDateTime now = LocalDateTime.now();
+                    if (c.getCreatedAt() == null) c.setCreatedAt(now);
+                    c.setUpdatedAt(now);
+                    if (c.getIsEnabled() == null) c.setIsEnabled(true);
+                    // 默认排序权重：同父级下最大值 + 1（根分类时 parent_id IS NULL）
+                    if (c.getSortOrder() == null) {
+                        QueryWrapper<NavigationCategory> qw = new QueryWrapper<>();
+                        if (c.getParentId() == null) {
+                            qw.isNull("parent_id");
+                        } else {
+                            qw.eq("parent_id", c.getParentId());
+                        }
+                        qw.orderByDesc("sort_order").last("LIMIT 1");
+                        NavigationCategory last = categoryMapper.selectOne(qw);
+                        int next = (last != null && last.getSortOrder() != null) ? last.getSortOrder() + 1 : 1;
+                        c.setSortOrder(next);
+                    }
+                    categoryMapper.insert(c);
+                    created++;
+                }
+            } catch (Exception ex) {
+                errors.add(Map.of(
+                    "index", i,
+                    "name", c != null ? c.getName() : null,
+                    "message", ex.getMessage()
+                ));
+            }
+        }
+
+        return Map.of(
+            "total", total,
+            "created", created,
+            "updated", updated,
+            "errors", errors
+        );
     }
 }

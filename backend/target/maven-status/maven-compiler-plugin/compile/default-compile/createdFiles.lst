@@ -30,6 +30,7 @@ com\yunbq\backend\util\AuthUtil.class
 com\yunbq\backend\controller\PasswordResetController.class
 com\yunbq\backend\service\CaptchaService$Captcha.class
 com\yunbq\backend\config\DbMigrationRunner.class
+com\yunbq\backend\controller\NavigationController$2.class
 com\yunbq\backend\service\PasswordResetService.class
 com\yunbq\backend\exception\GlobalExceptionHandler.class
 com\yunbq\backend\model\ErrorLog.class
@@ -67,6 +68,7 @@ com\yunbq\backend\model\NoteFavorite.class
 com\yunbq\backend\model\User.class
 com\yunbq\backend\service\NoteCacheService$1.class
 com\yunbq\backend\service\CaptchaService$CaptchaEntry.class
+com\yunbq\backend\controller\NavigationController$1.class
 com\yunbq\backend\mapper\NavigationCategoryMapper.class
 com\yunbq\backend\mapper\RequestLogMapper.class
 com\yunbq\backend\dto\NoteRequest.class

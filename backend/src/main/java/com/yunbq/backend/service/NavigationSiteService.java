@@ -12,6 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 导航站点服务层
@@ -371,7 +376,131 @@ public class NavigationSiteService {
         siteMapper.update(null, updateWrapper);
         return siteMapper.selectById(id);
     }
-    
+
+    /**
+     * 根据导入记录匹配已存在的站点（用于去重与更新）
+     *
+     * 优先级：
+     * 1) id 精确匹配；
+     * 2) url 精确匹配（非空）；
+     * 3) name + categoryId 组合匹配（均非空）。
+     *
+     * 返回：命中则返回已有站点，否则返回 null。
+     */
+    public NavigationSite findExistingByKeys(NavigationSite site) {
+        if (site == null) return null;
+        // 1) 主键匹配
+        if (site.getId() != null) {
+            NavigationSite byId = siteMapper.selectById(site.getId());
+            if (byId != null) return byId;
+        }
+        // 2) URL 唯一匹配
+        if (site.getUrl() != null && !site.getUrl().trim().isEmpty()) {
+            NavigationSite byUrl = siteMapper.selectOne(new QueryWrapper<NavigationSite>().eq("url", site.getUrl()));
+            if (byUrl != null) return byUrl;
+        }
+        // 3) 名称 + 分类组合匹配
+        if (site.getName() != null && site.getCategoryId() != null) {
+            NavigationSite byNameCat = siteMapper.selectOne(new QueryWrapper<NavigationSite>()
+                .eq("name", site.getName())
+                .eq("category_id", site.getCategoryId())
+            );
+            if (byNameCat != null) return byNameCat;
+        }
+        return null;
+    }
+
+    /**
+     * 批量导入导航站点（逐条处理，汇总统计）
+     *
+     * 事务策略：
+     * - 使用同一事务上下文，逐条处理并捕获异常，不因单条失败而整体回滚；
+     * - 成功的记录会提交，失败的记录收集到 errors 列表中返回。
+     *
+     * 字段处理：
+     * - 创建：填充 createdAt/updatedAt、userId、isEnabled、isFeatured、clickCount、sortOrder；
+     * - 更新：仅更新非空字段，并刷新 updatedAt。
+     *
+     * 返回统计：total/created/updated/errors。
+     */
+    @Transactional
+    public Map<String, Object> importSites(List<NavigationSite> sites, Long userId) {
+        int total = sites == null ? 0 : sites.size();
+        int created = 0;
+        int updated = 0;
+        List<Map<String, Object>> errors = new ArrayList<>();
+
+        if (sites == null || sites.isEmpty()) {
+            return Map.of("total", 0, "created", 0, "updated", 0, "errors", errors);
+        }
+
+        for (int i = 0; i < sites.size(); i++) {
+            NavigationSite s = sites.get(i);
+            try {
+                NavigationSite existing = findExistingByKeys(s);
+                if (existing != null) {
+                    // 更新：仅更新传入的非空字段，刷新更新时间
+                    UpdateWrapper<NavigationSite> uw = new UpdateWrapper<>();
+                    uw.eq("id", existing.getId());
+                    if (s.getCategoryId() != null) uw.set("category_id", s.getCategoryId());
+                    if (s.getName() != null) uw.set("name", s.getName());
+                    if (s.getUrl() != null) uw.set("url", s.getUrl());
+                    if (s.getDescription() != null) uw.set("description", s.getDescription());
+                    if (s.getIcon() != null) uw.set("icon", s.getIcon());
+                    if (s.getFaviconUrl() != null) uw.set("favicon_url", s.getFaviconUrl());
+                    if (s.getTags() != null) uw.set("tags", s.getTags());
+                    if (s.getSortOrder() != null) uw.set("sort_order", s.getSortOrder());
+                    if (s.getIsEnabled() != null) uw.set("is_enabled", s.getIsEnabled());
+                    if (s.getIsFeatured() != null) uw.set("is_featured", s.getIsFeatured());
+                    if (s.getClickCount() != null) uw.set("click_count", s.getClickCount());
+                    uw.set("updated_at", LocalDateTime.now());
+                    siteMapper.update(null, uw);
+                    updated++;
+                } else {
+                    // 创建：分类ID必须存在
+                    if (s.getCategoryId() == null) {
+                        throw new RuntimeException("分类ID不能为空");
+                    }
+                    // 默认字段填充
+                    LocalDateTime now = LocalDateTime.now();
+                    if (s.getCreatedAt() == null) s.setCreatedAt(now);
+                    s.setUpdatedAt(now);
+                    s.setUserId(userId);
+                    if (s.getIsEnabled() == null) s.setIsEnabled(true);
+                    if (s.getIsFeatured() == null) s.setIsFeatured(false);
+                    if (s.getClickCount() == null) s.setClickCount(0L);
+                    // 默认排序权重：同分类下最大值 + 1
+                    if (s.getSortOrder() == null) {
+                        QueryWrapper<NavigationSite> qw = new QueryWrapper<>();
+                        if (s.getCategoryId() != null) {
+                            qw.eq("category_id", s.getCategoryId());
+                        }
+                        qw.orderByDesc("sort_order").last("LIMIT 1");
+                        NavigationSite last = siteMapper.selectOne(qw);
+                        int next = (last != null && last.getSortOrder() != null) ? last.getSortOrder() + 1 : 1;
+                        s.setSortOrder(next);
+                    }
+                    siteMapper.insert(s);
+                    created++;
+                }
+            } catch (Exception ex) {
+                errors.add(Map.of(
+                    "index", i,
+                    "name", s != null ? s.getName() : null,
+                    "url", s != null ? s.getUrl() : null,
+                    "error", ex.getMessage()
+                ));
+            }
+        }
+
+        return Map.of(
+            "total", total,
+            "created", created,
+            "updated", updated,
+            "errors", errors
+        );
+    }
+
     /**
      * 删除导航站点
      * 

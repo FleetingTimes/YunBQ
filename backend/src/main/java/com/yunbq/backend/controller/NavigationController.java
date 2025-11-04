@@ -13,12 +13,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 /**
  * 导航控制器
@@ -47,7 +49,53 @@ public class NavigationController {
         this.siteService = siteService;
         this.objectMapper = objectMapper;
     }
-    
+
+    /**
+     * 批量导入导航站点（管理员接口）
+     *
+     * 使用说明：
+     * - 前端以 multipart/form-data 上传文件，字段名为 `file`；文件内容为 JSON 数组，元素结构参考 NavigationSite。
+     * - 去重策略（按优先级）：
+     *   1) 若传入 `id`，则以主键匹配更新；
+     *   2) 否则若传入非空 `url`，按 URL 唯一匹配更新；
+     *   3) 否则若同时传入 `name` 与 `categoryId`，按 (name + categoryId) 组合匹配更新；
+     *   4) 若未命中任何已有记录，则创建新站点。
+     * - 字段填充：
+     *   - 创建时：默认填充 `createdAt`=当前时间、`updatedAt`=当前时间、`isEnabled`=true、`isFeatured`=false、`clickCount`=0、`userId`=当前用户；
+     *   - 更新时：仅更新请求体中非空字段，`updatedAt` 自动刷新为当前时间。
+     * - 事务与容错：
+     *   - 由服务层方法进行事务管理（逐条处理并捕获异常），保证成功的记录可提交，失败的记录收集到 `errors` 中返回；
+     *   - 不因单条失败而整体回滚，便于批量导入的实际操作体验。
+     */
+    @PostMapping("/admin/sites/import")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> importSites(@RequestParam("file") MultipartFile file) {
+        Long userId = AuthUtil.currentUserId();
+        if (userId == null) {
+            // 鉴权保护：必须登录且具备 ADMIN 角色
+            return ResponseEntity.status(401).body(Map.of("message", "未登录或权限不足"));
+        }
+
+        log.info("[NavigationController] POST /api/navigation/admin/sites/import called, filename={}", file.getOriginalFilename());
+        try {
+            // 使用 Spring 注入的 ObjectMapper 解析 JSON 数组，避免 LocalDateTime 的序列化/反序列化问题
+            List<NavigationSite> sites = objectMapper.readValue(
+                    file.getInputStream(), new TypeReference<List<NavigationSite>>() {}
+            );
+
+            // 委托服务层执行批量导入与去重逻辑，返回统计信息（total/created/updated/errors）
+            Map<String, Object> result = siteService.importSites(sites, userId);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            // 错误处理：记录详细异常信息并返回 500，包含简要错误信息便于前端提示
+            log.error("Failed to import sites: {}", e.getMessage(), e);
+            return ResponseEntity.status(500).body(Map.of(
+                    "message", "导入失败",
+                    "error", e.getMessage()
+            ));
+        }
+    }
+
     // ==================== 分类相关接口 ====================
     
     /**
@@ -242,6 +290,54 @@ public class NavigationController {
         } catch (Exception e) {
             log.error("Failed to export categories: {}", e.getMessage());
             return ResponseEntity.badRequest().body("导出失败".getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * 导入导航分类（管理员接口）
+     * 路径：POST /api/navigation/admin/categories/import
+     *
+     * 设计说明：
+     * - 前端以 multipart/form-data 上传文件字段名为 file；
+     * - 当前仅支持 JSON 格式的分类数组导入（format=json），CSV 可在后续扩展；
+     * - 去重规则由服务层实现：优先 id，其次 name+parentId，最后当 parentId 为空时按 name（根分类唯一）。
+     * - 导入行为：命中则更新非空字段并刷新 updatedAt；未命中则创建并填充默认字段。
+     * - 返回统计信息：total/created/updated/errors（逐条错误包含 index/name/message）。
+     */
+    @PostMapping("/admin/categories/import")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> importCategories(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "format", defaultValue = "json") String format
+    ) {
+        log.info("[NavigationController] POST /api/navigation/admin/categories/import called, format={}", format);
+
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message", "上传文件为空"
+            ));
+        }
+
+        final String lower = format == null ? "json" : format.toLowerCase();
+        try {
+            if (!"json".equals(lower)) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "message", "暂不支持的导入格式：" + format
+                ));
+            }
+
+            // 读取并解析 JSON：期待内容为 NavigationCategory 数组
+            String json = new String(file.getBytes(), StandardCharsets.UTF_8);
+            List<NavigationCategory> categories = objectMapper.readValue(json, new TypeReference<List<NavigationCategory>>() {});
+
+            // 委托服务层进行批量导入与去重
+            Map<String, Object> result = categoryService.importCategories(categories);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Failed to import categories: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of(
+                    "message", e.getMessage()
+            ));
         }
     }
     
