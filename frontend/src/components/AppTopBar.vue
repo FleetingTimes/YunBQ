@@ -127,31 +127,26 @@
               <img class="action-icon" src="https://api.iconify.design/mdi/note-text-outline.svg" alt="便签" width="16" height="16" />
               <span>我的便签</span>
             </el-button>
-            <!-- 导出便签入口（弹出卡片选择范围）：不改逻辑，仅换为扁平风格 -->
-            <el-popover
-              v-model:visible="exportVisible"
-              placement="top"
-              width="280"
-              popper-class="export-pop"
-            >
-              <div class="export-title">导出我的便签</div>
-              <div class="export-desc">请选择要导出的范围：</div>
-              <el-radio-group v-model="exportScope" size="small" class="export-scope">
-                <el-radio-button label="all">全部</el-radio-button>
-                <el-radio-button label="public">公开</el-radio-button>
-                <el-radio-button label="private">私有</el-radio-button>
-              </el-radio-group>
-              <div class="export-actions">
-                <el-button size="small" @click="exportVisible=false">取消</el-button>
-                <el-button size="small" type="primary" :loading="exportLoading" @click="exportMyNotes">导出</el-button>
+            <!-- 导出便签入口：改为内联展开面板（不使用弹层） -->
+            <el-button size="small" class="action-item" @click="exportInlineVisible = !exportInlineVisible">
+              <img class="action-icon" src="https://api.iconify.design/mdi/file-export-outline.svg" alt="导出" width="16" height="16" />
+              <span>导出便签</span>
+            </el-button>
+            <transition name="fade-slide">
+              <div v-if="exportInlineVisible" class="export-pop inline" aria-live="polite">
+                <!-- 说明文字：在卡片内联区域呈现，不遮挡其他内容 -->
+                <div class="export-title">导出我的便签</div>
+                <div class="export-desc">请选择导出格式：</div>
+                <el-radio-group v-model="exportFormat" size="small" class="export-format">
+                  <el-radio-button label="csv">CSV</el-radio-button>
+                  <el-radio-button label="json">JSON</el-radio-button>
+                </el-radio-group>
+                <div class="export-actions">
+                  <el-button size="small" @click="exportInlineVisible=false">取消</el-button>
+                  <el-button size="small" type="primary" :loading="exportLoading" @click="exportMyNotes">导出</el-button>
+                </div>
               </div>
-              <template #reference>
-                <el-button size="small" class="action-item">
-                  <img class="action-icon" src="https://api.iconify.design/mdi/file-export-outline.svg" alt="导出" width="16" height="16" />
-                  <span>导出便签</span>
-                </el-button>
-              </template>
-            </el-popover>
+            </transition>
             <el-button size="small" class="action-item" @click="logout">
               <img class="action-icon" src="https://api.iconify.design/mdi/logout.svg" alt="退出" width="16" height="16" />
               <span>退出登录</span>
@@ -547,74 +542,69 @@ function onHoverLeave(){
 }
 
 // =========================
-// 导出便签（重新实现）
+// 导出便签功能：前端分页拉取 + 本地过滤 + CSV 下载
 // =========================
-// 说明：
-// - 导出入口在头像悬浮卡片的“导出便签”按钮中（使用 Popover 展示范围选择）；
-// - 这里重新实现导出逻辑，前端分页拉取“我的便签”，在本地按范围过滤并生成 CSV 文件；
-// - 默认导出格式为 CSV（含 UTF-8 BOM，兼容 Excel 打开）；后续如需 JSON/Excel，可继续扩展；
-// - 后端 /notes 接口支持 mineOnly=true 拉取当前用户的便签；未提供导出专用 API，因此采用前端聚合。
+// 设计说明（详细注释）：
+// - 入口：头像悬浮卡片中的“导出便签”按钮，弹层选择导出范围（全部/公开/私有）。
+// - 数据源：复用后端 /notes 接口，传参 mineOnly=true 拉取当前用户的便签。
+// - 拉取策略：每页 200 条，直到不足一页为止；避免大数据一次性请求造成阻塞。
+// - 过滤：在前端根据选择的范围（all/public/private）进行本地过滤。
+// - 导出格式：CSV（带 UTF-8 BOM，Excel 直接可读）；文件名包含时间戳。
+// - 错误与提示：登录校验、加载状态、成功/失败消息均统一处理。
 
-// 导出弹窗可见性
-const exportVisible = ref(false)
-// 导出范围：all（全部）/ public（公开）/ private（私有）
-const exportScope = ref('all')
-// 导出按钮加载状态
+// 内联面板可见状态（控制卡片内展开区域），替代弹层实现
+const exportInlineVisible = ref(false)
+// 导出格式：'csv' 或 'json'（默认 csv）
+const exportFormat = ref('csv')
+// 导出按钮加载状态（避免重复点击）
 const exportLoading = ref(false)
 
-// 将后端返回的便签项统一映射为稳定字段，以便导出
-// 说明：不同页面/接口可能出现 camelCase 与 snake_case 混用，此处进行兜底兼容。
+// 映射便签项到稳定字段结构，处理后端可能出现的大小写或命名差异
 function mapNoteItem(it){
   return {
     id: it.id,
     userId: it.userId ?? it.user_id ?? '',
     authorName: it.authorName ?? it.author_name ?? (me.nickname || me.username || ''),
     content: it.content ?? '',
-    // tags 后端通常为逗号分隔字符串；若返回数组或其他结构，这里统一为字符串
+    // tags 可能是数组或字符串，这里统一为逗号分隔字符串
     tags: Array.isArray(it.tags) ? it.tags.join(',') : (it.tags ?? ''),
     color: it.color ?? '',
     archived: Boolean(it.archived ?? it.is_archived ?? false),
     isPublic: Boolean(it.isPublic ?? it.is_public ?? false),
-    // 日期字段：优先使用 camelCase，其次 snake_case
     createdAt: it.createdAt ?? it.created_at ?? '',
     updatedAt: it.updatedAt ?? it.updated_at ?? '',
-    // 交互统计：兼容多种返回形态
     likeCount: Number(it.likeCount ?? it.like_count ?? 0),
     favoriteCount: Number(it.favoriteCount ?? it.favorite_count ?? 0),
   }
 }
 
-// 构建 CSV 文本（包含表头）
-// 注意：
-// - 使用引号包裹字段，内部双引号需转义为两个双引号；
-// - 在最前加入 UTF-8 BOM（\uFEFF），避免 Excel 乱码；
+// 构建 CSV 文本（包含表头，并在头部加入 UTF-8 BOM 以兼容 Excel）
 function buildCsv(rows){
-  const headers = [
-    'id','userId','authorName','content','tags','color','archived','isPublic','createdAt','updatedAt','likeCount','favoriteCount'
-  ]
-  // 字段转义为 CSV 单元格
+  const headers = ['id','userId','authorName','content','tags','color','archived','isPublic','createdAt','updatedAt','likeCount','favoriteCount']
   const esc = (v) => {
     const s = (v === null || v === undefined) ? '' : String(v)
-    // 将双引号转义为两个双引号
-    const escaped = s.replace(/"/g, '""')
-    return `"${escaped}"`
+    return '"' + s.replace(/"/g, '""') + '"'
   }
   const lines = []
   lines.push(headers.join(','))
   for (const r of rows){
-    const line = [
+    lines.push([
       esc(r.id), esc(r.userId), esc(r.authorName), esc(r.content), esc(r.tags), esc(r.color),
       esc(r.archived), esc(r.isPublic), esc(r.createdAt), esc(r.updatedAt), esc(r.likeCount), esc(r.favoriteCount)
-    ].join(',')
-    lines.push(line)
+    ].join(','))
   }
-  // 头部加入 BOM，兼容 Excel
   return '\uFEFF' + lines.join('\n')
 }
 
+// 构建 JSON 文本（美化缩进，便于查看与二次处理）
+function buildJson(rows){
+  // 使用稳定字段的对象数组进行 JSON 序列化；缩进为 2 空格
+  return JSON.stringify(rows, null, 2)
+}
+
 // 触发浏览器下载（创建临时链接并点击）
-function triggerDownload(filename, text){
-  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' })
+function triggerDownload(filename, text, mimeType = 'text/plain;charset=utf-8;'){
+  const blob = new Blob([text], { type: mimeType })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -625,49 +615,50 @@ function triggerDownload(filename, text){
   URL.revokeObjectURL(url)
 }
 
-// 导出我的便签（按范围）
-// 实现步骤：
-// 1) 校验登录态；
-// 2) 分页拉取 /notes?mineOnly=true 的全部数据（页大小 200）；
-// 3) 本地按 exportScope 过滤（all/public/private）；
-// 4) 构建 CSV 并触发下载；
-// 5) 成功/失败提示，并关闭弹窗。
+// 导出我的便签：分页拉取、按范围过滤、构建 CSV 并下载
 async function exportMyNotes(){
+  // 1) 登录校验：未登录不允许导出
   if (!getToken()){ ElMessage.warning('请先登录'); return }
+  // 2) 防抖：导出进行中不重复触发
   if (exportLoading.value) return
   exportLoading.value = true
   try{
     const pageSize = 200
     let page = 1
     const all = []
-    // 分页拉取直至无更多数据
+    // 3) 分页拉取 /notes（mineOnly=true）直到不足一页
     while(true){
       const { data } = await http.get('/notes', {
         params: { page, size: pageSize, mineOnly: true },
         suppress401Redirect: true,
       })
       const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
-      const mapped = items.map(mapNoteItem)
-      all.push(...mapped)
-      // 终止条件：本页数量不足 pageSize，或没有返回数组
-      if (!Array.isArray(items) || items.length < pageSize) break
+      if (!Array.isArray(items) || items.length === 0) break
+      all.push(...items.map(mapNoteItem))
+      if (items.length < pageSize) break
       page += 1
     }
 
-    // 按范围过滤
-    let filtered = all
-    if (exportScope.value === 'public') filtered = all.filter(n => n.isPublic === true)
-    else if (exportScope.value === 'private') filtered = all.filter(n => n.isPublic === false)
+    // 4) 构建导出内容：按格式生成 CSV 或 JSON
+    const now = new Date(); const pad = (n) => String(n).padStart(2,'0')
+    const ts = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+    let filename, payload, mime
+    if (exportFormat.value === 'json'){
+      // JSON：不需要 BOM，内容可读性强，适合二次处理
+      filename = `my-notes_${ts}.json`
+      payload = buildJson(all)
+      mime = 'application/json;charset=utf-8;'
+    }else{
+      // CSV：加入 BOM，兼容 Excel 显示中文
+      filename = `my-notes_${ts}.csv`
+      payload = buildCsv(all)
+      mime = 'text/csv;charset=utf-8;'
+    }
+    triggerDownload(filename, payload, mime)
 
-    // 构建 CSV 并下载
-    const csv = buildCsv(filtered)
-    const now = new Date()
-    const pad = (n) => String(n).padStart(2,'0')
-    const filename = `my-notes_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.csv`
-    triggerDownload(filename, csv)
-
-    exportVisible.value = false
-    ElMessage.success(`导出成功，共 ${filtered.length} 条`)
+    // 6) 关闭弹层并提示成功
+    exportInlineVisible.value = false
+    ElMessage.success(`导出成功，共 ${all.length} 条；格式：${exportFormat.value.toUpperCase()}`)
   }catch(e){
     const msg = e?.response?.data?.message || '导出失败，请稍后重试'
     ElMessage.error(msg)
@@ -1163,9 +1154,17 @@ async function exportMyNotes(){
 .profile-actions :deep(.action-item .el-button__inner){ text-align: left; padding:10px 12px; width:100%; }
 /* 导出便签弹出卡片样式（与顶栏卡片一致） */
 .export-pop { padding: 10px 12px; }
+.export-pop.inline { 
+  /* 内联展开面板：在卡片内渲染，不使用浮层 */
+  margin-top: 6px; 
+  border: 1px dashed rgba(0,0,0,0.08);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.55);
+}
 .export-pop .export-title { font-weight: 600; color:#303133; margin-bottom: 6px; }
 .export-pop .export-desc { font-size:12px; color:#606266; margin-bottom: 8px; }
 .export-pop .export-scope { display:flex; justify-content:flex-start; gap:6px; margin-bottom:10px; }
+.export-pop .export-format { display:flex; justify-content:flex-start; gap:6px; margin-bottom:10px; }
 .export-pop .export-actions { display:flex; justify-content:flex-end; gap:8px; }
 /* 值展示优化 */
 .profile-info-list .value { color:#303133; font-size:13px; text-align:left; overflow-wrap:anywhere; flex:1 1 auto; }
