@@ -86,3 +86,40 @@ export function importUsers(file) {
   // 注意：axios 在上传 FormData 时会自动设置合适的 Content-Type（含边界），无需手动指定
   return http.post('/admin/users/import', form).then(res => res.data);
 }
+
+// ==================== 用户管理（CRUD） ====================
+
+/**
+ * 创建用户（管理员）
+ * 字段说明：
+ * - 必填：`username`
+ * - 可选：`nickname`, `email`, `signature`, `avatarUrl`, `role`(ADMIN/USER), `password`(明文)
+ * - 若提供 `password` 明文，后端将进行 BCrypt 哈希；不提供则创建为“无密码”用户（不可登录）。
+ * 返回：后端 UserSummary（不含密码/哈希），用于表格刷新。
+ */
+export function createUser(data) {
+  // 约定后端路径：POST /admin/users
+  // 安全性：仅管理员可调用，后端已做权限控制
+  return http.post('/admin/users', data).then(res => res.data);
+}
+
+/**
+ * 更新用户（管理员）
+ * 字段说明：
+ * - 可更新：`username`, `nickname`, `email`, `signature`, `avatarUrl`, `role`, `password`(明文)
+ * - 邮箱与用户名若冲突，后端返回 409；前端需提示并保留表单值。
+ * 返回：后端 UserSummary，用于表格刷新。
+ */
+export function updateUser(id, data) {
+  // 约定后端路径：PUT /admin/users/{id}
+  return http.put(`/admin/users/${id}`, data).then(res => res.data);
+}
+
+/**
+ * 删除用户（管理员）
+ * 返回：`{ ok: true }`
+ */
+export function deleteUser(id) {
+  // 约定后端路径：DELETE /admin/users/{id}
+  return http.delete(`/admin/users/${id}`).then(res => res.data);
+}

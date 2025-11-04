@@ -22,9 +22,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -98,6 +102,155 @@ public class AdminController {
         }).collect(Collectors.toList());
         PageResult<UserSummary> resp = new PageResult<>(items, p.getTotal(), p.getCurrent(), p.getSize());
         return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 创建用户（管理员）
+     *
+     * 入参说明：
+     * - 支持字段：username(必填)、nickname、email、signature、avatarUrl、role（ADMIN/USER）、password（可选明文）
+     * - 若提供 password（明文），将进行 BCrypt 哈希后写入 passwordHash；未提供则不设置密码（不可登录）。
+     * - email 若已被其他用户占用，将返回 409。
+     *
+     * 返回：创建后的用户摘要（不含密码/哈希），与列表接口保持一致。
+     */
+    @PostMapping("/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<?> createUser(@RequestBody Map<String, Object> body) {
+        String username = asString(body.get("username"));
+        if (username == null || username.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "username 为必填项"));
+        }
+
+        // 邮箱唯一性检查（若提供）
+        String email = asString(body.get("email"));
+        if (email != null && !email.isBlank()) {
+            User existEmail = userMapper.selectOne(new QueryWrapper<User>().eq("email", email).last("limit 1"));
+            if (existEmail != null) {
+                return ResponseEntity.status(409).body(Map.of("message", "该邮箱已被使用"));
+            }
+        }
+
+        // 用户名唯一性检查
+        User existUsername = userMapper.selectOne(new QueryWrapper<User>().eq("username", username).last("limit 1"));
+        if (existUsername != null) {
+            return ResponseEntity.status(409).body(Map.of("message", "该用户名已存在"));
+        }
+
+        User u = new User();
+        u.setUsername(username);
+        u.setNickname(asString(body.get("nickname")));
+        u.setEmail(email);
+        u.setSignature(asString(body.get("signature")));
+        u.setAvatarUrl(asString(body.get("avatarUrl")));
+        String role = asString(body.get("role"));
+        u.setRole(role != null && !role.isBlank() ? role : "USER");
+        u.setCreatedAt(java.time.LocalDateTime.now());
+
+        // 处理明文密码：若提供则进行哈希
+        String password = asString(body.get("password"));
+        if (password != null && !password.isBlank()) {
+            u.setPasswordHash(passwordEncoder.encode(password));
+        }
+
+        userMapper.insert(u);
+
+        boolean hasPassword = u.getPasswordHash() != null && !u.getPasswordHash().isBlank();
+        UserSummary resp = new UserSummary(
+                u.getId(), u.getUsername(), u.getNickname(), u.getEmail(), u.getRole(), u.getCreatedAt(), u.getAvatarUrl(), hasPassword
+        );
+        return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 更新用户（管理员）
+     *
+     * 入参说明：
+     * - 支持更新：nickname、email、signature、avatarUrl、role、password（明文，覆盖原密码）
+     * - 如需修改 username，可传入 username（需通过唯一性检查）。
+     * - email 若与其他用户冲突，返回 409。
+     *
+     * 返回：更新后的用户摘要。
+     */
+    @PutMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        User u = userMapper.selectById(id);
+        if (u == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "用户不存在"));
+        }
+
+        // username 更新（可选且需唯一性检查）
+        String newUsername = asString(body.get("username"));
+        if (newUsername != null && !newUsername.isBlank() && !newUsername.equals(u.getUsername())) {
+            User exist = userMapper.selectOne(new QueryWrapper<User>().eq("username", newUsername).last("limit 1"));
+            if (exist != null && !exist.getId().equals(id)) {
+                return ResponseEntity.status(409).body(Map.of("message", "该用户名已存在"));
+            }
+            u.setUsername(newUsername);
+        }
+
+        // email 更新（唯一性检查）
+        String newEmail = asString(body.get("email"));
+        if (newEmail != null && !newEmail.isBlank() && !newEmail.equals(u.getEmail())) {
+            User exist = userMapper.selectOne(new QueryWrapper<User>().eq("email", newEmail).last("limit 1"));
+            if (exist != null && !exist.getId().equals(id)) {
+                return ResponseEntity.status(409).body(Map.of("message", "该邮箱已被使用"));
+            }
+            u.setEmail(newEmail);
+        }
+
+        // 其他字段更新：仅覆盖提供的非空值
+        if (body.containsKey("nickname")) u.setNickname(asString(body.get("nickname")));
+        if (body.containsKey("signature")) u.setSignature(asString(body.get("signature")));
+        if (body.containsKey("avatarUrl")) u.setAvatarUrl(asString(body.get("avatarUrl")));
+        if (body.containsKey("role")) {
+            String r = asString(body.get("role"));
+            if (r != null && !r.isBlank()) u.setRole(r);
+        }
+
+        // 重置密码：若提供明文 password，则进行哈希覆盖原密码
+        String password = asString(body.get("password"));
+        if (password != null && !password.isBlank()) {
+            u.setPasswordHash(passwordEncoder.encode(password));
+        }
+
+        userMapper.updateById(u);
+
+        boolean hasPassword = u.getPasswordHash() != null && !u.getPasswordHash().isBlank();
+        UserSummary resp = new UserSummary(
+                u.getId(), u.getUsername(), u.getNickname(), u.getEmail(), u.getRole(), u.getCreatedAt(), u.getAvatarUrl(), hasPassword
+        );
+        return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 删除用户（管理员）
+     *
+     * 安全提示：可根据需要限制删除自身或 ADMIN 账号，这里仅做简单删除。
+     */
+    @DeleteMapping("/users/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+        User u = userMapper.selectById(id);
+        if (u == null) {
+            return ResponseEntity.status(404).body(Map.of("message", "用户不存在"));
+        }
+        userMapper.deleteById(id);
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    // ==================== 辅助方法 ====================
+    /**
+     * 将对象安全转换为字符串，避免出现类型不匹配导致的 ClassCastException。
+     * null 或非字符串类型将返回其 toString()（若为 null 则返回 null）。
+     */
+    private String asString(Object v) {
+        if (v == null) return null;
+        return (v instanceof String) ? (String) v : v.toString();
     }
 
     @GetMapping("/logs")

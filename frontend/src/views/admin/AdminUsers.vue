@@ -4,6 +4,8 @@
       <el-input v-model="q" placeholder="搜索用户名/昵称/邮箱" clearable @keyup.enter="reload" style="max-width: 280px" />
       <el-button type="primary" :loading="loading" @click="reload">搜索</el-button>
       <el-button @click="reset">重置</el-button>
+      <!-- 新增用户：打开“新增用户”弹窗，支持设置基础信息与可选密码 -->
+      <el-button type="primary" plain @click="openAddDialog" style="margin-left: 8px;">新增用户</el-button>
       <!-- 导入用户：通过隐藏的文件选择器触发上传 JSON 文件 -->
       <el-button type="success" :loading="importing" @click="triggerUserImport" style="margin-left: 8px;">
         导入用户
@@ -66,6 +68,13 @@
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" />
+      <!-- 操作列：编辑与删除 -->
+      <el-table-column label="操作" width="200">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="openEditDialog(row)">编辑</el-button>
+          <el-button link type="danger" @click="confirmDelete(row)">删除</el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
     <div class="pager">
@@ -111,6 +120,76 @@
       <el-button type="danger" :loading="advExporting" @click="confirmAdvancedExport">确认导出</el-button>
     </template>
   </el-dialog>
+
+  <!-- 新增用户弹窗：设置基础信息与可选密码 -->
+  <el-dialog v-model="addVisible" title="新增用户" width="560px">
+    <!-- 说明：用户创建时 username 必填；password 为可选明文，后端统一哈希；role 默认 USER。 -->
+    <el-form :model="addForm" label-width="96px">
+      <el-form-item label="用户名" required>
+        <el-input v-model="addForm.username" placeholder="请输入用户名" />
+      </el-form-item>
+      <el-form-item label="昵称">
+        <el-input v-model="addForm.nickname" placeholder="可选：昵称" />
+      </el-form-item>
+      <el-form-item label="邮箱">
+        <el-input v-model="addForm.email" placeholder="可选：邮箱" />
+      </el-form-item>
+      <el-form-item label="签名">
+        <el-input v-model="addForm.signature" placeholder="可选：个性签名" />
+      </el-form-item>
+      <el-form-item label="头像URL">
+        <el-input v-model="addForm.avatarUrl" placeholder="可选：/uploads/avatars/xxx.png 或 http://..." />
+      </el-form-item>
+      <el-form-item label="角色">
+        <el-select v-model="addForm.role" placeholder="请选择角色">
+          <el-option label="管理员" value="ADMIN" />
+          <el-option label="普通用户" value="USER" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="密码">
+        <el-input v-model="addForm.password" type="password" placeholder="可选：不填则为不可登录用户" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="addVisible = false" :disabled="addSubmitting">取消</el-button>
+      <el-button type="primary" :loading="addSubmitting" @click="submitAdd">创建</el-button>
+    </template>
+  </el-dialog>
+
+  <!-- 编辑用户弹窗：允许更新基础信息与可选重置密码 -->
+  <el-dialog v-model="editVisible" title="编辑用户" width="560px">
+    <!-- 说明：编辑时可修改 username/email（后端做唯一性检查），密码为可选重置（明文）。 -->
+    <el-form :model="editForm" label-width="96px">
+      <el-form-item label="用户名">
+        <el-input v-model="editForm.username" placeholder="用户名" />
+      </el-form-item>
+      <el-form-item label="昵称">
+        <el-input v-model="editForm.nickname" placeholder="昵称" />
+      </el-form-item>
+      <el-form-item label="邮箱">
+        <el-input v-model="editForm.email" placeholder="邮箱" />
+      </el-form-item>
+      <el-form-item label="签名">
+        <el-input v-model="editForm.signature" placeholder="个性签名" />
+      </el-form-item>
+      <el-form-item label="头像URL">
+        <el-input v-model="editForm.avatarUrl" placeholder="/uploads/avatars/xxx.png 或 http://..." />
+      </el-form-item>
+      <el-form-item label="角色">
+        <el-select v-model="editForm.role" placeholder="角色">
+          <el-option label="管理员" value="ADMIN" />
+          <el-option label="普通用户" value="USER" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="重置密码">
+        <el-input v-model="editForm.password" type="password" placeholder="可选：留空则不修改密码" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="editVisible = false" :disabled="editSubmitting">取消</el-button>
+      <el-button type="primary" :loading="editSubmitting" @click="submitEdit">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -118,7 +197,7 @@ import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
 import { ArrowDown } from '@element-plus/icons-vue';
 import { http } from '@/api/http';
-import { importUsers, exportUsersAdvanced } from '@/api/admin';
+import { importUsers, exportUsersAdvanced, createUser, updateUser, deleteUser } from '@/api/admin';
 
 const props = defineProps({ updateSummary: { type: Function, default: null } });
 
@@ -138,6 +217,35 @@ const advExportVisible = ref(false);
 const advExportFormat = ref('csv'); // 默认 CSV
 const advConfirmText = ref('');
 const advExporting = ref(false);
+
+// 新增/编辑弹窗与表单状态
+const addVisible = ref(false);
+const addSubmitting = ref(false);
+const addForm = ref({
+  // 字段说明：与后端 AdminController#createUser 对齐
+  username: '', // 必填：用户名（唯一）
+  nickname: '',
+  email: '',
+  signature: '',
+  avatarUrl: '',
+  role: 'USER', // 默认普通用户
+  password: '' // 可选明文密码：不填则为不可登录用户
+});
+
+const editVisible = ref(false);
+const editSubmitting = ref(false);
+// 记录当前编辑的用户ID（后端需要）
+const editingId = ref(null);
+const editForm = ref({
+  // 字段说明：与后端 AdminController#updateUser 对齐
+  username: '',
+  nickname: '',
+  email: '',
+  signature: '',
+  avatarUrl: '',
+  role: 'USER',
+  password: '' // 可选：设置则重置密码；留空不更新密码
+});
 
 /**
  * 将后端返回的头像地址转换为可访问的完整 URL。
@@ -400,6 +508,96 @@ async function confirmAdvancedExport() {
 function cancelAdvancedExport() {
   if (advExporting.value) return;
   advExportVisible.value = false;
+}
+
+/**
+ * 打开新增用户弹窗并重置表单
+ */
+function openAddDialog() {
+  addForm.value = { username: '', nickname: '', email: '', signature: '', avatarUrl: '', role: 'USER', password: '' };
+  addVisible.value = true;
+}
+
+/**
+ * 提交新增用户：调用后端创建接口
+ * 成功后关闭弹窗并刷新列表；失败提示具体错误（如 409 冲突）。
+ */
+async function submitAdd() {
+  if (addSubmitting.value) return;
+  if (!addForm.value.username || !addForm.value.username.trim()) {
+    ElMessage.error('用户名为必填项');
+    return;
+  }
+  addSubmitting.value = true;
+  try {
+    const payload = { ...addForm.value };
+    const data = await createUser(payload);
+    ElMessage.success(`创建成功（ID=${data.id}）`);
+    addVisible.value = false;
+    reload();
+  } catch (err) {
+    const msg = err?.response?.data?.message || err?.message || '创建失败';
+    ElMessage.error(msg);
+  } finally {
+    addSubmitting.value = false;
+  }
+}
+
+/**
+ * 打开编辑弹窗并填充当前行数据
+ */
+function openEditDialog(row) {
+  editingId.value = row.id;
+  editForm.value = {
+    username: row.username || '',
+    nickname: row.nickname || '',
+    email: row.email || '',
+    signature: row.signature || '',
+    avatarUrl: row.avatarUrl || '',
+    role: row.role || 'USER',
+    password: ''
+  };
+  editVisible.value = true;
+}
+
+/**
+ * 提交编辑保存：调用后端更新接口
+ * 成功后关闭弹窗并刷新列表；失败提示具体错误（如 409 冲突）。
+ */
+async function submitEdit() {
+  if (editSubmitting.value) return;
+  editSubmitting.value = true;
+  try {
+    const payload = { ...editForm.value };
+    // 若未设置密码，避免发送空字符串（后端会将空字符串视为非空）
+    if (!payload.password) delete payload.password;
+    const data = await updateUser(editingId.value, payload);
+    ElMessage.success(`保存成功（ID=${data.id}）`);
+    editVisible.value = false;
+    reload();
+  } catch (err) {
+    const msg = err?.response?.data?.message || err?.message || '保存失败';
+    ElMessage.error(msg);
+  } finally {
+    editSubmitting.value = false;
+  }
+}
+
+/**
+ * 删除确认与执行
+ */
+async function confirmDelete(row) {
+  // 简单确认：可替换为 ElMessageBox 确认弹窗
+  const ok = window.confirm(`确认删除用户：${row.username}（ID=${row.id}）？`);
+  if (!ok) return;
+  try {
+    await deleteUser(row.id);
+    ElMessage.success('删除成功');
+    reload();
+  } catch (err) {
+    const msg = err?.response?.data?.message || err?.message || '删除失败';
+    ElMessage.error(msg);
+  }
 }
 </script>
 
