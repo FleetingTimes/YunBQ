@@ -77,6 +77,7 @@
                     </template>
                   </el-input>
                 </el-form-item>
+                <!-- 选择按钮移出至右侧“清空”前面，此处不再渲染 -->
               </div>
             </div>
             <div class="flex-break" aria-hidden="true"></div>
@@ -96,9 +97,29 @@
               </span>
             </el-form-item>
             <el-form-item class="pull-right">
-              <el-button @click="resetFilters">清空</el-button>
+              <!-- 将“选择”控件放在“清空”控件前面：便于批量操作入口更靠近右侧工具 -->
+              <!-- 样式优化：使用默认按钮风格以与“清空”一致，提升协调性 -->
+              <el-button size="small" @click="toggleSelectionMode" style="margin-right:8px;" class="select-btn">
+                {{ selectionMode ? '退出选择' : '选择' }}
+              </el-button>
+              <span v-if="selectedIds.length" class="selected-count" title="已选数量" style="margin-right:8px;">已选 {{ selectedIds.length }} 条</span>
+              <!-- 统一按钮大小：与“选择”保持相同的小尺寸，视觉更协调 -->
+              <el-button size="small" @click="resetFilters">清空</el-button>
             </el-form-item>
           </el-form>
+          <!-- 批量操作工具栏：仅在选择模式或有已选项时显示；支持全选本页/取消全选/批量设为公开/私有/删除 -->
+          <div v-if="selectionMode || selectedIds.length" class="bulk-toolbar">
+            <div class="bulk-left">
+              <el-button size="small" @click="selectAllOnPage">全选本页</el-button>
+              <el-button size="small" @click="clearSelection">取消全选</el-button>
+            </div>
+            <div class="spacer"></div>
+            <div class="bulk-right">
+              <el-button size="small" type="primary" :disabled="!selectedIds.length || bulkLoading" @click="bulkSetVisibility(true)">批量设为公开</el-button>
+              <el-button size="small" type="info" :disabled="!selectedIds.length || bulkLoading" @click="bulkSetVisibility(false)">批量设为私有</el-button>
+              <el-button size="small" type="danger" :disabled="!selectedIds.length || bulkLoading" @click="bulkDeleteSelected">批量删除</el-button>
+            </div>
+          </div>
         </div>
 
         <!-- 年份分组时间线 -->
@@ -156,6 +177,10 @@
           <div class="note-tags top-right" v-if="parsedTags(n.tags).length">
             <el-tag v-for="t in parsedTags(n.tags)" :key="t" size="small" style="margin-left:6px;">#{{ t }}</el-tag>
           </div>
+          <!-- 选择框：放在“标签”下方；保持靠右对齐。阻止事件冒泡避免触发长按动作层或编辑态切换。 -->
+          <div v-if="selectionMode" class="select-box below-tags" @click.stop @mousedown.stop @mouseup.stop @touchstart.stop @touchend.stop>
+            <el-checkbox :checked="isSelected(n)" @change="onSelectChange(n, $event)" />
+          </div>
           <div class="note-content">{{ n.content }}</div>
           <div class="meta bottom-left">
             <el-tag size="small" :type="n.isPublic ? 'success' : 'info'">{{ n.isPublic ? '公开' : '私有' }}</el-tag>
@@ -170,6 +195,10 @@
             <!-- 编辑态：右上始终展示源标签（有则显示） -->
             <div class="note-tags top-right" v-if="parsedTags(n.tags).length">
               <el-tag v-for="t in parsedTags(n.tags)" :key="t" size="small" style="margin-left:6px;">#{{ t }}</el-tag>
+            </div>
+            <!-- 选择框：编辑态同样置于“标签”下方，便于统一交互 -->
+            <div v-if="selectionMode" class="select-box below-tags" @click.stop @mousedown.stop @mouseup.stop @touchstart.stop @touchend.stop>
+              <el-checkbox :checked="isSelected(n)" @change="onSelectChange(n, $event)" />
             </div>
             <div class="edit-form">
               <div class="edit-toolbar">
@@ -307,6 +336,125 @@ function resetFilters(){
   filters.query = '';
   filters.sortBy = 'time';
   filters.sortOrder = 'desc';
+}
+
+// ==================== 多选与批量操作（删除 / 公开 / 私有） ====================
+// 设计说明：
+// - 通过 selectionMode 开关进入选择模式，在每条便签左上角显示复选框；
+// - 使用 selectedIds 数组保存已选便签 ID；
+// - 提供“全选本页/取消全选/批量设为公开/私有/批量删除”等操作；
+// - 批量操作基于现有单条接口（PUT /notes/{id}、DELETE /notes/{id}），通过 Promise.allSettled 并发执行；
+// - 完成后给出成功/失败统计并更新本地列表状态。
+
+// 是否处于选择模式（显示选择框与批量工具栏）
+const selectionMode = ref(false);
+// 已选便签 ID 列表（数组）
+const selectedIds = ref([]);
+// 批量操作加载状态（防止重复点击触发并发）
+const bulkLoading = ref(false);
+
+/** 切换选择模式：进入或退出。退出时清空已选项。 */
+function toggleSelectionMode(){
+  selectionMode.value = !selectionMode.value;
+  if (!selectionMode.value) selectedIds.value = [];
+}
+
+/** 当前便签是否选中（用于复选框勾选状态） */
+function isSelected(n){
+  return selectedIds.value.includes(n.id);
+}
+
+/** 勾选状态改变（复选框 change）：添加或移除选中项。 */
+function onSelectChange(n, checked){
+  const id = n.id;
+  if (checked){
+    if (!selectedIds.value.includes(id)) selectedIds.value = selectedIds.value.concat(id);
+  }else{
+    selectedIds.value = selectedIds.value.filter(x => x !== id);
+  }
+}
+
+/** 全选当前页（当前已加载的 notes 列表）；重复 ID 自动去重。 */
+function selectAllOnPage(){
+  const ids = notes.value.map(n => n.id);
+  const set = new Set([...selectedIds.value, ...ids]);
+  selectedIds.value = Array.from(set);
+}
+
+/** 取消全选（清空选中）并保留选择模式状态。 */
+function clearSelection(){ selectedIds.value = []; }
+
+/**
+ * 批量删除已选便签：二次确认 + 并发删除 + 本地移除 + 统计提示
+ */
+async function bulkDeleteSelected(){
+  if (!selectedIds.value.length || bulkLoading.value) return;
+  try{
+    await ElMessageBox.confirm(`确定删除选中的 ${selectedIds.value.length} 条便签吗？不可恢复。`, '批量删除确认', {
+      confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning'
+    });
+  }catch{ return; }
+  bulkLoading.value = true;
+  try{
+    const ids = [...selectedIds.value];
+    const tasks = ids.map(id => http.delete(`/notes/${id}`));
+    const results = await Promise.allSettled(tasks);
+    const successIds = [];
+    const failed = [];
+    results.forEach((r, i) => {
+      const id = ids[i];
+      if (r.status === 'fulfilled') successIds.push(id); else failed.push(id);
+    });
+    if (successIds.length) notes.value = notes.value.filter(n => !successIds.includes(n.id));
+    selectedIds.value = selectedIds.value.filter(id => !successIds.includes(id));
+    ElMessage.success(`删除成功 ${successIds.length} 条，失败 ${failed.length} 条`);
+  }catch(e){
+    ElMessage.error('批量删除失败，请稍后再试');
+  }finally{
+    bulkLoading.value = false;
+  }
+}
+
+/**
+ * 批量设置公开/私有：并发更新 isPublic 保留其它字段，完成后更新本地状态并提示统计
+ */
+async function bulkSetVisibility(isPublic){
+  if (!selectedIds.value.length || bulkLoading.value) return;
+  bulkLoading.value = true;
+  try{
+    const idToNote = new Map(notes.value.map(n => [n.id, n]));
+    const ids = [...selectedIds.value];
+    const tasks = ids.map(id => {
+      const n = idToNote.get(id);
+      const payload = {
+        content: n?.content ?? '',
+        tags: (Array.isArray(n?.tags) ? n.tags.join(',') : (n?.tags ?? '')),
+        archived: n?.archived ?? false,
+        isPublic: isPublic,
+        color: (typeof n?.color === 'string' ? n.color.trim() : '')
+      };
+      return http.put(`/notes/${id}`, payload);
+    });
+    const results = await Promise.allSettled(tasks);
+    let success = 0, failed = 0;
+    results.forEach((r, i) => {
+      const id = ids[i];
+      const n = idToNote.get(id);
+      if (r.status === 'fulfilled'){
+        success++;
+        const data = r.value?.data;
+        const newVal = (data?.isPublic ?? data?.is_public);
+        n.isPublic = (typeof newVal === 'boolean') ? newVal : isPublic;
+      }else{
+        failed++;
+      }
+    });
+    ElMessage.success(`批量更新完成：成功 ${success} 条，失败 ${failed} 条`);
+  }catch(e){
+    ElMessage.error('批量更新失败，请稍后再试');
+  }finally{
+    bulkLoading.value = false;
+  }
 }
 
 // 搜索框 Enter 动画反馈状态与触发方法
@@ -826,6 +974,13 @@ function highlightHTML(s){
 /* 强制统一标签宽度，避免因样式覆盖导致偏差 */
 .filters-form :deep(.el-form-item__label){ width: 80px !important; }
 
+/* 批量工具栏样式：左右分布，跟随过滤栏粘顶，避免遮挡 */
+.bulk-toolbar { display:flex; align-items:center; gap:8px; padding:8px 0 0; }
+.bulk-toolbar .bulk-left { display:flex; gap:8px; }
+.bulk-toolbar .bulk-right { display:flex; gap:8px; }
+.bulk-toolbar .spacer { flex:1; }
+.selected-count { margin-left:8px; font-size:12px; color:#606266; }
+
 /* 吸顶效果 */
 .filters { position: sticky; top: 0; z-index: 20; }
 .filters.is-stuck { backdrop-filter: saturate(180%) blur(8px); background: rgba(255,255,255,0.85); box-shadow: 0 6px 20px rgba(0,0,0,0.12); border: 1px solid rgba(0,0,0,0.06); }
@@ -859,6 +1014,11 @@ function highlightHTML(s){
   color: var(--fgColor, #303133) !important;
   caret-color: var(--fgColor, #303133);
 }
+
+/* 选择框（左上角）样式：保持与卡片一致的圆角与层级 */
+.select-box { position:absolute; right:12px; z-index: 5; background: rgba(255,255,255,0.92); border-radius: 8px; padding: 2px 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+/* 放在标签下方：标签高度约为 24~28px，考虑内边距与间距，取 38px 作为偏移量，避免重叠 */
+.select-box.below-tags { top: 38px; }
 /* 搜索框美化 */
 .search-input :deep(.el-input__wrapper) {
   border-radius: 999px;
