@@ -16,7 +16,7 @@
         <NotesBody :query="query" :showComposer="false" />
 
         <!-- 下方：与收藏页一致的便签展示（按年份分组 + 时间线 + NoteCard） -->
-        <!-- 数据来源：服务端分页 /api/notes?q=...&page=...&size=...，滚动到底自动加载下一页 -->
+<!-- 数据来源：服务端分页 /api/shiyan?q=...&page=...&size=...，滚动到底自动加载下一页 -->
         <div class="year-groups">
           <div v-for="g in yearGroups" :key="g.year" class="year-group">
             <div class="year-header">
@@ -64,7 +64,7 @@
 // 搜索结果页：
 // - 去除左侧侧边栏，仅保留全宽顶栏与正文；
 // - 弹幕流由 NotesBody 展示；在其下方增加与收藏页一致的“按年份分组 + 时间线 + NoteCard”的列表；
-// - 数据加载方式为服务端分页（/api/notes），支持 q + page + size，并提供触底自动加载与按钮手动加载。
+// - 数据加载方式为服务端分页（/api/shiyan），支持 q + page + size，并提供触底自动加载与按钮手动加载。
 import { ref, watch, defineAsyncComponent, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
@@ -124,8 +124,8 @@ async function fetchPage(p = 1){
   if (isLoading.value) return
   isLoading.value = true
   try{
-    // 使用 /notes 接口：传递 q + page + size；不强制 mineOnly，以保持“公开 + 我的”的联合搜索
-    const { data } = await http.get('/notes', { params: { q: query.value, page: p, size: size.value }, suppress401Redirect: true })
+    // 使用 /shiyan 接口：传递 q + page + size；不强制 mineOnly，以保持“公开 + 我的”的联合搜索
+    const { data } = await http.get('/shiyan', { params: { q: query.value, page: p, size: size.value }, suppress401Redirect: true })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     const mapped = (items || []).map(normalizeNote)
     const t = (data?.total ?? data?.count ?? null)
@@ -191,7 +191,8 @@ async function toggleLike(n){
   if (n.likeLoading) return
   n.likeLoading = true
   try{
-    const url = n.liked ? `/notes/${n.id}/unlike` : `/notes/${n.id}/like`
+    // 路径切换：统一使用 /shiyan/{id}/like|unlike
+    const url = n.liked ? `/shiyan/${n.id}/unlike` : `/shiyan/${n.id}/like`
     const { data } = await http.post(url)
     n.likeCount = Number(data?.count ?? data?.like_count ?? (n.likeCount || 0))
     n.liked = Boolean((data?.likedByMe ?? data?.liked_by_me ?? n.liked))
@@ -202,7 +203,8 @@ async function toggleFavorite(n){
   if (n.favoriteLoading) return
   n.favoriteLoading = true
   try{
-    const url = n.favorited ? `/notes/${n.id}/unfavorite` : `/notes/${n.id}/favorite`
+    // 路径切换：统一使用 /shiyan/{id}/favorite|unfavorite
+    const url = n.favorited ? `/shiyan/${n.id}/unfavorite` : `/shiyan/${n.id}/favorite`
     const { data } = await http.post(url)
     n.favoriteCount = Number(data?.count ?? data?.favorite_count ?? (n.favoriteCount || 0))
     n.favorited = Boolean((data?.favoritedByMe ?? data?.favorited_by_me ?? n.favorited))

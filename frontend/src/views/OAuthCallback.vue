@@ -28,7 +28,8 @@ onMounted(() => {
   if (t) {
     setToken(t, true);
     ElMessage.success('登录成功');
-    router.replace('/notes');
+// 路由重命名：OAuth 回调后跳转至 /shiyan（保留 /notes 别名，兼容旧地址）
+router.replace('/shiyan');
   } else {
     ElMessage.error('登录失败');
     router.replace('/login');

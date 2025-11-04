@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS notes (
+-- 主表：拾言（原 notes 重命名为 shiyan）
+CREATE TABLE IF NOT EXISTS shiyan (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   user_id BIGINT NOT NULL,
   content TEXT,
@@ -21,10 +22,10 @@ CREATE TABLE IF NOT EXISTS notes (
   created_at DATETIME NOT NULL,
   updated_at DATETIME NOT NULL,
   INDEX idx_user (user_id),
-  CONSTRAINT fk_notes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  CONSTRAINT fk_shiyan_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 新增：点赞记录表，唯一用户对便签的点赞
+-- 新增：点赞记录表，唯一用户对拾言的点赞
 CREATE TABLE IF NOT EXISTS note_likes (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   note_id BIGINT NOT NULL,
@@ -33,11 +34,11 @@ CREATE TABLE IF NOT EXISTS note_likes (
   UNIQUE KEY uniq_note_user (note_id, user_id),
   INDEX idx_note (note_id),
   INDEX idx_user (user_id),
-  CONSTRAINT fk_likes_note FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_likes_note FOREIGN KEY (note_id) REFERENCES shiyan(id) ON DELETE CASCADE,
   CONSTRAINT fk_likes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 新增：收藏记录表，唯一用户对便签的收藏
+-- 新增：收藏记录表，唯一用户对拾言的收藏
 CREATE TABLE IF NOT EXISTS note_favorites (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   note_id BIGINT NOT NULL,
@@ -46,7 +47,7 @@ CREATE TABLE IF NOT EXISTS note_favorites (
   UNIQUE KEY uniq_note_user_fav (note_id, user_id),
   INDEX idx_note_fav (note_id),
   INDEX idx_user_fav (user_id),
-  CONSTRAINT fk_favorites_note FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_favorites_note FOREIGN KEY (note_id) REFERENCES shiyan(id) ON DELETE CASCADE,
   CONSTRAINT fk_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

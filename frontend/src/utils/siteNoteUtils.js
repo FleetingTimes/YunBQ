@@ -134,7 +134,11 @@ export function normalizeTags(tags){
 export function extractTagsFromContent(text){
   const out = []
   const s = String(text || '')
-  const re = /#([\p{L}\w-]+)/gu
+// 兼容性修复说明：
+// - 原先使用 Unicode 属性转义 \p{L} 来匹配“字母”类字符，但部分浏览器/运行环境不支持此语法，导致在解析阶段抛出 SyntaxError。
+// - 为保证跨环境稳定，这里改用显式字符范围：英文、数字、下划线、连字符与基本汉字。
+// - 若后续需要支持更广的字符集（如日文、韩文），可在字符范围中按需扩展。
+const re = /#([A-Za-z0-9_\u4e00-\u9fff-]+)/g
   for (const m of s.matchAll(re)){
     const t = (m[1] || '').trim()
     if (t) out.push(t)

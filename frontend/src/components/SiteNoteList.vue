@@ -130,7 +130,8 @@ async function load(){
     }else{
       Object.assign(params, { isPublic: true })
     }
-    const { data } = await http.get('/notes', { params, suppress401Redirect: true })
+    // 路径切换：统一使用 /shiyan（保留 mineOnly/isPublic 参数语义不变）
+    const { data } = await http.get('/shiyan', { params, suppress401Redirect: true })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     notes.value = (items || []).filter(n => hasTag(n, props.tag, true))
     // 每次重新加载时将页码重置为 1，并同步页码输入

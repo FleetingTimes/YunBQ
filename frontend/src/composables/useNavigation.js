@@ -140,7 +140,8 @@ export function useNavigation() {
    */
   function getDefaultSections() {
     return [
-      { id: 'site', label: '聚合便签' },
+  // 文案重命名：统一“便签”为“拾言”
+  { id: 'site', label: '聚合拾言' },
       { 
         id: 'knowledge', 
         label: '云盘集', 

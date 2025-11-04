@@ -1,21 +1,22 @@
 <template>
   <!-- 页面主体容器：负责布局、滚动等核心功能 -->
   <div class="container">
-    <!-- 页面头部：云便签广场标题 -->
+    <!-- 页面头部：拾言广场标题 -->
     <header class="square-header">
       <!-- 标题区美化：增加品牌图标容器、渐变标题与副标题
            设计目标：
            - 在不改变整体布局的前提下，提升页面识别度与质感；
            - 使用轻量阴影与柔和渐变，保证与内容区的协调；
            - 文本与图标均可访问（ARIA 标签），兼顾语义与兼容。 -->
-      <div class="brand" aria-label="云便签 · 广场 标题区">
+      <!-- 文案重命名：品牌统一为“拾·言” -->
+      <div class="brand" aria-label="拾·言 · 广场 标题区">
         <!-- 品牌图标容器：圆角背景 + 轻微阴影，强调视觉焦点 -->
         <div class="logo-wrap" aria-hidden="true">
           <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
         </div>
         <!-- 标题与副标题：主标题采用渐变文本，副标题为轻提示语 -->
         <div class="title-wrap">
-          <h1 class="title">云便签 · 广场</h1>
+          <h1 class="title">拾言 · 广场</h1>
           <p class="subtitle">精选站点与工具，发现更高效的灵感</p>
         </div>
       </div>

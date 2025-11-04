@@ -18,7 +18,8 @@
              - 默认使用内置图片；如需品牌化可将 emptyImage 替换为你的 URL；
              - 提供引导按钮跳转到“广场”页，鼓励用户去浏览并收藏。 -->
         <div class="empty-wrap" v-if="isEmpty">
-          <el-empty :image="emptyImage" description="收藏列表为空，快去添加喜欢的便签">
+  <!-- 文案重命名：将“便签”统一改为“拾言” -->
+  <el-empty :image="emptyImage" description="收藏列表为空，快去添加喜欢的拾言">
             <el-button type="primary" @click="goExplore">去广场看看</el-button>
           </el-empty>
         </div>
@@ -119,7 +120,8 @@ async function fetchPage(p = 1){
   if (isLoading.value) return
   isLoading.value = true
   try{
-    const { data } = await http.get('/notes/favorites', { params: { q: query.value, page: p, size: size.value } })
+    // 路径切换：统一使用 /shiyan/favorites
+    const { data } = await http.get('/shiyan/favorites', { params: { q: query.value, page: p, size: size.value } })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     const mapped = (items || []).map(normalizeNote)
     const t = (data?.total ?? data?.count ?? null)
@@ -195,7 +197,8 @@ async function toggleLike(n){
   if (n.likeLoading) return
   n.likeLoading = true
   try{
-    const url = n.liked ? `/notes/${n.id}/unlike` : `/notes/${n.id}/like`
+    // 路径切换：统一使用 /shiyan/{id}/like|unlike
+    const url = n.liked ? `/shiyan/${n.id}/unlike` : `/shiyan/${n.id}/like`
     const { data } = await http.post(url)
     n.likeCount = Number(data?.count ?? data?.like_count ?? (n.likeCount || 0))
     n.liked = Boolean((data?.likedByMe ?? data?.liked_by_me ?? n.liked))
@@ -210,7 +213,8 @@ async function toggleFavorite(n){
   if (n.favoriteLoading) return
   n.favoriteLoading = true
   try{
-    const url = n.favorited ? `/notes/${n.id}/unfavorite` : `/notes/${n.id}/favorite`
+    // 路径切换：统一使用 /shiyan/{id}/favorite|unfavorite
+    const url = n.favorited ? `/shiyan/${n.id}/unfavorite` : `/shiyan/${n.id}/favorite`
     const { data } = await http.post(url)
     n.favoriteCount = Number(data?.count ?? data?.favorite_count ?? (n.favoriteCount || 0))
     n.favorited = Boolean((data?.favoritedByMe ?? data?.favorited_by_me ?? n.favorited))

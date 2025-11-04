@@ -2,7 +2,8 @@
   <footer class="transparent-footer" :style="styleVars">
     <slot>
       <div class="content">
-        <span class="text">云便签 · 底栏</span>
+  <!-- 文案重命名：品牌统一为“拾·言” -->
+  <span class="text">拾·言 · 底栏</span>
       </div>
     </slot>
   </footer>

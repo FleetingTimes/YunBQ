@@ -3,7 +3,8 @@
     <div class="auth-card p-1 rot-1">
       <div class="auth-title">
         <img src="https://api.iconify.design/mdi/account-circle.svg" alt="login" width="26" height="26"/>
-        <h2>登录云便签</h2>
+  <!-- 文案重命名：品牌统一为“拾·言” -->
+  <h2>登录拾·言</h2>
       </div>
       <el-form :model="form" :rules="rules" ref="formRef" label-width="80px" @submit.prevent="onSubmit">
         <el-form-item label="用户名" prop="username">

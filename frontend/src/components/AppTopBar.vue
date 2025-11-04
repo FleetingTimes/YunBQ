@@ -8,12 +8,12 @@
   <div class="header topbar" :class="{ 'glass-effect': shouldShowGlass, fluid }">
     <div class="brand" @click="goSquare" style="cursor:pointer;">
       <img src="https://api.iconify.design/mdi/notebook-outline.svg" alt="logo" width="24" height="24" />
-      <h1>云便签</h1>
+      <h1>拾·言</h1>
     </div>
     <div class="center-search">
       <el-input
         v-model="q"
-        placeholder="搜索便签..."
+        placeholder="搜索拾言..."
         clearable
         class="top-search-input"
         @keyup.enter="emitSearch"
@@ -25,14 +25,14 @@
       </el-input>
     </div>
     <div class="right-actions" aria-label="快捷入口">
-      <!-- 顶栏添加便签入口（原“记录”与“消息”已交换位置，且“记录”改为“添加便签”）
-           设计说明：
+      <!-- 顶栏添加拾言入口（原“记录”与“消息”已交换位置，且“记录”改为“添加拾言”）
+        设计说明：
            - 与头像悬停卡片中的“添加便签”入口保持一致：复用 goNotes 跳转逻辑；
            - 图标风格沿用顶栏一贯的线性样式，避免突兀（无需着色参数）；
            - 这样首个快捷入口即为“添加便签”，提升便签创建的触达效率。 -->
-      <el-tooltip content="添加便签" placement="bottom">
+      <el-tooltip content="添加拾言" placement="bottom">
         <el-button link class="icon-btn" @click="goNotes">
-          <img src="https://api.iconify.design/mdi/note-plus-outline.svg" alt="添加便签" width="22" height="22" />
+        <img src="https://api.iconify.design/mdi/note-plus-outline.svg" alt="添加拾言" width="22" height="22" />
         </el-button>
       </el-tooltip>
       <el-tooltip content="喜欢" placement="bottom">
@@ -66,7 +66,7 @@
           :style="{ '--card-extra-width': CARD_EXTRA_WIDTH + 'px' }"
         >
           <div class="profile-header">
-            <!-- 管理员：右上齿轮；右下添加便签 -->
+      <!-- 管理员：右上齿轮；右下添加拾言 -->
             <div class="top-actions" v-if="isAdmin" style="position:absolute; right:10px; top:10px; display:flex; gap:8px; z-index:1;">
               <el-tooltip content="系统管理" placement="left">
                 <el-button circle size="small" @click="goAdmin" title="系统管理">
@@ -74,18 +74,18 @@
                 </el-button>
               </el-tooltip>
             </div>
-            <!-- 管理员：右下添加便签入口（与普通用户不同，位置更靠近头像） -->
+      <!-- 管理员：右下添加拾言入口（与普通用户不同，位置更靠近头像） -->
             <div class="add-entry-bottom" v-if="isAdmin">
-              <el-tooltip content="添加便签" placement="left">
-                <el-button circle size="small" @click="goNotes" title="添加便签">
+      <el-tooltip content="添加拾言" placement="left">
+        <el-button circle size="small" @click="goNotes" title="添加拾言">
                   <img src="https://api.iconify.design/mdi/note-plus-outline.svg?color=%23409eff" alt="add" aria-hidden="true" width="18" height="18" />
                 </el-button>
               </el-tooltip>
             </div>
-            <!-- 普通用户右上角添加便签入口 -->
+      <!-- 普通用户右上角添加拾言入口 -->
             <div class="add-entry" v-if="!isAdmin">
-              <el-tooltip content="添加便签" placement="left">
-                <el-button circle size="small" @click="goNotes" title="添加便签">
+      <el-tooltip content="添加拾言" placement="left">
+        <el-button circle size="small" @click="goNotes" title="添加拾言">
                   <img src="https://api.iconify.design/mdi/note-plus-outline.svg?color=%23409eff" alt="add" aria-hidden="true" width="18" height="18" />
                 </el-button>
               </el-tooltip>
@@ -113,7 +113,7 @@
             </div>
           </div>
           <div class="profile-actions">
-            <!-- 顺序：我的信息 → 我的便签 → 导出便签 → 退出登录；
+      <!-- 顺序：我的信息 → 我的拾言 → 导出拾言 → 退出登录；
                  为每项加入线性图标，保持居中与统一间距 -->
             <!-- 个人信息入口（唯一保留）
                  说明：此前此处存在两个完全相同的按钮，导致出现一个按钮不在
@@ -124,18 +124,18 @@
               <span>个人信息</span>
             </el-button>
             <el-button size="small" class="action-item" @click="goMyNotes">
-              <img class="action-icon" src="https://api.iconify.design/mdi/note-text-outline.svg" alt="便签" width="16" height="16" />
-              <span>我的便签</span>
+        <img class="action-icon" src="https://api.iconify.design/mdi/note-text-outline.svg" alt="拾言" width="16" height="16" />
+        <span>我的拾言</span>
             </el-button>
-            <!-- 导出便签入口：改为内联展开面板（不使用弹层） -->
+      <!-- 导出拾言入口：改为内联展开面板（不使用弹层） -->
             <el-button size="small" class="action-item" @click="exportInlineVisible = !exportInlineVisible">
               <img class="action-icon" src="https://api.iconify.design/mdi/file-export-outline.svg" alt="导出" width="16" height="16" />
-              <span>导出便签</span>
+        <span>导出拾言</span>
             </el-button>
             <transition name="fade-slide">
               <div v-if="exportInlineVisible" class="export-pop inline" aria-live="polite">
                 <!-- 说明文字：在卡片内联区域呈现，不遮挡其他内容 -->
-                <div class="export-title">导出我的便签</div>
+        <div class="export-title">导出我的拾言</div>
                 <div class="export-desc">请选择导出格式：</div>
                 <el-radio-group v-model="exportFormat" size="small" class="export-format">
                   <el-radio-button label="csv">CSV</el-radio-button>
@@ -480,12 +480,15 @@ function goMyNotes(){
   // 跳转防抖：若当前已在“我的便签”页，避免重复导航并给予轻提示
   // 说明：Vue Router 在尝试跳转到同一路由时会忽略或抛出冗余导航错误；
   // 这里主动判断当前路径，提升用户的感知与体验。
-  if (route.path === '/my-notes' || (typeof route.fullPath === 'string' && route.fullPath.includes('/my-notes'))){
-    ElMessage.info('已在我的便签页')
+  // 路由重命名：统一识别 /my-shiyan（兼容旧别名 /my-notes）
+  if (route.path === '/my-shiyan' || (typeof route.fullPath === 'string' && (route.fullPath.includes('/my-shiyan') || route.fullPath.includes('/my-notes')))){
+  // 文案重命名：提示中“便签”统一改为“拾言”
+  ElMessage.info('已在我的拾言页')
     return
   }
   // 登录态：直接跳转；未登录时由路由守卫(meta.requiresAuth)统一拦截并重定向到登录页
-  router.push('/my-notes')
+  // 路由重命名：统一跳转至 /my-shiyan（保留 /my-notes 为别名以兼容旧链接）
+  router.push('/my-shiyan')
 }
 function goAdmin(){
   profileVisible.value = false
@@ -499,7 +502,8 @@ function goNotes(){
   // 需求变更：未登录时不要跳转登录，仅提示“请先登录”
   // 说明：使用 token 判断登录态，避免顶栏 me 状态未刷新导致误判
   if (!getToken()) { ElMessage.warning('请先登录'); return }
-  router.push('/notes')
+  // 路由重命名：统一跳转至 /shiyan（保留 /notes 为别名以兼容旧链接）
+  router.push('/shiyan')
 }
 function goMessages(){
   // 需求变更：未登录点击“消息”不重定向登录，仅弹出提示
@@ -546,7 +550,7 @@ function onHoverLeave(){
 // =========================
 // 设计说明（详细注释）：
 // - 入口：头像悬浮卡片中的“导出便签”按钮，弹层选择导出范围（全部/公开/私有）。
-// - 数据源：复用后端 /notes 接口，传参 mineOnly=true 拉取当前用户的便签。
+// - 数据源：复用后端 /shiyan 接口，传参 mineOnly=true 拉取当前用户的拾言（后端保留 /notes 兼容）。
 // - 拉取策略：每页 200 条，直到不足一页为止；避免大数据一次性请求造成阻塞。
 // - 过滤：在前端根据选择的范围（all/public/private）进行本地过滤。
 // - 导出格式：CSV（带 UTF-8 BOM，Excel 直接可读）；文件名包含时间戳。
@@ -626,9 +630,10 @@ async function exportMyNotes(){
     const pageSize = 200
     let page = 1
     const all = []
-    // 3) 分页拉取 /notes（mineOnly=true）直到不足一页
+    // 3) 分页拉取 /shiyan（mineOnly=true）直到不足一页
     while(true){
-      const { data } = await http.get('/notes', {
+      // 路径切换：统一使用 /shiyan
+      const { data } = await http.get('/shiyan', {
         params: { page, size: pageSize, mineOnly: true },
         suppress401Redirect: true,
       })
@@ -645,12 +650,14 @@ async function exportMyNotes(){
     let filename, payload, mime
     if (exportFormat.value === 'json'){
       // JSON：不需要 BOM，内容可读性强，适合二次处理
-      filename = `my-notes_${ts}.json`
+      // 文件名重命名：统一使用 my-shiyan_*.json 以匹配品牌“拾言”
+      filename = `my-shiyan_${ts}.json`
       payload = buildJson(all)
       mime = 'application/json;charset=utf-8;'
     }else{
       // CSV：加入 BOM，兼容 Excel 显示中文
-      filename = `my-notes_${ts}.csv`
+      // 文件名重命名：统一使用 my-shiyan_*.csv 以匹配品牌“拾言”
+      filename = `my-shiyan_${ts}.csv`
       payload = buildCsv(all)
       mime = 'text/csv;charset=utf-8;'
     }

@@ -8,8 +8,8 @@ export const sideNavSections = [
   // 合并项：热门·最近（别名锚点映射至 hot 与 recent）
   // 注释：已隐藏"热门·最近"内容区块，同步移除侧边导航入口以避免点击无效果
   // { id: 'hot-recent', label: '热门·最近', aliasTargets: ['hot','recent'] },
-  // 聚合便签（网站/站点类聚合）
-  { id: 'site', label: '聚合便签' },
+// 聚合拾言（网站/站点类聚合）
+{ id: 'site', label: '聚合拾言' },
   // 云盘集：将原“知识便签”改为“云盘集”，并提升至 git 之前
   // 说明：
   // - 仅更新展示文案（label），不改变 id（仍为 'knowledge'），以保持锚点滚动与组件引用稳定；
@@ -34,7 +34,7 @@ export const sideNavSections = [
     // 新增：git代理子导航，用于展示git代理相关工具与配置
     { id: 'git-proxy', label: 'git代理' }
   ] },
-  // 影视便签：子导航包含在线影视 / 影视软件 / 短视频 / 短视频下载 / 在线动漫
+// 影视拾言：子导航包含在线影视 / 影视软件 / 短视频 / 短视频下载 / 在线动漫
   // 修改：展示文案改为“影视集”
   { id: 'movie', label: '影视集', aliasTargets: ['movie-online'], children: [
     { id: 'movie-online', label: '在线影视' },
@@ -43,7 +43,7 @@ export const sideNavSections = [
     { id: 'movie-download', label: '短视频下载' },
     { id: 'movie-anime', label: '在线动漫' }
   ] },
-  // 音乐便签：子导航包含在线音乐 / 音乐下载
+// 音乐拾言：子导航包含在线音乐 / 音乐下载
   // 修改：展示文案改为“音乐集”
   { id: 'music', label: '音乐集', aliasTargets: ['music-online'], children: [
     { id: 'music-online', label: '在线音乐' },
@@ -64,7 +64,7 @@ export const sideNavSections = [
     // - 父项 aliasTargets 仍指向首子项（book-online），点击父项滚动到“在线图书”。
     { id: 'book-search', label: '图书搜索' }
   ] },
-  // 工具便签
+// 工具拾言
   // 修改：将“工具便签”改为“工具集”，并新增三个子导航
   // 说明：
   // - 父项 id 保持为 'tool'，用于滚动到工具概览区块；
@@ -85,7 +85,7 @@ export const sideNavSections = [
     { id: 'tool-plugin', label: '插件工具' },
     { id: 'tool-other', label: '其他工具' }
   ] },
-  // AI 集：将原“AI便签”改为“AI集”，并将子导航“AI·绘图”改为“AI绘图”
+// AI 集：将原“AI拾言”改为“AI集”，并将子导航“AI·绘图”改为“AI绘图”
   // 说明：
   // - 仅更新展示文案，不改动 id（仍为 ai / ai-draw），以保证锚点与滚动定位稳定；
   // - 与广场页内容区标题保持一致，避免用户在侧边导航与内容区看到不同文案。

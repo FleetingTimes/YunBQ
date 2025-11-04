@@ -68,7 +68,7 @@
                     v-model="filters.query"
                     size="small"
                     clearable
-                    placeholder="搜索我的便签..."
+                    placeholder="搜索我的拾言..."
                     style="width:200px"
                     @keyup.enter="triggerSearchPulse"
                   >
@@ -343,7 +343,7 @@ function resetFilters(){
 // - 通过 selectionMode 开关进入选择模式，在每条便签左上角显示复选框；
 // - 使用 selectedIds 数组保存已选便签 ID；
 // - 提供“全选本页/取消全选/批量设为公开/私有/批量删除”等操作；
-// - 批量操作基于现有单条接口（PUT /notes/{id}、DELETE /notes/{id}），通过 Promise.allSettled 并发执行；
+// - 批量操作基于现有单条接口（PUT /shiyan/{id}、DELETE /shiyan/{id}），通过 Promise.allSettled 并发执行；
 // - 完成后给出成功/失败统计并更新本地列表状态。
 
 // 是否处于选择模式（显示选择框与批量工具栏）
@@ -385,19 +385,21 @@ function selectAllOnPage(){
 function clearSelection(){ selectedIds.value = []; }
 
 /**
- * 批量删除已选便签：二次确认 + 并发删除 + 本地移除 + 统计提示
+ * 批量删除已选拾言：二次确认 + 并发删除 + 本地移除 + 统计提示
  */
 async function bulkDeleteSelected(){
   if (!selectedIds.value.length || bulkLoading.value) return;
   try{
-    await ElMessageBox.confirm(`确定删除选中的 ${selectedIds.value.length} 条便签吗？不可恢复。`, '批量删除确认', {
+    // 文案重命名：提示中“便签”统一改为“拾言”
+    await ElMessageBox.confirm(`确定删除选中的 ${selectedIds.value.length} 条拾言吗？不可恢复。`, '批量删除确认', {
       confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning'
     });
   }catch{ return; }
   bulkLoading.value = true;
   try{
     const ids = [...selectedIds.value];
-    const tasks = ids.map(id => http.delete(`/notes/${id}`));
+    // 路径切换：批量删除统一使用 /shiyan/{id}
+    const tasks = ids.map(id => http.delete(`/shiyan/${id}`));
     const results = await Promise.allSettled(tasks);
     const successIds = [];
     const failed = [];
@@ -433,7 +435,8 @@ async function bulkSetVisibility(isPublic){
         isPublic: isPublic,
         color: (typeof n?.color === 'string' ? n.color.trim() : '')
       };
-      return http.put(`/notes/${id}`, payload);
+      // 路径切换：批量更新统一使用 /shiyan/{id}
+      return http.put(`/shiyan/${id}`, payload);
     });
     const results = await Promise.allSettled(tasks);
     let success = 0, failed = 0;
@@ -532,7 +535,8 @@ async function fetchPage(targetPage){
   if (isLoading.value) return;
   isLoading.value = true;
   try{
-    const { data } = await http.get('/notes', {
+    // 接口路径重命名：统一改为 /shiyan；后端保留 /notes 兼容
+    const { data } = await http.get('/shiyan', {
       params: { size: size.value, page: targetPage, mineOnly: true },
       suppress401Redirect: true,
     });
@@ -542,7 +546,8 @@ async function fetchPage(targetPage){
     appendMappedItems(items || []);
     page.value = targetPage;
   }catch(e){
-    ElMessage.error('加载我的便签失败');
+    // 文案重命名：将“便签”统一改为“拾言”
+    ElMessage.error('加载我的拾言失败');
   }finally{
     isLoading.value = false;
   }
@@ -780,7 +785,8 @@ async function saveEdit(n){
       isPublic: n.isPublicEdit,
       color: (typeof n.color === 'string' ? n.color.trim() : '')
     };
-    const { data } = await http.put(`/notes/${n.id}`, payload);
+    // 路径切换：统一使用 /shiyan/{id}
+    const { data } = await http.put(`/shiyan/${n.id}`, payload);
     // 后端可能返回更新后的便签，若无则使用编辑值回填
     const updated = data || payload;
     n.content = updated.content ?? contentClean;
@@ -795,12 +801,14 @@ async function saveEdit(n){
 
 async function deleteNote(n){
   try{
-    await ElMessageBox.confirm('确定要删除这条便签吗？', '提示', {
+    // 文案重命名：将“便签”统一改为“拾言”
+    await ElMessageBox.confirm('确定要删除这条拾言吗？', '提示', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning'
     });
-    await http.delete(`/notes/${n.id}`);
+    // 路径切换：统一使用 /shiyan/{id}
+    await http.delete(`/shiyan/${n.id}`);
     notes.value = notes.value.filter(m => m.id !== n.id);
     ElMessage.success('已删除');
   }catch(e){
@@ -824,7 +832,14 @@ function closeActions(n){
 
 function parseTagsFromText(s){
   if (!s || typeof s !== 'string') return [];
-  const re = /#([\p{L}\w-]+)/gu;
+  // 兼容性修复说明：
+  // 原正则使用了 Unicode 属性转义 \p{L}（匹配所有字母类），虽然现代浏览器支持，但在部分环境下会导致语法错误（SyntaxError: Invalid or unexpected token）。
+  // 为保证在所有常见浏览器中可用，这里改用显式的字符范围：
+  // - 英文与数字：A-Za-z0-9
+  // - 下划线与连字符：_-
+  // - 中文（基本汉字）：\u4e00-\u9fff
+  // 如果后续需要更广覆盖（如日文、韩文、更多 Unicode 平面），可在此范围上扩展。
+  const re = /#([A-Za-z0-9_\u4e00-\u9fff-]+)/g;
   const set = new Set();
   let m;
   while ((m = re.exec(s))){
@@ -836,7 +851,11 @@ function parseTagsFromText(s){
 function stripTagsFromText(s){
   if (!s || typeof s !== 'string') return '';
   // 移除以#开头的标签以及其后的逗号（若有），并规范空白
-  return s.replace(/\s*#([\p{L}\w-]+)\s*(,\s*)?/gu, ' ').replace(/\s{2,}/g, ' ').trim();
+  // 兼容性修复：移除 \p{L} 属性转义，改为显式字符范围，避免在部分浏览器解析时报语法错误。
+  return s
+    .replace(/\s*#([A-Za-z0-9_\u4e00-\u9fff-]+)\s*(,\s*)?/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 // 喜欢与收藏
@@ -844,7 +863,8 @@ async function toggleLike(n){
   if (n.likeLoading) return;
   n.likeLoading = true;
   try{
-    const url = n.liked ? `/notes/${n.id}/unlike` : `/notes/${n.id}/like`;
+    // 路径切换：统一使用 /shiyan/{id}/like|unlike
+    const url = n.liked ? `/shiyan/${n.id}/unlike` : `/shiyan/${n.id}/like`;
     const { data } = await http.post(url);
     n.likeCount = Number(data?.count ?? data?.like_count ?? (n.likeCount || 0));
     n.liked = Boolean((data?.likedByMe ?? data?.liked_by_me ?? n.liked));
@@ -859,7 +879,8 @@ async function toggleFavorite(n){
   if (n.favoriteLoading) return;
   n.favoriteLoading = true;
   try{
-    const url = n.favorited ? `/notes/${n.id}/unfavorite` : `/notes/${n.id}/favorite`;
+    // 路径切换：统一使用 /shiyan/{id}/favorite|unfavorite
+    const url = n.favorited ? `/shiyan/${n.id}/unfavorite` : `/shiyan/${n.id}/favorite`;
     const { data } = await http.post(url);
     n.favoriteCount = Number(data?.count ?? data?.favorite_count ?? (n.favoriteCount || 0));
     n.favorited = Boolean((data?.favoritedByMe ?? data?.favorited_by_me ?? n.favorited));
@@ -885,7 +906,8 @@ function escapeHtml(str){
 }
 function highlightHTML(s){
   const text = typeof s === 'string' ? s : '';
-  const re = /#([\p{L}\w-]+)/gu;
+  // 兼容性修复：同上，移除 \p{L}，采用更广但显式的字符范围以提升跨浏览器稳定性。
+  const re = /#([A-Za-z0-9_\u4e00-\u9fff-]+)/g;
   let out = '';
   let last = 0;
   for (const m of text.matchAll(re)){

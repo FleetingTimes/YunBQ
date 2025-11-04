@@ -10,7 +10,8 @@
 
     <div class="grid" v-if="props.showComposer">
       <div class="sticky composer p-2 rot-2">
-        <div class="title">新建便签</div>
+        <!-- 文案重命名：将“便签”统一改为“拾言” -->
+        <div class="title">新建拾言</div>
         <el-input v-model="draft.tags" placeholder="标签（用逗号分隔）" style="margin-bottom:6px;" />
         <el-input v-model="draft.content" type="textarea" :rows="4" placeholder="内容" />
         <div style="display:flex; align-items:center; justify-content:space-between; margin-top:6px; gap:8px;">
@@ -59,7 +60,8 @@ watch(() => props.query, () => { load() })
 
 async function load(){
   try{
-    const { data } = await http.get('/notes', { params: { q: props.query }, suppress401Redirect: true })
+    // 路径切换：统一使用 /shiyan 搜索拾言（参数语义保持一致）
+    const { data } = await http.get('/shiyan', { params: { q: props.query }, suppress401Redirect: true })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     notes.value = (items || []).map(it => ({
       ...it,
@@ -75,7 +77,8 @@ async function load(){
       justCreatedFirst.value = false
     }
   }catch(e){
-    ElMessage.error('加载便签失败')
+  // 文案重命名：将“便签”统一改为“拾言”
+  ElMessage.error('加载拾言失败')
   }
 }
 
@@ -83,7 +86,8 @@ async function toggleLike(n){
   if (n.likeLoading) return
   n.likeLoading = true
   try{
-    const url = n.liked ? `/notes/${n.id}/unlike` : `/notes/${n.id}/like`
+    // 路径切换：统一使用 /shiyan/{id}/like|unlike
+    const url = n.liked ? `/shiyan/${n.id}/unlike` : `/shiyan/${n.id}/like`
     const { data } = await http.post(url)
     n.likeCount = Number(data?.count ?? data?.like_count ?? (n.likeCount || 0))
     n.liked = Boolean((data?.likedByMe ?? data?.liked_by_me ?? n.liked))
@@ -96,7 +100,8 @@ async function toggleLike(n){
 
 async function archive(n){
   try{
-    await http.post(`/notes/${n.id}/archive`, { archived: !n.archived })
+    // 路径切换：统一使用 /shiyan/{id}/archive
+    await http.post(`/shiyan/${n.id}/archive`, { archived: !n.archived })
     ElMessage.success('已更新归档状态')
     load()
   }catch(e){
@@ -106,7 +111,8 @@ async function archive(n){
 
 async function remove(n){
   try{
-    await http.delete(`/notes/${n.id}`)
+    // 路径切换：统一使用 /shiyan/{id}
+    await http.delete(`/shiyan/${n.id}`)
     ElMessage.success('已删除')
     load()
   }catch(e){
@@ -127,7 +133,8 @@ async function create(){
       tags: (draft.tags || '').trim(),
       color: (draft.color || '').trim()
     }
-    const { data } = await http.post('/notes', payload)
+    // 路径切换：创建统一使用 /shiyan
+    const { data } = await http.post('/shiyan', payload)
     const createdId = data?.id ?? data?.note?.id ?? data?.data?.id ?? null
     if (createdId) justCreatedId.value = createdId; else justCreatedFirst.value = true
     ElMessage.success('已添加')
@@ -159,7 +166,8 @@ async function togglePublic(n){
       isPublic: !currentPublic,
       color: (n.color || '').trim()
     }
-    await http.put(`/notes/${n.id}`, payload)
+    // 路径切换：更新统一使用 /shiyan/{id}
+    await http.put(`/shiyan/${n.id}`, payload)
     ElMessage.success('已更新可见性')
     load()
   }catch(e){

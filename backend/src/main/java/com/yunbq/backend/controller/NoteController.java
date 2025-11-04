@@ -17,7 +17,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @RestController
-@RequestMapping("/api/notes")
+// 路径别名说明：
+// - 为了与前端“拾言”品牌统一，新增类级别路径别名 /api/shiyan；
+// - 保持与历史路径 /api/notes 等价，避免前端旧版本或第三方脚本立即失效；
+// - 所有方法映射均继承该别名数组，因此不需要逐个方法重复添加别名。
+@RequestMapping({"/api/notes", "/api/shiyan"})
 public class NoteController {
 
     private final NoteService noteService;
