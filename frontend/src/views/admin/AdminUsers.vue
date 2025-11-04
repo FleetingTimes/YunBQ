@@ -218,7 +218,71 @@ async function onUserFileChange(e) {
   }
   importing.value = true;
   try {
-    const result = await importUsers(file);
+    // 新增：在上传前解析并转换 JSON 内容，以实现迁移场景下的密码字段识别与保留
+    // 目标：避免对已是 BCrypt 哈希的密码进行二次加密；若提供明文密码，则由后端进行统一哈希
+    // 步骤：
+    // 1) 读取文件文本并解析为数组；
+    // 2) 遍历每个用户对象，检测 password/passwordHash 字段是否为 BCrypt 格式；
+    //    - 若存在 passwordHash 且为 BCrypt：保留为 passwordHash，移除 password（若存在）；
+    //    - 若仅存在 password 且为 BCrypt：转移为 passwordHash 并移除 password；
+    //    - 若存在明文 password：保留 password（由后端进行 BCrypt 哈希）；
+    //    - 若不提供密码：保持为空，后端不更新密码；
+    // 3) 将转换后的数组重新打包为 Blob 并通过现有 import 接口上传。
+
+    // 读取文件内容
+    const text = await file.text();
+    let users = [];
+    try {
+      const parsed = JSON.parse(text);
+      if (!Array.isArray(parsed)) {
+        throw new Error('导入文件内容必须是 JSON 数组');
+      }
+      users = parsed;
+    } catch (parseErr) {
+      console.error('解析导入 JSON 失败：', parseErr);
+      throw new Error(parseErr.message || '解析导入 JSON 失败');
+    }
+
+    // BCrypt 哈希格式检测：
+    // 说明：BCrypt 哈希通常形如 $2a$10$... / $2b$12$... / $2y$...，总长度约 60 字符。
+    // 这里使用较严格的正则进行识别，避免误判普通字符串为哈希。
+    const BCRYPT_REGEX = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
+    // 字段转换：确保迁移过程中不对已哈希密码进行二次加密
+    const transformed = users.map((u, idx) => {
+      const item = { ...u };
+      const pwd = item.password;
+      const pwdHash = item.passwordHash;
+
+      // 若存在 passwordHash 且符合 BCrypt 格式：保留为 passwordHash
+      if (typeof pwdHash === 'string' && BCRYPT_REGEX.test(pwdHash)) {
+        delete item.password; // 移除可能存在的明文字段，避免后端误处理
+        return item;
+      }
+
+      // 若仅提供 password 且为 BCrypt 格式：转移到 passwordHash
+      if (typeof pwd === 'string' && BCRYPT_REGEX.test(pwd)) {
+        item.passwordHash = pwd;
+        delete item.password; // 删除明文字段，避免后端二次加密
+        return item;
+      }
+
+      // 若提供的是明文密码：保留为 password，由后端统一进行 BCrypt 哈希
+      if (typeof pwd === 'string' && pwd.length > 0) {
+        // 保留 password，不设置 passwordHash，让后端进行加密
+        return item;
+      }
+
+      // 未提供密码：不设置 password/passwordHash，后端应保持原密码不变
+      delete item.password;
+      delete item.passwordHash;
+      return item;
+    });
+
+    // 重新打包为 Blob，并复用现有上传接口（multipart/form-data，字段名依旧为 file）
+    const transformedBlob = new Blob([JSON.stringify(transformed)], { type: 'application/json' });
+    const result = await importUsers(transformedBlob);
+
     // 统计信息提示：总数、创建数、更新数
     ElMessage.success(`导入完成：总计 ${result.total}，新增 ${result.created}，更新 ${result.updated}`);
     reload();

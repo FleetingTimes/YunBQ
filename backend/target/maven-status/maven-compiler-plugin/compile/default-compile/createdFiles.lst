@@ -6,6 +6,7 @@ com\yunbq\backend\model\RequestLog.class
 com\yunbq\backend\mapper\NoteMapper.class
 com\yunbq\backend\model\AuthLog.class
 com\yunbq\backend\security\JwtAuthenticationFilter.class
+com\yunbq\backend\controller\AdminController$6.class
 com\yunbq\backend\security\SecurityConfig.class
 com\yunbq\backend\controller\DebugController.class
 com\yunbq\backend\controller\AuthController.class

@@ -18,10 +18,15 @@ import com.yunbq.backend.util.AuthUtil; // 工具类：用于获取当前认证�
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -38,6 +43,7 @@ public class AdminController {
     private final ErrorLogMapper errorLogMapper;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final com.yunbq.backend.service.LogService logService;
+    private final PasswordEncoder passwordEncoder; // 密码编码器：用于对明文密码进行哈希处理
 
     public AdminController(UserMapper userMapper,
                            AuditLogMapper auditLogMapper,
@@ -45,7 +51,8 @@ public class AdminController {
                            AuthLogMapper authLogMapper,
                            ErrorLogMapper errorLogMapper,
                            com.fasterxml.jackson.databind.ObjectMapper objectMapper,
-                           com.yunbq.backend.service.LogService logService) {
+                           com.yunbq.backend.service.LogService logService,
+                           PasswordEncoder passwordEncoder) {
         this.userMapper = userMapper;
         this.auditLogMapper = auditLogMapper;
         this.requestLogMapper = requestLogMapper;
@@ -53,6 +60,7 @@ public class AdminController {
         this.errorLogMapper = errorLogMapper;
         this.objectMapper = objectMapper;
         this.logService = logService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @GetMapping("/health")
@@ -485,5 +493,210 @@ public class AdminController {
             return "\"" + field.replace("\"", "\"\"") + "\"";
         }
         return field;
+    }
+
+    /**
+     * 从 JSON 节点中读取字符串字段，若不存在或为 null 则返回 null。
+     * 使用说明：避免直接调用 node.get(field).asText() 导致 NPE 或将 null 转为空字符串。
+     */
+    private String textOrNull(com.fasterxml.jackson.databind.JsonNode node, String field) {
+        com.fasterxml.jackson.databind.JsonNode v = node.get(field);
+        return (v != null && !v.isNull()) ? v.asText() : null;
+    }
+
+    // ========================= 用户导入 =========================
+
+    /**
+     * 批量导入用户数据（管理员接口）。
+     *
+     * 功能说明：
+     * - 通过 `multipart/form-data` 上传一个 JSON 文件，字段名固定为 `file`；
+     * - JSON 内容为用户数组（或 { users: [...] } 对象），每项包含基本字段：
+     *   username, email, nickname, signature, avatarUrl, role, password（明文）或 passwordHash（BCrypt）；
+     * - 去重策略：优先按 username 查找，其次按 email 查找；存在则按提供字段更新，不存在则创建；
+     * - 密码处理：
+     *   1) 若提供 `passwordHash` 且看起来是 BCrypt（形如 `$2a|2b|2y$<cost>$<53 chars>`），直接入库；
+     *   2) 若提供 `password`：
+     *      - 若其看起来像 BCrypt 哈希，则直接入库（兼容错误标注场景）；
+     *      - 否则视为明文，使用后端 `PasswordEncoder` 统一哈希后入库；
+     *   3) 若未提供密码字段：
+     *      - 新建用户不设置密码（前端列表将显示“未设置”）；
+     *      - 更新用户保留原密码不变；
+     * - 返回导入统计：{ total, created, updated, skipped, errors }。
+     *
+     * 安全与审计：
+     * - 接口受 @PreAuthorize("hasRole('ADMIN')") 限制，仅管理员可调用；
+     * - 每次导入会写入审计日志（管理员ID、导入数量、创建/更新统计），便于追踪。
+     */
+    // 注意：为批量导入开启事务，保证同一请求内的插入/更新
+    // 在没有显式事务的情况下，MyBatis-Spring 会创建“非事务”SqlSession，
+    // 不同数据源/配置下可能出现变更未提交的情况（尤其是多条 DML 混合执行时）。
+    // 加上 @Transactional 后，Spring 会接管连接与提交/回滚，确保导入结果写入数据库。
+    @PostMapping(path = "/users/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> importUsers(
+            @RequestPart("file") MultipartFile file
+    ) throws Exception {
+        // 参数校验：必须提供非空文件
+        if (file == null || file.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "未选择文件或文件为空"
+            ));
+        }
+
+        // 读取并解析 JSON 内容，支持纯数组或包裹对象（{ users: [...] }）
+        byte[] bytes = file.getBytes();
+        com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(bytes);
+        com.fasterxml.jackson.databind.JsonNode arr;
+        if (root.isArray()) {
+            arr = root;
+        } else if (root.isObject() && root.has("users") && root.get("users").isArray()) {
+            arr = root.get("users");
+        } else {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "JSON 格式不正确：需为数组或包含 users 数组的对象"
+            ));
+        }
+
+        // 统计信息
+        int total = arr.size();
+        int created = 0;
+        int updated = 0;
+        int skipped = 0;
+        java.util.List<String> errors = new java.util.ArrayList<>();
+
+        // BCrypt 检测正则：$2a/$2b/$2y + 两位成本因子 + 53 字符哈希
+        java.util.regex.Pattern BCRYPT = java.util.regex.Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
+
+        // 遍历每个用户项，执行去重、创建或更新逻辑
+        for (com.fasterxml.jackson.databind.JsonNode node : arr) {
+            try {
+                // 读取基础字段
+                String username = textOrNull(node, "username");
+                String email = textOrNull(node, "email");
+                String nickname = textOrNull(node, "nickname");
+                String signature = textOrNull(node, "signature");
+                String avatarUrl = textOrNull(node, "avatarUrl");
+                String role = textOrNull(node, "role");
+                String createdAtStr = textOrNull(node, "createdAt"); // 可选：导入时的创建时间字符串（ISO-8601）
+                java.time.LocalDateTime createdAtParsed = null; // 解析后的创建时间
+
+                // 基本校验：创建时必须提供 username；若仅提供 email 则尝试更新，但不创建
+                if ((username == null || username.isBlank()) && (email == null || email.isBlank())) {
+                    skipped++;
+                    errors.add("跳过：缺少 username 与 email，无法识别用户");
+                    continue;
+                }
+
+                // 查找现有用户：优先按 username，其次按 email
+                User existing = null;
+                if (username != null && !username.isBlank()) {
+                    existing = userMapper.selectOne(new QueryWrapper<User>().eq("username", username).last("limit 1"));
+                }
+                if (existing == null && email != null && !email.isBlank()) {
+                    existing = userMapper.selectOne(new QueryWrapper<User>().eq("email", email).last("limit 1"));
+                }
+
+                // 构造即将写入的实体
+                User u = existing != null ? existing : new User();
+
+                // 赋值非空字段：更新仅覆盖提供的字段；创建必须设置 username
+                if (existing == null) {
+                    if (username == null || username.isBlank()) {
+                        // 不创建无用户名的记录（避免产生“不可登录”的孤儿账号）
+                        skipped++;
+                        errors.add("跳过：创建新用户时必须提供 username");
+                        continue;
+                    }
+                    u.setUsername(username);
+                }
+                if (nickname != null) u.setNickname(nickname);
+                if (email != null) u.setEmail(email);
+                if (signature != null) u.setSignature(signature);
+                if (avatarUrl != null) u.setAvatarUrl(avatarUrl);
+                if (role != null) u.setRole(role);
+                // 处理 createdAt：
+                // - 若 JSON 提供了合法的 ISO-8601 格式（例如 2025-11-04T14:18:32），则按该值设置；
+                // - 若未提供或解析失败：
+                //   - 对“新建用户”设置为当前时间（满足数据库非空约束与审计要求）；
+                //   - 对“更新用户”保持原值不变（不覆盖历史创建时间）。
+                if (createdAtStr != null && !createdAtStr.isBlank()) {
+                    try {
+                        createdAtParsed = java.time.LocalDateTime.parse(createdAtStr);
+                    } catch (Exception pe) {
+                        // 解析失败时不直接报错，以当前时间兜底（仅在创建场景使用）
+                        createdAtParsed = null;
+                    }
+                }
+
+                // 密码处理：优先 passwordHash，其次 password
+                String passwordHash = textOrNull(node, "passwordHash");
+                String password = textOrNull(node, "password");
+
+                // 若提供 BCrypt 格式的 passwordHash，直接入库
+                if (passwordHash != null && !passwordHash.isBlank()) {
+                    if (BCRYPT.matcher(passwordHash).matches()) {
+                        u.setPasswordHash(passwordHash);
+                    } else {
+                        // 非 BCrypt 的 passwordHash 不可信，忽略该字段（避免错误哈希污染）
+                    }
+                } else if (password != null && !password.isBlank()) {
+                    // 若提供 password：
+                    if (BCRYPT.matcher(password).matches()) {
+                        // 看起来是 BCrypt 哈希：直接入库（兼容前端误标注明文的场景）
+                        u.setPasswordHash(password);
+                    } else {
+                        // 明文密码：使用后端编码器统一哈希后入库
+                        u.setPasswordHash(passwordEncoder.encode(password));
+                    }
+                } else {
+                    // 未提供密码：
+                    // - 创建：保持为空（允许后续通过“重置密码”或“社交登录”完成设置）；
+                    // - 更新：保留原有密码不变（即不覆盖 existing.passwordHash）。
+                }
+
+                // 执行插入或更新
+                if (existing == null) {
+                    // 新建用户默认角色与创建时间兜底：
+                    // - 角色：如果未提供，则使用默认值 "USER"（与表结构一致）；
+                    // - 创建时间：如果未提供或解析失败，则使用当前时间，避免因非空约束导致插入失败。
+                    if (u.getRole() == null || u.getRole().isBlank()) {
+                        u.setRole("USER");
+                    }
+                    if (createdAtParsed != null) {
+                        u.setCreatedAt(createdAtParsed);
+                    } else {
+                        u.setCreatedAt(java.time.LocalDateTime.now());
+                    }
+                    userMapper.insert(u);
+                    created++;
+                } else {
+                    userMapper.updateById(u);
+                    updated++;
+                }
+            } catch (Exception ex) {
+                skipped++; // 将异常视为跳过项
+                errors.add("异常：" + (ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName()));
+            }
+        }
+
+        // 写入审计日志：记录管理员ID与导入统计
+        try {
+            Long adminId = com.yunbq.backend.util.AuthUtil.currentUserId();
+            logService.logAudit(adminId, "INFO",
+                    String.format("Import users: total=%d, created=%d, updated=%d, skipped=%d", total, created, updated, skipped));
+        } catch (Exception ignore) {
+            // 审计失败不影响主流程
+        }
+
+        // 返回统计结果
+        Map<String, Object> resp = new java.util.LinkedHashMap<>();
+        resp.put("total", total);
+        resp.put("created", created);
+        resp.put("updated", updated);
+        resp.put("skipped", skipped);
+        resp.put("errors", errors);
+        return ResponseEntity.ok(resp);
     }
 }
