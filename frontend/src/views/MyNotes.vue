@@ -248,14 +248,12 @@
       </div>
     </template>
   </TwoPaneLayout>
-  <!-- 右下：回到顶部组件（可见高度 360px 后出现）
-       指定 target 为 TwoPaneLayout 的滚动容器（.scrollable-content），
-       以便在“右侧正文滚动”模式下仍能正确工作。 -->
-  <el-backtop target=".scrollable-content" :right="80" :bottom="100" :visibility-height="360">
-    <div class="backtop-btn" title="回到顶部">
-      <img src="https://api.iconify.design/mdi/arrow-up.svg" alt="up" width="20" height="20" />
-    </div>
-  </el-backtop>
+  <!-- 右下：统一“回到顶部”按钮（玻璃拟态风格，平滑滚动）
+       说明：
+       - 替换原 Element Plus 的 el-backtop，改用站内统一 BackToTop 组件；
+       - 通过 target 绑定 TwoPaneLayout 的右侧滚动容器，确保在“右侧正文滚动”模式下正常显示与滚动；
+       - threshold 控制出现阈值（像素），right/bottom 控制按钮位置。 -->
+  <BackToTop :target="scrollRootEl" :right="80" :bottom="100" :threshold="360" />
 </template>
 
 <script setup>
@@ -264,6 +262,8 @@
 // - AppTopBar：公共顶栏，统一品牌与快捷入口，支持透明/毛玻璃切换与搜索。
 import TwoPaneLayout from '@/components/TwoPaneLayout.vue';
 import AppTopBar from '@/components/AppTopBar.vue';
+// 统一的“回到顶部”组件：玻璃拟态风格 + 平滑滚动
+import BackToTop from '@/components/BackToTop.vue';
 import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { http, avatarFullUrl } from '@/api/http';
@@ -289,6 +289,8 @@ const hasNext = computed(() => notes.value.length < total.value);
 // 触底加载哨兵
 const loadMoreSentinel = ref(null);
 let sentinelObserver = null;
+// 右侧滚动容器引用：供 BackToTop 组件绑定滚动目标
+const scrollRootEl = ref(null);
 // 签名展开/收起
 const signatureExpanded = ref(false);
 const signatureOverflow = ref(false);
@@ -593,6 +595,19 @@ async function setupInfiniteScroll(){
   sentinelObserver.observe(loadMoreSentinel.value);
 }
 
+// 获取 TwoPaneLayout 的右侧滚动容器（沿父链查找最近的 overflow:auto/scroll）
+// 说明：模板中的 loadMoreSentinel 位于列表底部，能够用于定位其最近的滚动父元素。
+function findScrollParent(el){
+  let node = el?.parentElement;
+  while (node){
+    const style = window.getComputedStyle(node);
+    const overflowY = style.overflowY;
+    if (overflowY === 'auto' || overflowY === 'scroll') return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
 function parseHexColor(hex){
   if (!hex || typeof hex !== 'string') return null;
   const m = hex.trim().match(/^#?([0-9a-fA-F]{6})$/);
@@ -621,6 +636,9 @@ onMounted(async () => {
   loadMe();
   await reload();
   await setupInfiniteScroll();
+  // 绑定回到顶部滚动容器：在下一渲染帧获取并赋值，确保元素已挂载
+  await nextTick();
+  scrollRootEl.value = findScrollParent(loadMoreSentinel.value);
 });
 
 // 吸顶状态检测（用于视觉强调）

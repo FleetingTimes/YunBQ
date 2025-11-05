@@ -43,6 +43,7 @@
                   <NoteCard
                     :note="n"
                     :enableLongPressActions="true"
+                    :showAuthorAvatar="true"
                     @toggle-like="toggleLike"
                     @toggle-favorite="toggleFavorite"
                   />
@@ -100,16 +101,33 @@ function normalizeNote(it){
   // 在收藏页面中，所有便签都应该显示为已收藏状态
   const favorited = Boolean(it.favoritedByMe ?? it.favorited ?? it.bookmarked ?? it.starred ?? it.favored ?? it.isFavorite ?? it.favorite ?? true)
   return {
+    // 唯一标识，用于列表渲染与交互
     id: it.id,
+    // 文本内容：兼容不同字段命名（content/text）
     content: String(it.content ?? it.text ?? ''),
+    // 标签：支持字符串逗号分隔与数组两种格式，过滤空值
     tags: Array.isArray(it.tags) ? it.tags : String(it.tags || '').split(',').filter(Boolean),
+    // 背景色：提供默认便签黄，以避免空值导致样式异常
     color: String(it.color ?? '#ffd966'),
-    authorName: String(it.authorName ?? it.author_name ?? ''),
+    // 作者昵称：兼容后端不同字段与嵌套结构（user.nickname/username）
+    authorName: String(it.authorName ?? it.author_name ?? (it.user?.nickname ?? it.user?.username ?? '')),
+    // 作者头像：兼容多命名与嵌套结构；为空时 NoteCard 内部会回退默认头像
+    authorAvatarUrl: (
+      it.authorAvatarUrl ?? it.author_avatar_url ??
+      it.userAvatarUrl ?? it.user_avatar_url ??
+      it.avatarUrl ?? it.avatar_url ??
+      (it.author ? (it.author.avatarUrl ?? it.author.avatar_url) : '') ??
+      (it.user ? (it.user.avatarUrl ?? it.user.avatar_url) : '')
+    ) || '',
+    // 点赞计数与状态：兼容 likes/like_count 与 likedByMe 等
     likeCount: Number(it.likeCount ?? it.like_count ?? 0),
     liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
+    // 收藏计数与状态：favorited/favoritedByMe 等多字段兼容
     favoriteCount: Number(it.favoriteCount ?? it.favorite_count ?? 0),
     favorited,
+    // 公开/私有状态：兼容 isPublic/is_public
     isPublic: Boolean(it.isPublic ?? it.is_public ?? false),
+    // 时间戳：兼容驼峰与下划线命名
     createdAt: it.createdAt ?? it.created_at,
     updatedAt: it.updatedAt ?? it.updated_at,
   }
