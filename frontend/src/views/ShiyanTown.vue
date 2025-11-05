@@ -148,7 +148,7 @@
 // 组件加载策略：按需异步加载以优化首屏资源体积。
 // 保留 query 状态与 onSearch 处理，便于后续扩展在本页接入搜索联动模块。
 // 新增：分页加载与无限滚动，实现性能友好的列表渲染。
-import { ref, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
+import { ref, defineAsyncComponent, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { http, avatarFullUrl } from '@/api/http'
 import defaultAvatar from '@/assets/default-avatar.svg'
@@ -320,25 +320,22 @@ async function fetchPage(){
   }finally{
     initialLoading.value = false
     loading.value = false
+    // 兜底填充：若列表高度不足以使哨兵进入滚动容器视窗，则主动尝试继续拉取下一页
+    // 说明：在某些布局或浏览器环境下，IntersectionObserver 可能因 root 绑定异常而未及时触发；
+    //       该逻辑将检查哨兵是否“近似可见”（加入 200px 提前量），若仍未到达底部且未完成，则继续拉取。
+    try { setTimeout(() => { autoFillIfShort(5) }, 0) } catch{}
   }
 }
 
 // —— 无限滚动：锚点进入视窗触发加载 ——
-function setupInfiniteScroll(){
+async function setupInfiniteScroll(){
+  // 详细修复说明：
+  // - 问题：当在 onMounted 早期调用本函数时，moreSentinel 可能尚未挂载，导致观察器未绑定，从而只能加载首屏 1 页。
+  // - 方案：等待下一次渲染帧（nextTick）确保节点已存在，再绑定 IntersectionObserver。
+  await nextTick()
   if (!moreSentinel.value) return
   // 找到滚动容器：TwoPaneLayout 将右侧正文设为唯一滚动容器（.right-main.scrollable-content）
   // 为保证在该容器滚动时也能正确触发观察，将 IntersectionObserver 的 root 设置为该容器。
-  const getScrollParent = (el) => {
-    let p = el?.parentElement
-    try{
-      while(p){
-        const s = getComputedStyle(p)
-        if (/(auto|scroll)/.test(s.overflowY)) return p
-        p = p.parentElement
-      }
-    }catch{}
-    return null
-  }
   const rootEl = getScrollParent(moreSentinel.value)
 
   // IntersectionObserver：在滚动容器内触发，阈值 1% + 提前 200px 触发加载下一页
@@ -351,6 +348,47 @@ function setupInfiniteScroll(){
 }
 function teardownInfiniteScroll(){
   try{ if (io){ io.disconnect(); io = null } }catch{}
+}
+
+// —— 滚动容器查找（上移为顶层，便于兜底填充复用） ——
+// 说明：TwoPaneLayout 将右侧正文设置为唯一滚动容器（.right-main.scrollable-content），
+//       但不同页面嵌套层级可能有所差异，此函数沿父链查找最近的可滚动容器。
+function getScrollParent(el){
+  let p = el?.parentElement
+  try{
+    while(p){
+      const s = getComputedStyle(p)
+      if (/(auto|scroll)/.test(s.overflowY)) return p
+      p = p.parentElement
+    }
+  }catch{}
+  return null
+}
+
+// —— 兜底：首屏不足自动填充 ——
+// 场景：当列表高度尚不足一屏，或观察器未能及时触发时，主动拉取后续页直至填满或达到循环上限。
+function isSentinelVisible(rootEl){
+  try{
+    const el = moreSentinel.value
+    if (!el) return false
+    const rect = el.getBoundingClientRect()
+    if (rootEl && rootEl.getBoundingClientRect){
+      const rootRect = rootEl.getBoundingClientRect()
+      // 近似“可见”判定：哨兵的顶部进入 root 底部阈值（提前 200px）
+      return rect.top <= (rootRect.bottom + 200)
+    }
+    // 回退到窗口视口判定（在极端布局下 root 未找到）
+    return rect.top <= (window.innerHeight + 200)
+  }catch{ return false }
+}
+async function autoFillIfShort(maxLoops = 3){
+  let loops = 0
+  const rootEl = getScrollParent(moreSentinel.value)
+  while (loops < maxLoops && !loading.value && !done.value && isSentinelVisible(rootEl)){
+    await fetchPage()
+    await nextTick()
+    loops++
+  }
 }
 
 // 头像加载失败兜底：将破图替换为默认头像，避免出现坏链路
@@ -410,7 +448,14 @@ async function toggleFav(it){
 }
 
 // 生命周期：首屏拉取 + 启用无限滚动；卸载时清理观察器
-onMounted(() => { fetchPage(); setupInfiniteScroll() })
+onMounted(async () => {
+  // 首屏拉取一页
+  await fetchPage()
+  // 绑定观察器
+  await setupInfiniteScroll()
+  // 兜底：若首屏高度不足一屏，尝试继续拉取填满视窗
+  await autoFillIfShort(5)
+})
 onUnmounted(() => { teardownInfiniteScroll() })
 </script>
 
