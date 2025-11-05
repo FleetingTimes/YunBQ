@@ -141,6 +141,9 @@
           <!-- 无限滚动锚点：进入视窗触发下一页加载 -->
           <div ref="moreSentinel" class="sentinel" aria-hidden="true"></div>
         </section>
+        <!-- 回到顶部：绑定右侧滚动容器，采用玻璃拟态风格与平滑滚动；
+             当滚动超过设定偏移后自动出现，点击平滑返回容器顶部。 -->
+        <BackToTop :target="scrollRootEl" />
       </div>
     </template>
   </TwoPaneLayout>
@@ -157,6 +160,8 @@ import defaultAvatar from '@/assets/default-avatar.svg'
 import { getToken } from '@/utils/auth'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
+// 回到顶部组件：按需异步加载，保持首屏资源体积友好
+const BackToTop = defineAsyncComponent(() => import('@/components/BackToTop.vue'))
 import { useRouter } from 'vue-router'
 
 // 路由：用于从头像点击跳转到用户拾言页
@@ -239,6 +244,8 @@ const initialLoading = ref(true)    // 首屏骨架占位控制
 const done = ref(false)             // 是否已加载完所有数据
 const moreSentinel = ref(null)      // 无限滚动锚点引用
 let io = null                       // IntersectionObserver 实例
+// 右侧滚动容器引用：用于 BackToTop 的定位与滚动绑定（相对该容器出现/隐藏并滚动至顶部）
+const scrollRootEl = ref(null)
 
 // —— 图标资源（本地常量，避免多处硬编码） ——
 const likeIconOn = 'https://api.iconify.design/mdi/heart.svg?color=%23ff4d4f'
@@ -465,6 +472,9 @@ onMounted(async () => {
   await setupInfiniteScroll()
   // 兜底：若首屏高度不足一屏，尝试继续拉取填满视窗
   await autoFillIfShort(5)
+  // 获取滚动容器（供“回到顶部”组件使用）：在节点挂载后定位到最近的可滚动父容器
+  await nextTick()
+  scrollRootEl.value = getScrollParent(moreSentinel.value)
 })
 onUnmounted(() => { teardownInfiniteScroll() })
 </script>
