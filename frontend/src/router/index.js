@@ -26,6 +26,10 @@ export const routes = [
   { path: '/oauth/callback', component: () => import('../views/OAuthCallback.vue') },
   { path: '/admin', meta: { requiresAuth: true, requiresAdmin: true }, component: () => import('../views/Admin.vue') },
   { path: '/search', component: () => import('../views/Search.vue') },
+  // 新增：拾言小镇页面路由
+  // 路径：/shiyan-town；别名 /town 便于简短访问
+  // 组件：ShiyanTown.vue（两栏布局 + 公共顶栏 + 静态介绍）
+  { path: '/shiyan-town', alias: '/town', component: () => import('../views/ShiyanTown.vue') },
 ];
 
 const router = createRouter({ history: createWebHashHistory(), routes });

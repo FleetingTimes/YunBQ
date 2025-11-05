@@ -23,6 +23,17 @@
           <img src="https://api.iconify.design/mdi/magnify.svg" alt="search" width="18" height="18" />
         </template>
       </el-input>
+      <!-- 新增：拾言小镇入口按钮（位于搜索框右侧）
+           说明：
+           - 使用 Tooltip 提示文案；
+           - 胶囊形渐变按钮，风格与顶栏一致；
+           - 点击后跳转到 /shiyan-town 页面。 -->
+      <el-tooltip content="拾言小镇" placement="bottom">
+        <el-button class="town-btn" @click="goShiyanTown">
+          <img class="icon" src="https://api.iconify.design/mdi/city-variant-outline.svg" alt="拾言小镇" width="18" height="18" />
+          <span>拾言小镇</span>
+        </el-button>
+      </el-tooltip>
     </div>
     <div class="right-actions" aria-label="快捷入口">
       <!-- 顶栏添加拾言入口（原“记录”与“消息”已交换位置，且“记录”改为“添加拾言”）
@@ -556,6 +567,15 @@ function goFavorites(){
   if (!getToken()) { ElMessage.warning('请先登录'); return }
   router.push('/favorites')
 }
+// 新增：拾言小镇跳转入口
+// 说明：无需登录，作为专题页入口使用；供顶栏搜索右侧按钮调用。
+function goShiyanTown(){
+  // 若已在当前页，避免冗余导航（不提示，静默处理）
+  if (route.path === '/shiyan-town' || (typeof route.fullPath === 'string' && route.fullPath.includes('/shiyan-town'))){
+    return
+  }
+  router.push('/shiyan-town')
+}
 // 顶栏已不再使用“历史记录”入口（已改为“添加便签”并交换位置），
 // 如其他页面仍需要历史记录入口，可继续复用此方法。
 function goHistory(){
@@ -830,6 +850,9 @@ async function exportMyNotes(){
   align-items: center;
   position: relative;
 }
+/* 让搜索输入占据主宽度，“拾言小镇”按钮紧随其右 */
+.center-search .top-search-input { flex: 1 1 auto; }
+.center-search .town-btn { margin-left: 10px; }
 
 /* 搜索框美化样式：现代化设计，提升用户体验
    设计要点：
@@ -974,6 +997,32 @@ async function exportMyNotes(){
   border-radius: 7px;/* 原 8px → 7px */
   box-shadow: 0 0 0 2px #fff; /* 白色描边增强可读性 */
 }
+/* 美化：拾言小镇胶囊渐变按钮（与顶栏风格一致） */
+.town-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: linear-gradient(135deg, #409eff 0%, #66b1ff 50%, #91caff 100%);
+  box-shadow: 0 8px 20px rgba(64, 158, 255, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.town-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 10px 24px rgba(64, 158, 255, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.town-btn:active {
+  transform: translateY(0);
+  filter: brightness(0.98);
+  box-shadow: 0 6px 16px rgba(64, 158, 255, 0.20), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.town-btn .icon { width: 18px; height: 18px; margin-right: 6px; opacity: 0.95; }
 .dialog-header { position: relative; }
 .edit-icon { position: absolute; right: 0; top: 0; transition: transform .15s ease, box-shadow .15s ease; }
 .edit-icon:hover { transform: scale(1.04); box-shadow: 0 4px 12px var(--el-color-primary-light-9); }

@@ -136,12 +136,17 @@ public class NoteService {
         List<Long> ids = records.stream().map(Note::getId).collect(Collectors.toList());
         // 作者昵称映射
         Map<Long, String> authorNameMap = new HashMap<>();
+        // 新增：作者头像映射（user_id -> avatar_url）。
+        // 说明：数据库中存的是相对路径（如 "/uploads/avatars/xxx.jpg"），
+        // 前端会使用 avatarFullUrl(base 去掉 /api 前缀) 拼接为完整 URL。
+        Map<Long, String> avatarUrlMap = new HashMap<>();
         List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
         if (!authorIds.isEmpty()) {
             List<User> users = userMapper.selectBatchIds(authorIds);
             for (User u : users) {
                 String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
                 authorNameMap.put(u.getId(), name);
+                avatarUrlMap.put(u.getId(), u.getAvatarUrl());
             }
         }
     
@@ -178,6 +183,8 @@ public class NoteService {
             it.setId(n.getId());
             it.setUserId(n.getUserId());
             it.setAuthorName(authorNameMap.get(n.getUserId()));
+            // 注入作者头像相对路径（可能为 null）；前端负责拼完整 URL 与兜底默认头像。
+            it.setAvatarUrl(avatarUrlMap.get(n.getUserId()));
             // 移除 title 映射
             it.setContent(n.getContent());
             it.setTags(n.getTags());
@@ -217,12 +224,14 @@ public class NoteService {
             ids = records.stream().map(Note::getId).collect(Collectors.toList());
 
             Map<Long, String> authorNameMap = new HashMap<>();
+            Map<Long, String> avatarUrlMap = new HashMap<>();
             List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
             if (!authorIds.isEmpty()) {
                 List<User> users = userMapper.selectBatchIds(authorIds);
                 for (User u : users) {
                     String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
                     authorNameMap.put(u.getId(), name);
+                    avatarUrlMap.put(u.getId(), u.getAvatarUrl());
                 }
             }
 
@@ -248,6 +257,7 @@ public class NoteService {
                 it.setId(n.getId());
                 it.setUserId(n.getUserId());
                 it.setAuthorName(authorNameMap.get(n.getUserId()));
+                it.setAvatarUrl(avatarUrlMap.get(n.getUserId()));
                 it.setContent(n.getContent());
                 it.setTags(n.getTags());
                 it.setColor(n.getColor());
@@ -314,12 +324,14 @@ public class NoteService {
             ids = records.stream().map(Note::getId).collect(Collectors.toList());
 
             Map<Long, String> authorNameMap = new HashMap<>();
+            Map<Long, String> avatarUrlMap = new HashMap<>();
             List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
             if (!authorIds.isEmpty()) {
                 List<User> users = userMapper.selectBatchIds(authorIds);
                 for (User u : users) {
                     String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
                     authorNameMap.put(u.getId(), name);
+                    avatarUrlMap.put(u.getId(), u.getAvatarUrl());
                 }
             }
 
@@ -357,6 +369,10 @@ public class NoteService {
                 it.setId(n.getId());
                 it.setUserId(n.getUserId());
                 it.setAuthorName(authorNameMap.get(n.getUserId()));
+                // 注入作者头像：数据库保存的是相对路径（如 "/uploads/avatars/xxx.jpg"），
+                // 前端通过 avatarFullUrl(base 去掉 /api 前缀) 拼接成完整访问地址。
+                // 之前遗漏该字段会导致热门列表头像不展示，这里补上。
+                it.setAvatarUrl(avatarUrlMap.get(n.getUserId()));
                 it.setContent(n.getContent());
                 it.setTags(n.getTags());
                 it.setColor(n.getColor());
@@ -511,12 +527,18 @@ public class NoteService {
         List<Long> ids = records.stream().map(Note::getId).collect(Collectors.toList());
         // 作者昵称映射
         Map<Long, String> authorNameMap = new HashMap<>();
+        // 作者头像映射：user_id -> avatar_url 相对路径。
+        // 详细说明：头像在前端使用 avatarFullUrl 进行完整 URL 拼接；
+        // 这里提供原始相对路径，保持返回体轻量，兼容现有渲染逻辑。
+        Map<Long, String> avatarUrlMap = new HashMap<>();
         List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
         if (!authorIds.isEmpty()) {
             List<User> users = userMapper.selectBatchIds(authorIds);
             for (User u : users) {
                 String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
                 authorNameMap.put(u.getId(), name);
+                // 同步记录头像相对路径，可能为 null（前端需做默认头像兜底）。
+                avatarUrlMap.put(u.getId(), u.getAvatarUrl());
             }
         }
 
@@ -552,6 +574,7 @@ public class NoteService {
             it.setId(n.getId());
             it.setUserId(n.getUserId());
             it.setAuthorName(authorNameMap.get(n.getUserId()));
+            it.setAvatarUrl(avatarUrlMap.get(n.getUserId()));
             it.setContent(n.getContent());
             it.setTags(n.getTags());
             it.setColor(n.getColor());
@@ -614,12 +637,14 @@ public class NoteService {
 
         // 作者昵称映射
         java.util.Map<Long, String> authorNameMap = new java.util.HashMap<>();
+        java.util.Map<Long, String> avatarUrlMap = new java.util.HashMap<>();
         java.util.List<Long> authorIds = records.stream().map(com.yunbq.backend.model.Note::getUserId).distinct().collect(java.util.stream.Collectors.toList());
         if (!authorIds.isEmpty()) {
             java.util.List<com.yunbq.backend.model.User> users = userMapper.selectBatchIds(authorIds);
             for (com.yunbq.backend.model.User u : users) {
                 String name = java.util.Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
                 authorNameMap.put(u.getId(), name);
+                avatarUrlMap.put(u.getId(), u.getAvatarUrl());
             }
         }
 
@@ -656,6 +681,7 @@ public class NoteService {
             it.setId(n.getId());
             it.setUserId(n.getUserId());
             it.setAuthorName(authorNameMap.get(n.getUserId()));
+            it.setAvatarUrl(avatarUrlMap.get(n.getUserId()));
             it.setContent(n.getContent());
             it.setTags(n.getTags());
             it.setColor(n.getColor());

@@ -44,6 +44,7 @@
                   <NoteCard
                     :note="n"
                     :enableLongPressActions="true"
+                    :showAuthorAvatar="true"
                     @toggle-like="toggleLike"
                     @toggle-favorite="toggleFavorite"
                   />
@@ -123,7 +124,15 @@ function normalizeNote(it){
     content: String(it.content ?? it.text ?? ''),
     tags: Array.isArray(it.tags) ? it.tags : String(it.tags || '').split(',').filter(Boolean),
     color: String(it.color ?? '#ffd966'),
-    authorName: String(it.authorName ?? it.author_name ?? ''),
+    authorName: String(it.authorName ?? it.author_name ?? (it.user?.nickname ?? it.user?.username ?? '')),
+    // 作者头像字段：兼容多命名与嵌套结构；为空时组件内回退默认头像
+    authorAvatarUrl: (
+      it.authorAvatarUrl ?? it.author_avatar_url ??
+      it.userAvatarUrl ?? it.user_avatar_url ??
+      it.avatarUrl ?? it.avatar_url ??
+      (it.author ? (it.author.avatarUrl ?? it.author.avatar_url) : '') ??
+      (it.user ? (it.user.avatarUrl ?? it.user.avatar_url) : '')
+    ) || '',
     likeCount: Number(it.likeCount ?? it.like_count ?? 0),
     liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
     favorited: Boolean(it.favoritedByMe ?? it.favorited ?? false),

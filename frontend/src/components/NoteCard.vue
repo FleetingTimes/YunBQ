@@ -1,5 +1,14 @@
 <template>
-<!-- 笔记卡片：展示笔记内容、标签、操作按钮（如喜欢、收藏、编辑、删除） -->
+  <!--
+    通用笔记卡片 NoteCard
+    功能：展示内容、标签、时间与交互；支持长按弹出操作层；
+    新增：可选的作者头像区（showAuthorAvatar），用于在“我喜欢的拾言”等页面显示作者头像。
+    设计说明：
+    - 头像区仅在 showAuthorAvatar=true 时渲染；
+    - 头像地址支持相对路径，由 avatarFullUrl 拼接成完整 URL；
+    - 加载失败时使用默认占位图，避免破图；
+    - 为避免重复信息，当显示头像区时，底部作者名标签不再重复显示。
+  -->
   <div ref="rootRef" class="note-card" :style="noteCardStyle(note)" :data-note-id="note.id"
     @mousedown="enableLongPressActions && startPress($event)"
     @mouseup="enableLongPressActions && cancelPress()"
@@ -24,12 +33,29 @@
       </div>
     </transition>
 
+    <!-- 作者头像区：仅在需要显示作者头像的页面启用 -->
+    <div class="author-head" v-if="showAuthorAvatar">
+      <img
+        v-if="note.authorAvatarUrl"
+        class="avatar"
+        :src="avatarFullUrl(note.authorAvatarUrl)"
+        alt="avatar"
+        loading="lazy"
+        @error="onAvatarError"
+      />
+      <img v-else class="avatar" :src="defaultAvatar" alt="avatar" loading="lazy" />
+      <div class="author-meta">
+        <div class="name" :title="note.authorName">{{ note.authorName || '匿名' }}</div>
+      </div>
+    </div>
+
     <div class="note-tags top-right" v-if="parsedTags(note.tags).length">
       <el-tag v-for="t in parsedTags(note.tags)" :key="t" size="small" style="margin-left:6px;">#{{ t }}</el-tag>
     </div>
     <div class="note-content">{{ note.content }}</div>
     <div class="meta bottom-left">
-      <el-tag v-if="showAuthorName && note.authorName" size="small" type="warning">作者：{{ note.authorName }}</el-tag>
+      <!-- 当顶部头像区启用时，为避免信息重复，这里不再显示作者名标签 -->
+      <el-tag v-if="showAuthorName && note.authorName && !showAuthorAvatar" size="small" type="warning">作者：{{ note.authorName }}</el-tag>
       <el-tag size="small" :type="(note.isPublic ?? false) ? 'success' : 'info'">{{ (note.isPublic ?? false) ? '公开' : '私有' }}</el-tag>
     </div>
     <div class="meta bottom-right">
@@ -39,13 +65,20 @@
 </template>
 
 <script setup>
+// 说明：
+// - 引入拼接函数 avatarFullUrl，将后端返回的相对路径（如 /uploads/avatars/...）拼接为完整 URL；
+// - 引入默认头像占位图，以防网络或路径异常导致破图；
 import { ref, onBeforeUnmount } from 'vue'
+import { avatarFullUrl } from '@/api/http'
+import defaultAvatar from '@/assets/default-avatar.svg'
 
 const props = defineProps({
   note: { type: Object, required: true },
   enableLongPressActions: { type: Boolean, default: false },
   enableEditDelete: { type: Boolean, default: false },
   showAuthorName: { type: Boolean, default: true },
+  // 新增：是否显示作者头像区（默认不显示，避免影响现有页面布局）
+  showAuthorAvatar: { type: Boolean, default: false },
 })
 
 const showActions = ref(false)
@@ -92,6 +125,14 @@ function formatTime(t){
   try { return new Date(t).toLocaleString() } catch { return String(t) }
 }
 
+// 头像加载失败兜底：将破图替换为默认头像，避免出现坏链路
+function onAvatarError(e){
+  try{
+    const img = e?.target
+    if (img && img.src !== defaultAvatar){ img.src = defaultAvatar }
+  }catch{}
+}
+
 function parseHexColor(hex){
   if (!hex || typeof hex !== 'string') return null
   const m = hex.trim().match(/^#?([0-9a-fA-F]{6})$/)
@@ -130,4 +171,10 @@ function noteCardStyle(n){
 
 .overlay-enter-active, .overlay-leave-active { transition: opacity .18s ease, transform .18s ease; }
 .overlay-enter-from, .overlay-leave-to { opacity: 0; transform: scale(0.98); }
+
+/* 作者头像区样式：与 ShiyanTown 页的头部风格保持一致 */
+.author-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.author-head .avatar { width:32px; height:32px; border-radius:50%; object-fit:cover; background:#fff; border:2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+.author-head .author-meta { display:flex; flex-direction:column; }
+.author-head .name { font-weight:600; color:#303133; }
 </style>
