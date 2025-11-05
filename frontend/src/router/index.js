@@ -12,6 +12,12 @@ export const routes = [
   // 加上 requiresAuth 后，通过路由守卫在进入页面前统一跳转登录页，避免页面内出现“报错/请求中止”。
   // 路由重命名：新增 /my-shiyan 作为“我的拾言”主路径，并保留 /my-notes 作为别名兼容旧链接
   { path: '/my-shiyan', alias: '/my-notes', meta: { requiresAuth: true }, component: () => import('../views/MyNotes.vue') },
+  // 他人拾言页：按用户名查看某用户的公开拾言
+  // 说明：
+  // - path 使用 /user/:username/shiyan，支持通过 :username 跳转到指定用户；
+  // - 页面仅显示公开拾言，不依赖登录；
+  // - 初版通过前端按作者过滤公开数据实现，后续可在后端提供按用户过滤的接口后切换。
+  { path: '/user/:username/shiyan', component: () => import('../views/UserNotes.vue') },
   { path: '/messages', meta: { requiresAuth: true }, component: () => import('../views/Messages.vue') },
   { path: '/likes', meta: { requiresAuth: true }, component: () => import('../views/Likes.vue') },
   { path: '/favorites', meta: { requiresAuth: true }, component: () => import('../views/Favorites.vue') },

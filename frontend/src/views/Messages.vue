@@ -72,9 +72,9 @@
                 <div v-for="m in messages" :key="m.id" class="msg-card" :class="{ unread: !m.isRead }">
                   <!-- 头部：头像 + 昵称 + 行为文案 + 时间戳 -->
                   <div class="msg-header">
-                    <img :src="avatarSrcFor(m.actor?.avatarUrl)" @error="onAvatarError" alt="avatar" class="avatar-sm" width="36" height="36" />
+                    <img :src="avatarSrcFor(m.actor?.avatarUrl)" @error="onAvatarError" alt="avatar" class="avatar-sm clickable" width="36" height="36" @click="goToUserNotes(m)" />
                     <div class="title">
-                      <span class="nickname">{{ m.actor?.nickname || m.actor?.username || '系统' }}</span>
+                      <span class="nickname clickable" @click="goToUserNotes(m)">{{ m.actor?.nickname || m.actor?.username || '系统' }}</span>
                       <span class="action">{{ renderAction(m) }}</span>
                     </div>
                     <div class="time">{{ formatTime(m.createdAt) }}</div>
@@ -113,11 +113,13 @@ import AppTopBar from '@/components/AppTopBar.vue'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 // 接口与头像地址拼接（与其它页面一致）
 import { http, avatarFullUrl } from '@/api/http'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 // 默认头像占位图：用于头像为 null 或加载失败时的兜底显示
 import defaultAvatar from '@/assets/default-avatar.svg'
 
-// 已移除 useRouter；仅保留本页内的已读/删除操作
+// 路由：用于从消息页跳转到他人拾言页（UserNotes）
+const router = useRouter()
 
 // —— 内容区左栏导航（父分组：系统通知 → 子项：我的消息/收到的赞/系统消息）——
 // 说明：
@@ -191,13 +193,15 @@ function mapItems(items){
     const actorUsername = m.actor?.username ?? m.actorUsername ?? m.username
     const actorNickname = m.actor?.nickname ?? m.actorNickname ?? m.nickname
     const actorAvatarUrl = m.actor?.avatarUrl ?? m.actorAvatarUrl ?? m.avatarUrl
+    const actorId = m.actor?.id ?? m.actorId ?? m.userId ?? m.user_id
     const noteId = m.note?.id ?? m.noteId
     const noteSnippet = m.note?.contentSnippet ?? m.contentSnippet ?? m.note?.content ?? undefined
     return {
       id: m.id,
       type: m.type,
       isRead: !!(m.isRead ?? m.read),
-      actor: { username: actorUsername, nickname: actorNickname, avatarUrl: actorAvatarUrl },
+      // 增补 actor.id：便于后续跳转时通过 uid 精确过滤他人拾言
+      actor: { id: actorId, username: actorUsername, nickname: actorNickname, avatarUrl: actorAvatarUrl },
       note: { id: noteId, contentSnippet: noteSnippet },
       message: m.message,
       createdAt: m.createdAt ?? m.created_at,
@@ -406,6 +410,28 @@ function notifyTopBar(action, ids){
     window.dispatchEvent(new CustomEvent('messages-updated', { detail: { source: 'messages', action, ids } }))
   } catch {}
 }
+
+// —— 跳转：打开他人拾言页 ——
+// 说明：
+// - 路由：/user/:username/shiyan；
+// - 传参：优先使用 actor.username 作为路径；通过 query 传递 nickname/avatar/uid 增强展示与过滤；
+// - 注意：系统消息不包含 actor 信息，点击将不触发跳转。
+function goToUserNotes(m){
+  try{
+    const actor = m?.actor || {}
+    const username = actor.username || ''
+    const nickname = actor.nickname || ''
+    const avatar = actor.avatarUrl || ''
+    const uid = actor.id
+    if (!username && !nickname) return // 无有效作者信息，不跳转
+    const pathUser = (username || nickname)
+    const query = {}
+    if (nickname) query.nickname = nickname
+    if (avatar) query.avatar = avatar
+    if (typeof uid !== 'undefined' && uid !== null) query.uid = String(uid)
+    router.push({ path: `/user/${encodeURIComponent(pathUser)}/shiyan`, query })
+  }catch{}
+}
 </script>
 
 <style scoped>
@@ -474,6 +500,7 @@ function notifyTopBar(action, ids){
 .msg-card.unread { box-shadow:0 0 0 2px rgba(64,158,255,0.18), 0 4px 12px rgba(0,0,0,0.06); }
 .msg-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .avatar-sm { border-radius:50%; object-fit:cover; overflow:hidden; }
+.clickable { cursor: pointer; }
 .title { display:flex; align-items:center; gap:6px; font-size:14px; color:#303133; }
 .title .nickname { font-weight:600; }
 .title .action { color:#606266; }
