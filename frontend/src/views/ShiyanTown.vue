@@ -103,14 +103,58 @@
                   @click="goToUserNotes(it)"
                 />
 
-                <div class="meta">
-                  <div class="name" :title="it.authorName">{{ it.authorName || '匿名' }}</div>
-                  <div class="time">{{ formatTime(it.createdAt || it.updatedAt) }}</div>
-                </div>
+              <div class="meta">
+                <div class="name" :title="it.authorName">{{ it.authorName || '匿名' }}</div>
+                <div class="time">{{ formatTime(it.createdAt || it.updatedAt) }}</div>
               </div>
+              <!-- 我的拾言操作入口：若该拾言属于当前登录用户，则显示右侧“v”按钮，点击弹出编辑/删除菜单 -->
+              <div class="owner-ops" v-if="isMyNote(it)">
+                <el-dropdown trigger="click" @command="onOwnerCommand(it, $event)">
+                  <!-- 更换为三点菜单图标，低干扰但可点击 -->
+                  <img class="owner-menu" src="https://api.iconify.design/mdi/dots-vertical.svg?color=%23606366" alt="menu" title="我的拾言菜单" />
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                      <el-dropdown-item command="delete">删除</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+            </div>
 
               <!-- 内容：支持长文，做多行裁剪与换行优化 -->
-              <div class="content" v-text="it.content || ''"></div>
+              <!-- 非编辑态：直接展示拾言内容；编辑态：展示可编辑文本域与保存/取消按钮 -->
+              <template v-if="!isEditing(it.id)">
+                <div class="content" v-text="it.content || ''"></div>
+              </template>
+              <template v-else>
+                <div class="content edit-mode">
+                  <!-- 文本编辑框：绑定当前卡片的草稿内容，限制长度以避免超长提交。
+                       标签规则与“添加拾言”一致：最后一行以“#”开头视为标签行（#标签1 #标签2）。 -->
+                  <el-input
+                    v-model="editDraft[it.id]"
+                    type="textarea"
+                    :rows="4"
+                    maxlength="500"
+                    show-word-limit
+                    placeholder="修改拾言内容…（最后一行用 #标签1 #标签2 标注标签）"
+                  />
+                  <!-- 底部控制行：左侧可见性选择，右侧保存/取消按钮 -->
+                  <div class="edit-controls">
+                    <div class="visibility-select">
+                      <span class="label">可见性</span>
+                      <el-select v-model="editVisibility[it.id]" size="small" style="width: 120px">
+                        <el-option label="公开" value="public" />
+                        <el-option label="私有" value="private" />
+                      </el-select>
+                    </div>
+                    <div class="edit-actions">
+                      <el-button type="primary" size="small" :loading="saveLoading[it.id]" @click="saveEdit(it)">保存</el-button>
+                      <el-button size="small" @click="cancelEdit(it)">取消</el-button>
+                    </div>
+                  </div>
+                </div>
+              </template>
 
               <!-- 标签与操作行：同一行展示，标签在左，喜欢/收藏在右侧。
                    修复：当没有标签时，仅有“actions”一个子元素，flex 容器的默认 space-between 会使其靠左。
@@ -154,7 +198,7 @@
 // 保留 query 状态与 onSearch 处理，便于后续扩展在本页接入搜索联动模块。
 // 新增：分页加载与无限滚动，实现性能友好的列表渲染。
 import { ref, defineAsyncComponent, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { http, avatarFullUrl } from '@/api/http'
 import defaultAvatar from '@/assets/default-avatar.svg'
 import { getToken } from '@/utils/auth'
@@ -277,6 +321,99 @@ function hasTags(it){
     const arr = normalizeTags(it?.tags ?? '')
     return Array.isArray(arr) && arr.length > 0
   }catch{ return false }
+}
+
+// —— 当前登录用户与“我的拾言”判定 ——
+// 说明：前端通过本地存储的 JWT token 解码获取 uid；
+//       仅用于前端 UI 判定（不做服务端身份校验），服务端会在更新/删除接口再次校验权限。
+const myUid = ref(undefined)
+function tryGetUidFromToken(){
+  try{
+    const t = getToken()
+    if (!t) return undefined
+    const parts = String(t).split('.')
+    if (parts.length < 2) return undefined
+    // Base64URL 解码 JWT payload，读取 uid 字段（服务端在生成 token 时写入）
+    const b64 = parts[1].replace(/-/g,'+').replace(/_/g,'/')
+    const json = atob(b64)
+    const payload = JSON.parse(json)
+    const uid = Number(payload?.uid)
+    return Number.isFinite(uid) ? uid : undefined
+  }catch{ return undefined }
+}
+function isMyNote(it){
+  try{
+    const uid = myUid.value
+    const noteUid = Number(it?.userId ?? it?.user_id)
+    return Number.isFinite(uid) && Number.isFinite(noteUid) && uid === noteUid
+  }catch{ return false }
+}
+
+// —— 内联编辑与删除：状态与事件 ——
+// 说明：为每条拾言维护独立的编辑状态与草稿内容，避免多个卡片互相干扰。
+const editing = ref({})     // { [id]: boolean }
+const editDraft = ref({})   // { [id]: string }
+const saveLoading = ref({}) // { [id]: boolean }
+const editVisibility = ref({}) // { [id]: 'public' | 'private' }
+function isEditing(id){ return Boolean(editing.value[id]) }
+function onOwnerCommand(it, cmd){ if (cmd === 'edit') startEdit(it); else if (cmd === 'delete') confirmDelete(it) }
+function startEdit(it){
+  // 进入编辑态：初始化草稿为当前内容，并设置可见性选择（与“添加拾言”的下拉一致）
+  editing.value[it.id] = true
+  // 草稿预填充：将现有标签行拼接为最后一行（格式：#标签1 #标签2），便于用户直接编辑
+  const base = String(it.content || '')
+  const arr = normalizeTags(it?.tags ?? '')
+  const tagLine = arr.length ? ('\n#' + arr.join(' #')) : ''
+  editDraft.value[it.id] = (base + tagLine)
+  editVisibility.value[it.id] = Boolean(it.isPublic) ? 'public' : 'private'
+}
+function cancelEdit(it){ editing.value[it.id] = false; editDraft.value[it.id] = '' }
+async function saveEdit(it){
+  // 登录校验：更新拾言需要登录
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
+  if (saveLoading.value[it.id]) return
+  const newText = String(editDraft.value[it.id] || '').trim()
+  if (!newText){ ElMessage.warning('内容不能为空'); return }
+  saveLoading.value[it.id] = true
+  try{
+    // 与“添加拾言”保持一致的标签解析：最后一行以“#”开头视为标签行
+    const { contentClean, tagsStr } = extractTagsAndContentFromDraft(newText)
+    const payload = {
+      content: contentClean,
+      tags: tagsStr,
+      isPublic: (editVisibility.value[it.id] === 'public')
+    }
+    await http.put(`/shiyan/${it.id}`, payload)
+    // 乐观更新本地数据并提示
+    it.content = contentClean
+    it.tags = tagsStr
+    it.isPublic = (editVisibility.value[it.id] === 'public')
+    it.updatedAt = Date.now()
+    ElMessage.success('已更新')
+    cancelEdit(it)
+  }catch(e){
+    const status = e?.response?.status
+    if (status === 401){ ElMessage.error('未登录，请先登录') }
+    else if (status === 403){ ElMessage.error('无权限编辑该拾言') }
+    else { ElMessage.error(e?.response?.data?.message || e?.message || '更新失败') }
+  }finally{ saveLoading.value[it.id] = false }
+}
+async function confirmDelete(it){
+  // 登录校验：删除拾言需要登录
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
+  try{
+    await ElMessageBox.confirm('确定删除这条拾言吗？删除后不可恢复。', '删除确认', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
+  }catch{ return }
+  try{
+    await http.delete(`/shiyan/${it.id}`)
+    items.value = items.value.filter(x => x.id !== it.id)
+    ElMessage.success('已删除')
+  }catch(e){
+    const status = e?.response?.status
+    if (status === 401){ ElMessage.error('未登录，请先登录') }
+    else if (status === 403){ ElMessage.error('无权限删除该拾言') }
+    else { ElMessage.error(e?.response?.data?.message || e?.message || '删除失败') }
+  }
 }
 
 // —— 数据映射：统一字段，容错后端命名差异 ——
@@ -466,6 +603,8 @@ async function toggleFav(it){
 
 // 生命周期：首屏拉取 + 启用无限滚动；卸载时清理观察器
 onMounted(async () => {
+  // 解析当前登录用户 uid（用于前端判断“我的拾言”显示操作入口）
+  myUid.value = tryGetUidFromToken()
   // 首屏拉取一页
   await fetchPage()
   // 绑定观察器
@@ -532,6 +671,16 @@ onUnmounted(() => { teardownInfiniteScroll() })
 .note-card .content { margin-top: 10px; color:#303133; font-size:14px; line-height:1.7; white-space:pre-wrap; word-break:break-word; }
 .note-card .tags { margin-top: 10px; display:flex; flex-wrap:wrap; gap:6px; }
 .note-card .tag { font-size:12px; color:#606266; background: rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.06); padding:4px 8px; border-radius:999px; }
+/* 我的拾言操作入口样式：右侧对齐，低干扰按钮 */
+.note-card .owner-ops { margin-left: auto; }
+.owner-menu { width:20px; height:20px; border-radius:50%; background: rgba(0,0,0,0.06); cursor:pointer; user-select:none; }
+.owner-menu:hover { background: rgba(0,0,0,0.08); }
+/* 编辑态样式：输入框禁用拖拽，操作按钮右对齐 */
+.content.edit-mode { margin-top: 10px; }
+.content.edit-mode :deep(.el-textarea__inner) { resize: none; }
+.edit-controls { margin-top: 8px; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.edit-actions { display:flex; gap:8px; justify-content:flex-end; }
+.edit-controls .visibility-select { display:flex; align-items:center; gap:8px; color:#606266; }
 /* 标签与动作同一行，标签左对齐，动作右对齐 */
 .tags-actions-row { margin-top: 8px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .tags-actions-row.no-tags { justify-content: flex-end; }
