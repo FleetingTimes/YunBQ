@@ -1,5 +1,9 @@
 <template>
-  <div class="auth-wrapper">
+  <!-- 在登录页引入顶栏组件：
+       目的：保持站点导航一致性，便于用户在登录页也能返回广场或进入公开页面；
+       说明：顶栏自身会在未登录时抑制 401 重定向（如未读消息计数），因此可安全展示在登录页。 -->
+  <AppTopBar />
+  <div class="auth-wrapper with-topbar">
     <div class="auth-card p-1 rot-1">
       <div class="auth-title">
         <img src="https://api.iconify.design/mdi/account-circle.svg" alt="login" width="26" height="26"/>
@@ -37,6 +41,9 @@ import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { http, API_BASE } from '@/api/http';
 import { setToken } from '@/utils/auth';
+// 顶栏组件：用于在登录页展示全局导航与入口（如“拾言小镇”）
+// 说明：组件内部对未登录的交互（添加拾言/消息/喜欢/收藏）会提示“请先登录”，不会强制跳转登录页。
+import AppTopBar from '@/components/AppTopBar.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -111,3 +118,9 @@ async function onSubmit(){
 function loginWithQQ(){ window.location.href = API_BASE + '/auth/qq/login'; }
 function loginWithWeChat(){ window.location.href = API_BASE + '/auth/wechat/login'; }
 </script>
+
+<style scoped>
+/* 顶栏占据页面顶部高度时，给登录内容增加顶部间距，避免视觉重叠。
+   注：若后续调整顶栏高度或布局，可在这里同步更新数值。*/
+.with-topbar { padding-top: 68px; }
+</style>

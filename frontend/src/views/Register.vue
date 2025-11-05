@@ -1,5 +1,9 @@
 <template>
-  <div class="auth-wrapper">
+  <!-- 在注册页引入顶栏组件：
+       目的：与其他页面保持一致的导航体验，用户可随时返回广场或进入公开内容；
+       说明：顶栏内部的未登录交互已做提示与 401 抑制，不会导致跳转干扰注册流程。 -->
+  <AppTopBar />
+  <div class="auth-wrapper with-topbar">
     <div class="auth-card p-2 rot-2">
       <div class="auth-title">
         <img src="https://api.iconify.design/mdi/account-plus.svg" alt="register" width="26" height="26"/>
@@ -38,6 +42,8 @@ import { reactive, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { http } from '@/api/http';
+// 顶栏组件：在注册页展示全局导航与链接（如“拾言小镇”），保持站点一致性
+import AppTopBar from '@/components/AppTopBar.vue';
 
 const router = useRouter();
 const formRef = ref();
@@ -90,3 +96,8 @@ async function onSubmit(){
   }
 }
 </script>
+
+<style scoped>
+/* 顶栏占据页面顶部高度时，为注册卡片增加顶部间距，避免被遮挡。 */
+.with-topbar { padding-top: 68px; }
+</style>
