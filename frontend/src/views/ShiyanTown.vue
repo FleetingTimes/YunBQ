@@ -112,9 +112,11 @@
               <!-- 内容：支持长文，做多行裁剪与换行优化 -->
               <div class="content" v-text="it.content || ''"></div>
 
-              <!-- 标签与操作行：同一行展示，标签在左，喜欢/收藏在右侧 -->
-              <div class="tags-actions-row">
-                <div class="tags" v-if="(it.tags || '').length">
+              <!-- 标签与操作行：同一行展示，标签在左，喜欢/收藏在右侧。
+                   修复：当没有标签时，仅有“actions”一个子元素，flex 容器的默认 space-between 会使其靠左。
+                   方案：根据是否存在标签动态追加类名 no-tags，当无标签时将容器的对齐改为 flex-end，使操作按钮保持右侧对齐。 -->
+              <div class="tags-actions-row" :class="{ 'no-tags': !hasTags(it) }">
+                <div class="tags" v-if="hasTags(it)">
                   <span class="tag" v-for="tg in normalizeTags(it.tags)" :key="tg">#{{ tg }}</span>
                 </div>
                 <div class="actions">
@@ -260,6 +262,14 @@ function normalizeTags(tags){
   if (Array.isArray(tags)) return tags.map(t => String(t).trim()).filter(Boolean)
   if (typeof tags === 'string') return tags.split(',').map(t => t.trim()).filter(Boolean)
   return []
+}
+
+// 是否存在有效标签：供模板层动态控制布局（无标签时将操作区右对齐）
+function hasTags(it){
+  try{
+    const arr = normalizeTags(it?.tags ?? '')
+    return Array.isArray(arr) && arr.length > 0
+  }catch{ return false }
 }
 
 // —— 数据映射：统一字段，容错后端命名差异 ——
@@ -514,6 +524,7 @@ onUnmounted(() => { teardownInfiniteScroll() })
 .note-card .tag { font-size:12px; color:#606266; background: rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.06); padding:4px 8px; border-radius:999px; }
 /* 标签与动作同一行，标签左对齐，动作右对齐 */
 .tags-actions-row { margin-top: 8px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.tags-actions-row.no-tags { justify-content: flex-end; }
 .tags-actions-row .actions { display:flex; gap: 12px; }
 .icon-act { display:inline-flex; align-items:center; gap:6px; color:#606266; }
 .icon-act.on { color: var(--el-color-primary); }
