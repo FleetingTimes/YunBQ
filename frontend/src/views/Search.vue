@@ -12,8 +12,9 @@
         <div class="page-header">
           <h2>搜索结果</h2>
         </div>
-        <!-- 顶部：弹幕流（复用 NotesBody，便于保留原搜索联动与草稿逻辑） -->
-        <NotesBody :query="query" :showComposer="false" />
+        <!-- 顶部：弹幕流（复用 NotesBody，便于保留原搜索联动与草稿逻辑）
+             说明：此区域仅展示首屏数据，不代表搜索总数；为避免“总数仅 20 条”的误解，关闭底部计数标签。 -->
+        <NotesBody :query="query" :showComposer="false" :showCountTag="false" />
 
         <!-- 下方：与收藏页一致的便签展示（按年份分组 + 时间线 + NoteCard） -->
 <!-- 数据来源：服务端分页 /api/shiyan?q=...&page=...&size=...，滚动到底自动加载下一页 -->
@@ -65,7 +66,11 @@
 // - 去除左侧侧边栏，仅保留全宽顶栏与正文；
 // - 弹幕流由 NotesBody 展示；在其下方增加与收藏页一致的“按年份分组 + 时间线 + NoteCard”的列表；
 // - 数据加载方式为服务端分页（/api/shiyan），支持 q + page + size，并提供触底自动加载与按钮手动加载。
-import { ref, watch, defineAsyncComponent, onMounted, onUnmounted, computed } from 'vue'
+// 修复说明：
+// 1) 延后 IntersectionObserver 绑定到下一渲染帧（nextTick），确保哨兵已挂载；
+// 2) 指定 IO 的 root 为右侧滚动容器，避免窗口滚动与容器滚动不一致导致不触发；
+// 3) 新增“首屏不足自动填充”兜底逻辑，在内容不足一屏或 IO 未触发时主动拉取后续页。
+import { ref, watch, defineAsyncComponent, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
@@ -144,7 +149,7 @@ async function fetchPage(p = 1){
     }
   }
 }
-function reload(){ page.value = 1; total.value = 0; listItems.value = []; fetchPage(1) }
+function reload(){ page.value = 1; total.value = 0; listItems.value = []; return fetchPage(1) }
 function loadMore(){ if (hasNext.value && !isLoading.value) fetchPage(page.value + 1) }
 // 工具函数：查找右侧滚动容器（TwoPaneLayout 的 rightMain）并设置 IO 的 root
 function getScrollParent(el){
@@ -158,21 +163,50 @@ function getScrollParent(el){
   }
   return null
 }
-function setupInfiniteScroll(){
+async function setupInfiniteScroll(){
   try{
     if (!('IntersectionObserver' in window)) return
+    // 关键：等待下一渲染帧，确保哨兵节点已挂载，否则初次绑定会失败，后续也不会自动生效
+    await nextTick()
     const root = getScrollParent(loadMoreSentinel.value)
-    io = new IntersectionObserver((entries) => { for (const e of entries){ if (e.isIntersecting) loadMore() } }, { root, rootMargin: '200px', threshold: 0 })
+    io = new IntersectionObserver((entries) => { for (const e of entries){ if (e.isIntersecting) loadMore() } }, { root, rootMargin: '200px', threshold: 0.01 })
     if (loadMoreSentinel.value) io.observe(loadMoreSentinel.value)
   }catch{}
 }
 function teardownInfiniteScroll(){ try{ if (io) io.disconnect(); io = null }catch{} }
 
-onMounted(() => {
+// —— 兜底：首屏不足自动填充 ——
+// 场景：当列表高度不足一屏，或观察器未能及时触发时，主动拉取后续页直至填满或达到循环上限。
+function isSentinelVisible(root){
+  try{
+    const el = loadMoreSentinel.value
+    if (!el) return false
+    const rect = el.getBoundingClientRect()
+    if (root && root.getBoundingClientRect){
+      const rootRect = root.getBoundingClientRect()
+      return rect.top <= (rootRect.bottom + 200)
+    }
+    return rect.top <= (window.innerHeight + 200)
+  }catch{ return false }
+}
+async function autoFillIfShort(maxLoops = 5){
+  let loops = 0
+  const root = getScrollParent(loadMoreSentinel.value)
+  while (loops < maxLoops && hasNext.value && !isLoading.value && isSentinelVisible(root)){
+    await fetchPage(page.value + 1)
+    await nextTick()
+    loops++
+  }
+}
+
+onMounted(async () => {
   // 初始化支持能力：默认 true，实际根据 window 能力检测更新
   try { supportsIO.value = 'IntersectionObserver' in window } catch { supportsIO.value = false }
-  reload();
-  setupInfiniteScroll();
+  // 首屏拉取并绑定观察器
+  await reload();
+  await setupInfiniteScroll();
+  // 兜底：若首屏不足一屏，尝试填充至可滚动
+  await autoFillIfShort(5)
 })
 onUnmounted(() => { teardownInfiniteScroll() })
 

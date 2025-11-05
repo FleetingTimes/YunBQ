@@ -27,8 +27,15 @@
       </div>
     </div>
 
-    <div class="footer">
-      <el-tag type="info">共 {{ notes.length }} 条</el-tag>
+    <!--
+      计数标签说明：
+      - 此处显示的“条数”仅代表本组件（顶部弹幕区域）当前展示的条目数量，
+        并非搜索结果的总条数。完整的分页结果由下方时间线列表负责加载与展示。
+      - 为避免在搜索页产生“总数仅 20”之类的误解，这里提供开关与可定制前缀文案：
+        props.showCountTag（默认 true）与 props.countLabel（默认“共”）。
+    -->
+    <div class="footer" v-if="props.showCountTag">
+      <el-tag type="info">{{ props.countLabel }} {{ notes.length }} 条</el-tag>
     </div>
   </div>
 </template>
@@ -42,7 +49,17 @@ import DanmuWall from '@/components/DanmuWall.vue'
 
 // Props 恢复为原始定义：仅保留 query 与 showComposer
 // 说明：添加便签页侧边栏不再进行标签快捷填充，因此移除 quickTags。
-const props = defineProps({ query: { type: String, default: '' }, showComposer: { type: Boolean, default: true } })
+// 组件入参：
+// - query：搜索关键词
+// - showComposer：是否显示顶部创建入口
+// - showCountTag：是否显示底部计数标签（默认 true）。在搜索页为了避免误导可设为 false。
+// - countLabel：计数标签前缀文案（默认“共”），也可改为“首屏展示”等。
+const props = defineProps({
+  query: { type: String, default: '' },
+  showComposer: { type: Boolean, default: true },
+  showCountTag: { type: Boolean, default: true },
+  countLabel: { type: String, default: '共' }
+})
 
 const router = useRouter()
 const notes = ref([])
@@ -61,7 +78,10 @@ watch(() => props.query, () => { load() })
 async function load(){
   try{
     // 路径切换：统一使用 /shiyan 搜索拾言（参数语义保持一致）
-    const { data } = await http.get('/shiyan', { params: { q: props.query }, suppress401Redirect: true })
+    // 修复：默认仅返回 10 条（后端默认 size=10），这里显式传入 size=20，并排除归档项以提升结果质量。
+    // 说明：顶栏搜索结果页顶部弹幕区域仅做“首屏展示”，因此不做分页；
+    //       若需要更多数据，页面下方的“时间线列表”具备服务端分页与无限滚动能力。
+    const { data } = await http.get('/shiyan', { params: { q: props.query, page: 1, size: 20, archived: false }, suppress401Redirect: true })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     notes.value = (items || []).map(it => ({
       ...it,
