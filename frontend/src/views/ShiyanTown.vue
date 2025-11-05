@@ -13,13 +13,37 @@
     <!-- 正文：右下主区。此页为静态介绍，后续可扩展“镇首页公告/拾言动态”等模块。 -->
     <template #rightMain>
       <div class="town-container">
-        <section class="hero-card" aria-label="拾言小镇简介">
-          <div class="brand">
-            <!-- 标题：严格按需求显示“拾言”（不加中点） -->
-            <img src="https://api.iconify.design/mdi/home-city-outline.svg" alt="town" width="28" height="28" />
-            <h1>拾言</h1>
+        <!-- 添加拾言：替换原“标题栏”，以玻璃卡片风格呈现新增表单 -->
+        <section class="composer-card" aria-label="添加拾言">
+          <div class="composer-brand">
+            <!-- 标题：改为“添加拾言”，图标与站点风格一致 -->
+            <img src="https://api.iconify.design/mdi/square-edit-outline.svg?color=%23303133" alt="edit" width="22" height="22" />
+            <h2>添加拾言</h2>
           </div>
-          <p class="subtitle">拾心之所言</p>
+          <div class="composer-body">
+            <!-- 内容输入：多行文本，保持与站点整体字体与间距一致 -->
+            <el-input
+              v-model="composer.content"
+              type="textarea"
+              :rows="4"
+              placeholder="写下一句触动心灵的话…（最后一行用 #标签1 #标签2 标注标签）"
+              maxlength="500"
+              show-word-limit
+            />
+            <!-- 操作行：右对齐；公开/私有下拉置于发布按钮之前 -->
+            <div class="composer-actions">
+              <div class="visibility-select">
+                <span class="label">可见性</span>
+                <!-- 下拉选择：公开 / 私有；发布前设置，提交时转换为布尔 isPublic -->
+                <el-select v-model="composer.visibility" size="small" style="width: 120px">
+                  <el-option label="公开" value="public" />
+                  <el-option label="私有" value="private" />
+                </el-select>
+              </div>
+              <el-button type="primary" :loading="composer.loading" @click="createShiyan" aria-label="发布拾言">发布</el-button>
+              <el-button type="default" @click="resetComposer" aria-label="清空草稿">清空</el-button>
+            </div>
+          </div>
         </section>
 
         <!-- 内容区：拾言列表
@@ -138,6 +162,71 @@ const router = useRouter()
 
 const query = ref('')
 function onSearch(q){ query.value = q || '' }
+
+// —— 添加拾言草稿与发布逻辑 ——
+// 说明：与 NotesBody.vue 的创建保持一致，后端 DTO 使用 camelCase 的 isPublic；
+// 若误用 is_public（snake_case）将导致服务端默认保存为“私有”。因此此处严格使用 isPublic。
+// 变更后的草稿状态：移除 tags 与 color，改为 visibility 下拉（public/private）
+const composer = ref({ content: '', visibility: 'public', loading: false })
+
+// 从草稿内容中解析标签与正文：
+// 规则：若最后一个非空行以“#”开头，则该行为标签行；以“#”分隔多个标签（允许使用空格/逗号/中文逗号分隔）。
+// 返回清理后的正文 contentClean 与逗号分隔的标签 tagsStr。
+function extractTagsAndContentFromDraft(raw){
+  try{
+    const text = String(raw || '')
+    const lines = text.split(/\r?\n/)
+    // 找到最后一个非空行
+    let lastIdx = lines.length - 1
+    while (lastIdx >= 0 && !String(lines[lastIdx]).trim()) lastIdx--
+    let tagsStr = ''
+    let contentClean = text
+    if (lastIdx >= 0){
+      const lastLine = String(lines[lastIdx]).trim()
+      if (lastLine.startsWith('#')){
+        // 解析标签：支持 “#标签1 #标签2” 或 “#标签1,标签2” 等形式
+        const tagLine = lastLine.replace(/^#+\s*/, '')
+        const parts = tagLine.split(/[#\s,，、]+/).map(s => s.trim()).filter(Boolean)
+        // 去重并拼接为逗号分隔字符串
+        const uniq = Array.from(new Set(parts))
+        tagsStr = uniq.join(',')
+        // 从正文中移除该标签行
+        const before = lines.slice(0, lastIdx).join('\n')
+        const after = lines.slice(lastIdx + 1).join('\n')
+        contentClean = (before + (after ? ('\n' + after) : '')).trim()
+      }
+    }
+    return { contentClean, tagsStr }
+  }catch{ return { contentClean: String(raw || ''), tagsStr: '' } }
+}
+async function createShiyan(){
+  // 登录校验：添加拾言需要登录
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
+  if (!composer.value.content || !composer.value.content.trim()) { ElMessage.warning('请填写内容'); return }
+  if (composer.value.loading) return
+  composer.value.loading = true
+  try{
+    // 从内容解析标签（最后一行以“#”区分），并转换下拉选择为布尔 isPublic
+    const { contentClean, tagsStr } = extractTagsAndContentFromDraft(composer.value.content)
+    const payload = {
+      content: contentClean,
+      isPublic: composer.value.visibility === 'public',
+      tags: tagsStr
+    }
+    const { data } = await http.post('/shiyan', payload)
+    // 成功后提示，并重置草稿；刷新列表（优先重置分页并拉取最新公开拾言）
+    ElMessage.success('已添加')
+    resetComposer()
+    resetFeedAndReload()
+  }catch(e){
+    const status = e?.response?.status
+    if (status === 401){ ElMessage.error('未登录，请先登录') }
+    else if (status === 403){ ElMessage.error('无权限，请检查登录状态或稍后重试') }
+    else { ElMessage.error(e?.response?.data?.message || e?.message || '添加失败') }
+  }finally{ composer.value.loading = false }
+}
+function resetComposer(){ composer.value.content = ''; composer.value.visibility = 'public' }
+function resetFeedAndReload(){ items.value = []; page.value = 1; done.value = false; initialLoading.value = true; fetchPage() }
 
 // —— 列表与分页状态 ——
 const items = ref([])               // 已加载的拾言数据（累积）
@@ -319,20 +408,27 @@ onUnmounted(() => { teardownInfiniteScroll() })
   padding: 16px;
 }
 
-/* 顶部品牌卡片：玻璃卡片风格，与顶栏整体风格一致 */
-.hero-card {
+/* 顶部添加卡片：玻璃卡片风格，与站点整体风格一致 */
+.composer-card {
   background: rgba(255, 255, 255, 0.55);
   backdrop-filter: saturate(180%) blur(12px);
   -webkit-backdrop-filter: saturate(180%) blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.7);
   border-radius: 14px;
-  padding: 20px 24px;
+  padding: 18px 20px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.08);
 }
+.composer-brand { display:flex; align-items:center; gap:8px; }
+.composer-brand h2 { margin:0; font-size:18px; color:#303133; }
+.composer-body { margin-top: 10px; display:flex; flex-direction:column; gap: 12px; }
+.composer-actions { display:flex; align-items:center; gap: 10px; justify-content:flex-end; }
+.visibility-select { display:flex; align-items:center; gap: 8px; color:#606266; }
 
-.hero-card .brand { display:flex; align-items:center; gap:10px; }
-.hero-card .brand h1 { margin:0; font-size:22px; color:#303133; }
-.subtitle { margin: 8px 0 0; color:#606266; font-size:14px; }
+/* 禁用文本域拖拽缩放：保持固定输入高度（由 :rows 控制）
+   说明：Element Plus 的 textarea 内层选择器为 .el-textarea__inner；
+   在 scoped 样式下使用 :deep 选择到子组件内部元素；
+   作用域仅限“添加拾言”卡片，避免影响其他页面的输入框。 */
+.composer-card :deep(.el-textarea__inner) { resize: none; }
 
 /* 列表容器：与 hero-card 间保持舒适间距 */
 .feed { margin-top: 16px; display:flex; flex-direction:column; gap: 12px; }
@@ -385,7 +481,7 @@ onUnmounted(() => { teardownInfiniteScroll() })
 /* 响应式：在小屏设备上减少外边距并拉伸内容区 */
 @media (max-width: 640px){
   .town-container { max-width: none; padding: 12px; }
-  .hero-card { border-radius: 12px; padding: 16px 18px; }
+  .composer-card { border-radius: 12px; padding: 16px 18px; }
   .note-card { padding: 12px; }
   .note-card .avatar { width:32px; height:32px; }
 }
