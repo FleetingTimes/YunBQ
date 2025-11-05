@@ -120,5 +120,76 @@ public class DbMigrationRunner implements CommandLineRunner {
         } catch (Exception ignored) {
             // 不阻塞启动
         }
+
+        // 修复历史环境下 note_likes 的外键指向旧表名 notes 导致插入失败的问题
+        // 背景：部分库早期创建了 note_likes，并将 fk_likes_note 指向 notes(id)，
+        //      当主表已迁移/统一为 shiyan 时，插入会因外键不匹配而报错。
+        // 策略：检查 note_likes 上与 note_id 相关的外键，如果引用表名不是当前 tblNotes，
+        //      则删除原外键并重建为引用 tblNotes(id)。
+        try {
+            // 查询现有外键约束名称与引用表
+            var fks = jdbc.query(
+                "SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE " +
+                "WHERE table_schema = ? AND table_name = 'note_likes' AND COLUMN_NAME = 'note_id' AND REFERENCED_TABLE_NAME IS NOT NULL",
+                (rs, rowNum) -> new String[]{ rs.getString(1), rs.getString(2) },
+                currentSchema
+            );
+            for (String[] fk : fks) {
+                String fkName = fk[0];
+                String refTbl = fk[1];
+                if (fkName == null) continue;
+                // 若引用表不是当前选定的主表名，则删除并重建
+                if (refTbl != null && !refTbl.equalsIgnoreCase(tblNotes)) {
+                    try { jdbc.execute("ALTER TABLE note_likes DROP FOREIGN KEY " + fkName); } catch (Exception ignoredDrop) {}
+                    try { jdbc.execute("ALTER TABLE note_likes ADD CONSTRAINT " + fkName + " FOREIGN KEY (note_id) REFERENCES " + tblNotes + "(id) ON DELETE CASCADE"); } catch (Exception ignoredAdd) {}
+                }
+            }
+        } catch (Exception ignored) {
+            // 不阻塞启动：不同权限或版本下可能无法读取信息架构或修改外键
+        }
+
+        // 修复历史环境下 note_favorites 的外键如果仍引用旧表名（如 notes），统一为当前主表 tblNotes
+        // 说明：收藏的 note_id 应级联删除（ON DELETE CASCADE），与当前 schema 保持一致
+        try {
+            var favFks = jdbc.query(
+                "SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE " +
+                "WHERE table_schema = ? AND table_name = 'note_favorites' AND COLUMN_NAME = 'note_id' AND REFERENCED_TABLE_NAME IS NOT NULL",
+                (rs, rowNum) -> new String[]{ rs.getString(1), rs.getString(2) },
+                currentSchema
+            );
+            for (String[] fk : favFks) {
+                String fkName = fk[0];
+                String refTbl = fk[1];
+                if (fkName == null) continue;
+                if (refTbl != null && !refTbl.equalsIgnoreCase(tblNotes)) {
+                    try { jdbc.execute("ALTER TABLE note_favorites DROP FOREIGN KEY " + fkName); } catch (Exception ignoredDrop) {}
+                    try { jdbc.execute("ALTER TABLE note_favorites ADD CONSTRAINT " + fkName + " FOREIGN KEY (note_id) REFERENCES " + tblNotes + "(id) ON DELETE CASCADE"); } catch (Exception ignoredAdd) {}
+                }
+            }
+        } catch (Exception ignored) {
+            // 不阻塞启动
+        }
+
+        // 修复历史环境下 messages 的外键如仍引用旧表名（如 notes），统一为当前主表 tblNotes
+        // 说明：消息的 note_id 是可空字段，删除 note 时应置空（ON DELETE SET NULL），与 schema.sql 保持一致
+        try {
+            var msgFks = jdbc.query(
+                "SELECT CONSTRAINT_NAME, REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE " +
+                "WHERE table_schema = ? AND table_name = 'messages' AND COLUMN_NAME = 'note_id' AND REFERENCED_TABLE_NAME IS NOT NULL",
+                (rs, rowNum) -> new String[]{ rs.getString(1), rs.getString(2) },
+                currentSchema
+            );
+            for (String[] fk : msgFks) {
+                String fkName = fk[0];
+                String refTbl = fk[1];
+                if (fkName == null) continue;
+                if (refTbl != null && !refTbl.equalsIgnoreCase(tblNotes)) {
+                    try { jdbc.execute("ALTER TABLE messages DROP FOREIGN KEY " + fkName); } catch (Exception ignoredDrop) {}
+                    try { jdbc.execute("ALTER TABLE messages ADD CONSTRAINT " + fkName + " FOREIGN KEY (note_id) REFERENCES " + tblNotes + "(id) ON DELETE SET NULL"); } catch (Exception ignoredAdd) {}
+                }
+            }
+        } catch (Exception ignored) {
+            // 不阻塞启动
+        }
     }
 }

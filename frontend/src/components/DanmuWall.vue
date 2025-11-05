@@ -1,4 +1,5 @@
 <template>
+  <!-- 弹幕轨道容器：垂直布局，每个轨道对应一行弹幕 -->
   <div class="danmu-section">
     <div class="danmu-track" v-for="row in danmuRowList" :key="row" :style="trackStyle(row)">
       <div

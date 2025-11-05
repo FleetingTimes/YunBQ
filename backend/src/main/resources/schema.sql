@@ -207,3 +207,30 @@ CREATE TABLE IF NOT EXISTS navigation_sites (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='导航站点表';
 
 
+-- 消息中心：用于“收到的赞/收藏/系统通知”等消息的展示
+-- 设计说明：
+-- - type：消息类型（like/favorite/reply/at/system 等，采用短字符串便于扩展）；
+-- - actor_user_id：触发该消息的用户（点赞者、收藏者等），系统消息可为空；
+-- - receiver_user_id：接收该消息的用户（被点赞的拾言作者等）；
+-- - note_id：关联拾言的 ID（系统消息可为空）；
+-- - message：附加的行为文案（可空，前端也会根据 type 自动渲染）；
+-- - is_read：是否已读（0 未读 / 1 已读）；
+-- - created_at：创建时间；
+CREATE TABLE IF NOT EXISTS messages (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  type VARCHAR(16) NOT NULL,
+  actor_user_id BIGINT NULL,
+  receiver_user_id BIGINT NOT NULL,
+  note_id BIGINT NULL,
+  message VARCHAR(512) NULL,
+  is_read TINYINT(1) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_receiver (receiver_user_id),
+  INDEX idx_type (type),
+  INDEX idx_note (note_id),
+  CONSTRAINT fk_messages_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_messages_receiver FOREIGN KEY (receiver_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_messages_note FOREIGN KEY (note_id) REFERENCES shiyan(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+

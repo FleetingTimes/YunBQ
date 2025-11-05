@@ -32,13 +32,20 @@ public class NoteService {
     private final NoteFavoriteMapper favoriteMapper;
     private final UserMapper userMapper;
     private final NoteCacheService noteCache;
+    // 消息服务：在点赞/收藏成功后生成行为消息，通知作者
+    private final MessageService messageService;
 
-    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper, UserMapper userMapper, NoteCacheService noteCache) {
+    /**
+     * 构造函数：通过 Spring 注入依赖。
+     * 新增参数 messageService 用于在点赞/收藏成功后写入消息。
+     */
+    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper, UserMapper userMapper, NoteCacheService noteCache, MessageService messageService) {
         this.noteMapper = noteMapper;
         this.likeMapper = likeMapper;
         this.favoriteMapper = favoriteMapper;
         this.userMapper = userMapper;
         this.noteCache = noteCache;
+        this.messageService = messageService;
     }
 
     @Transactional
@@ -405,6 +412,8 @@ public class NoteService {
             l.setUserId(userId);
             l.setCreatedAt(LocalDateTime.now());
             likeMapper.insert(l);
+            // 点赞成功后，向作者发送一条“收到的赞”消息（避免自赞发消息）
+            try { if (messageService != null) messageService.createLikeMessage(userId, noteId); } catch (Exception ignored) {}
         }
         long count = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId));
         // 点赞变化影响热门，失效热门缓存
@@ -451,6 +460,8 @@ public class NoteService {
             f.setUserId(userId);
             f.setCreatedAt(LocalDateTime.now());
             favoriteMapper.insert(f);
+            // 收藏成功后，向作者发送一条“收到的收藏”消息（避免自藏发消息）
+            try { if (messageService != null) messageService.createFavoriteMessage(userId, noteId); } catch (Exception ignored) {}
         }
         long count = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId));
         // 收藏变化影响热门，失效热门缓存

@@ -24,6 +24,7 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\UserSummary.
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\NoteRequest.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\LogService.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\config\CorsProperties.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\Message.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NoteLikeMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NavigationSiteMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\RegisterRequest.java
@@ -32,6 +33,7 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\CaptchaS
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\YunbqBackendApplication.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NoteMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\security\SecurityConfig.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\MessageController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\Note.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\NoteItem.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\AuditLog.java
@@ -39,11 +41,13 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\RequestLog
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\MailService.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\AuthLog.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\AuthResponse.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\MessageMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\CaptchaController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\ErrorLog.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\AdminController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\util\AuthUtil.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NavigationCategoryMapper.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\MessageService.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\AuthRequest.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\NoteFavorite.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\job\LogRetentionScheduler.java

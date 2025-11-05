@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS note_favorites (
   UNIQUE KEY uniq_note_user_fav (note_id, user_id),
   INDEX idx_note_fav (note_id),
   INDEX idx_user_fav (user_id),
-  CONSTRAINT fk_favorites_note FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+  -- 统一外键：改为引用 shiyan(id)，与当前主表保持一致
+  CONSTRAINT fk_favorites_note FOREIGN KEY (note_id) REFERENCES shiyan(id) ON DELETE CASCADE,
   CONSTRAINT fk_favorites_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

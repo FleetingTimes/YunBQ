@@ -46,9 +46,11 @@
         </el-button>
       </el-tooltip>
       <!-- 将“消息”移动到原“记录”的位置，实现两者调换位置 -->
+      <!-- 消息入口：当存在未读消息时，显示 NEW 徽章（不展示数字） -->
       <el-tooltip content="消息" placement="bottom">
-        <el-button link class="icon-btn" @click="goMessages">
+        <el-button link class="icon-btn has-badge" @click="goMessages">
           <img src="https://api.iconify.design/mdi/message-outline.svg" alt="消息" width="22" height="22" />
+          <span v-if="hasNewMessages" class="badge new" aria-label="有新消息">NEW</span>
         </el-button>
       </el-tooltip>
       <template v-if="authed">
@@ -329,6 +331,11 @@ const avatarUrl = computed(() => avatarFullUrl(me.avatarUrl))
 const isAdmin = computed(() => (me.role || '').toUpperCase() === 'ADMIN')
 const authed = computed(() => !!(me.username))
 
+// 未读消息状态：用于顶栏“消息”按钮显示 NEW 徽章
+const hasNewMessages = ref(false)
+// 可选：记录各类型未读计数（便于后续联动，如悬浮卡片里展示）
+const unreadCounts = ref({ like: 0, favorite: 0, system: 0 })
+
 // 滚动事件处理函数
 function handleScroll() {
   scrollY.value = window.scrollY || document.documentElement.scrollTop
@@ -344,15 +351,30 @@ function emitSearch(){
 
 onMounted(() => { 
   loadMe()
+  // 首次加载未读消息情况；未登录会 401，被拦截器抑制或此处自行忽略
+  loadUnread()
   // 添加滚动事件监听
   window.addEventListener('scroll', handleScroll, { passive: true })
   // 初始化滚动状态
   handleScroll()
+  // 监听来自消息页的更新事件：单条已读/批量操作后立即刷新顶栏徽章
+  // 说明：使用浏览器级事件总线，避免引入全局 store；多页面同域下也可独立工作
+  window.addEventListener('messages-updated', onMessagesUpdated)
+  // 标签重新可见时触发一次刷新，保证切换标签后信息不滞后
+  document.addEventListener('visibilitychange', onVisibilityRefresh)
+  // 轻量轮询：每 10 秒刷新一次未读状态，作为后端实时推送缺失时的兜底方案
+  // 注意：在 onUnmounted 中清理，避免内存泄漏与重复请求
+  if (!unreadPoller) unreadPoller = setInterval(() => { loadUnread() }, 10000)
 })
 
 onUnmounted(() => {
   // 清理滚动事件监听
   window.removeEventListener('scroll', handleScroll)
+  // 清理消息更新与可见性事件监听
+  window.removeEventListener('messages-updated', onMessagesUpdated)
+  document.removeEventListener('visibilitychange', onVisibilityRefresh)
+  // 清理轮询器
+  try { if (unreadPoller) { clearInterval(unreadPoller); unreadPoller = null } } catch {}
 })
 
 async function loadMe(){
@@ -371,6 +393,16 @@ async function loadMe(){
       me.role = ''
     }
   }
+}
+
+// —— 顶栏未读刷新：事件与轮询辅助 ——
+let unreadPoller = null
+function onMessagesUpdated(){
+  // 来自消息页的事件：立即刷新顶栏 NEW 徽章与计数
+  loadUnread()
+}
+function onVisibilityRefresh(){
+  if (document.visibilityState === 'visible') loadUnread()
 }
 
 function openEditInfo(){
@@ -543,6 +575,37 @@ function onHoverEnter(){
 function onHoverLeave(){
   if (hoverHideTimer) clearTimeout(hoverHideTimer)
   hoverHideTimer = setTimeout(() => { profileVisible.value = false }, 160)
+}
+
+// 加载未读消息计数与是否存在新消息
+// 接口：GET /messages/unread-counts → { counts: { like, favorite, system }, total, hasNew }
+async function loadUnread(){
+  try{
+    // 路径修正：后端控制器为 /api/messages/counts（不是 unread-counts）
+    const { data } = await http.get('/messages/counts', { suppress401Redirect: true })
+    const counts = data?.counts || {}
+    unreadCounts.value = {
+      like: Number(counts.like || 0),
+      favorite: Number(counts.favorite || 0),
+      system: Number(counts.system || 0)
+    }
+    hasNewMessages.value = Boolean(data?.hasNew || (data?.total > 0))
+    // 派发未读计数事件：供消息页等组件实时联动左侧徽章
+    // 说明：同域多标签，同时有顶栏与消息页时，减少重复请求并提升同步效果
+    try {
+      window.dispatchEvent(new CustomEvent('messages-counts', {
+        detail: {
+          source: 'topbar',
+          counts: unreadCounts.value,
+          total: Number(data?.total || (counts.like || 0) + (counts.favorite || 0) + (counts.system || 0)),
+          hasNew: hasNewMessages.value
+        }
+      }))
+    } catch {}
+  }catch(e){
+    // 未登录或接口异常时，不影响顶栏显示
+    hasNewMessages.value = false
+  }
 }
 
 // =========================
@@ -892,6 +955,21 @@ async function exportMyNotes(){
 .right-actions { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
 .icon-btn { border-radius: 50%; padding: 6px; transition: transform .15s ease, filter .15s ease; }
 .icon-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
+/* 消息 NEW 徽章样式：在图标按钮右上角显示胶囊形 NEW 标签 */
+.icon-btn.has-badge { position: relative; }
+.icon-btn.has-badge .badge.new {
+  /* NEW 徽章尺寸下调：更精致、不喧宾夺主 */
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ff4d4f; /* 红色提示色 */
+  color: #fff;
+  font-size: 9px;   /* 原 10px → 9px */
+  line-height: 14px;/* 原 16px → 14px */
+  padding: 0 4px;   /* 原 6px → 4px */
+  border-radius: 7px;/* 原 8px → 7px */
+  box-shadow: 0 0 0 2px #fff; /* 白色描边增强可读性 */
+}
 .dialog-header { position: relative; }
 .edit-icon { position: absolute; right: 0; top: 0; transition: transform .15s ease, box-shadow .15s ease; }
 .edit-icon:hover { transform: scale(1.04); box-shadow: 0 4px 12px var(--el-color-primary-light-9); }
