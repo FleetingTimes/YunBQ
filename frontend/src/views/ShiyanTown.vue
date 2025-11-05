@@ -60,16 +60,24 @@
               :aria-label="'拾言卡片 ' + (it.authorName || '匿名')"
             >
               <div class="head">
-                <!-- 头像：懒加载，缺省使用占位图标；避免 N+1 请求，优先使用后端返回字段 -->
+                <!-- 头像：可点击跳转到该作者的拾言页；懒加载与失败兜底均保留 -->
                 <img
                   v-if="it.authorAvatarUrl"
-                  class="avatar"
+                  class="avatar clickable"
                   :src="avatarFullUrl(it.authorAvatarUrl)"
                   alt="avatar"
                   loading="lazy"
                   @error="onAvatarError"
+                  @click="goToUserNotes(it)"
                 />
-                <img v-else class="avatar" :src="defaultAvatar" alt="avatar" loading="lazy" />
+                <img
+                  v-else
+                  class="avatar clickable"
+                  :src="defaultAvatar"
+                  alt="avatar"
+                  loading="lazy"
+                  @click="goToUserNotes(it)"
+                />
 
                 <div class="meta">
                   <div class="name" :title="it.authorName">{{ it.authorName || '匿名' }}</div>
@@ -80,21 +88,21 @@
               <!-- 内容：支持长文，做多行裁剪与换行优化 -->
               <div class="content" v-text="it.content || ''"></div>
 
-              <!-- 标签：数组或逗号分隔字符串，统一渲染为胶囊 -->
-              <div class="tags" v-if="(it.tags || '').length">
-                <span class="tag" v-for="tg in normalizeTags(it.tags)" :key="tg">#{{ tg }}</span>
-              </div>
-
-              <!-- 底部交互：喜欢/收藏（乐观 UI，后端接口可接入） -->
-              <div class="actions">
-                <el-button link class="icon-act" :class="{ on: it.liked }" @click="toggleLike(it)" aria-label="喜欢">
-                  <img :src="it.liked ? likeIconOn : likeIconOff" alt="like" width="18" height="18" />
-                  <span>{{ it.likeCount ?? 0 }}</span>
-                </el-button>
-                <el-button link class="icon-act" :class="{ on: it.favorited }" @click="toggleFav(it)" aria-label="收藏">
-                  <img :src="it.favorited ? favIconOn : favIconOff" alt="fav" width="18" height="18" />
-                  <span>{{ it.favoriteCount ?? 0 }}</span>
-                </el-button>
+              <!-- 标签与操作行：同一行展示，标签在左，喜欢/收藏在右侧 -->
+              <div class="tags-actions-row">
+                <div class="tags" v-if="(it.tags || '').length">
+                  <span class="tag" v-for="tg in normalizeTags(it.tags)" :key="tg">#{{ tg }}</span>
+                </div>
+                <div class="actions">
+                  <el-button link class="icon-act" :class="{ on: it.liked }" @click="toggleLike(it)" aria-label="喜欢">
+                    <img :src="it.liked ? likeIconOn : likeIconOff" alt="like" width="18" height="18" />
+                    <span>{{ it.likeCount ?? 0 }}</span>
+                  </el-button>
+                  <el-button link class="icon-act" :class="{ on: it.favorited }" @click="toggleFav(it)" aria-label="收藏">
+                    <img :src="it.favorited ? favIconOn : favIconOff" alt="fav" width="18" height="18" />
+                    <span>{{ it.favoriteCount ?? 0 }}</span>
+                  </el-button>
+                </div>
               </div>
             </div>
 
@@ -123,6 +131,10 @@ import defaultAvatar from '@/assets/default-avatar.svg'
 import { getToken } from '@/utils/auth'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
+import { useRouter } from 'vue-router'
+
+// 路由：用于从头像点击跳转到用户拾言页
+const router = useRouter()
 
 const query = ref('')
 function onSearch(q){ query.value = q || '' }
@@ -167,6 +179,8 @@ function mapNoteItem(it){
     id: it.id,
     userId: it.userId ?? it.user_id ?? '',
     authorName: it.authorName ?? it.author_name ?? (it.user?.nickname ?? it.user?.username) ?? '匿名',
+    // 新增：作者用户名（用于路由跳转），增强兼容性
+    authorUsername: it.authorUsername ?? it.author_username ?? (it.user?.username ?? it.author?.username ?? ''),
     // 头像字段适配：
     // - 兼容后端多种命名：authorAvatarUrl / author_avatar_url / avatarUrl / avatar_url；
     // - 同时兼容嵌套结构：author{ avatarUrl | avatar_url }、user{ avatarUrl | avatar_url }；
@@ -190,8 +204,8 @@ function mapNoteItem(it){
     // 公开性：前端过滤使用（fetchPage 中的 list.filter），兼容 isPublic / is_public；默认视为公开。
     isPublic: Boolean(it.isPublic ?? it.is_public ?? true),
     // 前端状态：交互后的乐观 UI 控制位
-    liked: Boolean(it.liked ?? false),
-    favorited: Boolean(it.favorited ?? false),
+    liked: Boolean(it.liked ?? it.likedByMe ?? it.liked_by_me ?? false),
+    favorited: Boolean(it.favorited ?? it.favoritedByMe ?? it.favorited_by_me ?? false),
   }
 }
 
@@ -240,6 +254,18 @@ function onAvatarError(e){
   try{
     const img = e?.target
     if (img && img.src !== defaultAvatar){ img.src = defaultAvatar }
+  }catch{}
+}
+
+// 点击作者头像：跳转到该用户的拾言页（/user/:username/shiyan），并携带昵称/头像/uid 作为查询参数
+function goToUserNotes(it){
+  try{
+    const username = String(it.authorUsername || it.authorName || '').trim()
+    const query = {}
+    if (it.authorName) query.nickname = it.authorName
+    if (it.authorAvatarUrl) query.avatar = it.authorAvatarUrl
+    if (it.userId) query.uid = it.userId
+    if (username) router.push({ path: `/user/${encodeURIComponent(username)}/shiyan`, query })
   }catch{}
 }
 
@@ -330,9 +356,13 @@ onUnmounted(() => { teardownInfiniteScroll() })
 .note-card .content { margin-top: 10px; color:#303133; font-size:14px; line-height:1.7; white-space:pre-wrap; word-break:break-word; }
 .note-card .tags { margin-top: 10px; display:flex; flex-wrap:wrap; gap:6px; }
 .note-card .tag { font-size:12px; color:#606266; background: rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.06); padding:4px 8px; border-radius:999px; }
-.note-card .actions { margin-top: 8px; display:flex; gap: 12px; }
+/* 标签与动作同一行，标签左对齐，动作右对齐 */
+.tags-actions-row { margin-top: 8px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.tags-actions-row .actions { display:flex; gap: 12px; }
 .icon-act { display:inline-flex; align-items:center; gap:6px; color:#606266; }
 .icon-act.on { color: var(--el-color-primary); }
+/* 可点击样式：用于头像 */
+.clickable { cursor: pointer; }
 
 /* 加载状态与空白提示 */
 .load-more { text-align:center; color:#909399; font-size:13px; padding:6px; }
