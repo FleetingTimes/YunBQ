@@ -164,6 +164,32 @@
                 </div>
               </div>
             </transition>
+            <!-- 导入拾言入口：与导出并列，采用内联面板进行文件选择与导入提交 -->
+            <el-button size="small" class="action-item" @click="importInlineVisible = !importInlineVisible">
+              <img class="action-icon" src="https://api.iconify.design/mdi/file-import-outline.svg" alt="导入" width="16" height="16" />
+              <span>导入拾言</span>
+            </el-button>
+            <transition name="fade-slide">
+              <div v-if="importInlineVisible" class="export-pop inline" aria-live="polite">
+                <!-- 说明文字：在卡片内联区域呈现，不遮挡其他内容；复用 export-pop 样式容器 -->
+                <div class="export-title">导入我的拾言</div>
+                <div class="export-desc">支持从 CSV 或 JSON 文件导入；推荐使用之前导出的文件。</div>
+                <div class="import-controls" style="display:flex; flex-direction:column; gap:8px;">
+                  <!-- 文件选择：限制为 .csv/.json；读取后展示预览条目数与可能的错误提示 -->
+                  <input type="file" accept=".csv,.json" @change="onImportFileChange" />
+                  <div class="hint" v-if="importFileName" style="font-size:12px; color:#909399;">
+                    已选择：{{ importFileName }}，准备导入 {{ importPreviewCount }} 条
+                  </div>
+                  <div class="errors" v-if="importErrors.length" style="font-size:12px; color:#f56c6c;">
+                    {{ importErrors[0] }}
+                  </div>
+                </div>
+                <div class="export-actions">
+                  <el-button size="small" @click="closeImportPanel">取消</el-button>
+                  <el-button size="small" type="primary" :loading="importLoading" :disabled="!canImport" @click="importMyNotes">导入</el-button>
+                </div>
+              </div>
+            </transition>
             <el-button size="small" class="action-item" @click="logout">
               <img class="action-icon" src="https://api.iconify.design/mdi/logout.svg" alt="退出" width="16" height="16" />
               <span>退出登录</span>
@@ -758,6 +784,175 @@ async function exportMyNotes(){
     ElMessage.error(msg)
   }finally{
     exportLoading.value = false
+  }
+}
+
+// =========================
+// 导入便签功能：本地读取 CSV/JSON → 解析为标准结构 → 提交后端导入
+// =========================
+// 设计说明（详细注释）：
+// - 入口：头像悬浮卡片中的“导入拾言”按钮，内联面板选择文件并提交导入；
+// - 兼容格式：CSV 或 JSON（推荐使用本系统导出的文件，字段稳定且对齐）；
+// - 解析策略：
+//   * CSV：读取表头，按与导出相同的稳定字段（id,userId,authorName,content,tags,color,archived,isPublic,createdAt,updatedAt,likeCount,favoriteCount）解析；
+//   * JSON：支持数组对象；若字段命名存在差异，尽量通过 mapNoteItem 进行规整；
+// - 提交：调用后端 /shiyan/import（约定路径），提交 items 数组；
+// - 反馈：展示成功导入条数；若后端返回逐条错误，可在 importErrors 中提示第一条；
+// - 安全：必须登录（校验 token）；限制文件类型与大小（简单上限 5MB）。
+
+// 内联面板可见状态（控制卡片内展开区域）
+const importInlineVisible = ref(false)
+// 导入加载状态（避免重复点击）
+const importLoading = ref(false)
+// 导入文件名（用于提示）
+const importFileName = ref('')
+// 导入预览条目数（解析后条数）
+const importPreviewCount = ref(0)
+// 是否可以导入（解析成功且条数>0）
+const canImport = computed(() => importPreviewCount.value > 0 && !importLoading.value)
+// 解析后的标准结构数组（提交给后端）
+const importItems = ref([])
+// 错误列表（仅展示首条以简洁提示）
+const importErrors = ref([])
+
+/**
+ * 关闭导入面板并清空状态
+ */
+function closeImportPanel(){
+  importInlineVisible.value = false
+  importLoading.value = false
+  importFileName.value = ''
+  importPreviewCount.value = 0
+  importItems.value = []
+  importErrors.value = []
+}
+
+/**
+ * 解析 CSV 文本为稳定字段数组
+ * 说明：
+ * - 读取首行作为表头；去除 UTF-8 BOM；
+ * - 对常见字段进行类型归一：布尔/数字；
+ * - 未出现的字段以默认值兜底；
+ */
+function parseCsvText(text){
+  try{
+    const clean = text.replace(/^\uFEFF/, '')
+    const lines = clean.split(/\r?\n/).filter(l => l.trim().length > 0)
+    if (lines.length <= 1) return []
+    const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''))
+    const rows = []
+    for (let i=1; i<lines.length; i++){
+      const raw = lines[i]
+      // 简单 CSV 解析：按逗号拆分并处理双引号转义；满足本系统导出的常见场景
+      const cols = []
+      let cur = '', inQ = false
+      for (let j=0; j<raw.length; j++){
+        const ch = raw[j]
+        if (ch === '"'){
+          if (inQ && raw[j+1] === '"'){ cur += '"'; j++ } else { inQ = !inQ }
+        } else if (ch === ',' && !inQ){ cols.push(cur); cur = '' } else { cur += ch }
+      }
+      cols.push(cur)
+      const obj = {}
+      for (let k=0; k<header.length; k++){
+        const key = header[k]
+        let val = (cols[k] ?? '').trim()
+        val = val.replace(/^"|"$/g,'').replace(/""/g,'"')
+        obj[key] = val
+      }
+      // 归一化类型
+      obj.archived = String(obj.archived || '').toLowerCase() === 'true'
+      obj.isPublic = String(obj.isPublic || '').toLowerCase() === 'true'
+      obj.likeCount = Number(obj.likeCount || 0)
+      obj.favoriteCount = Number(obj.favoriteCount || 0)
+      rows.push(obj)
+    }
+    return rows.map(mapNoteItem)
+  }catch(e){
+    importErrors.value = ['CSV 解析失败，请确认文件格式是否正确']
+    return []
+  }
+}
+
+/**
+ * 解析 JSON 文本为稳定字段数组
+ * 说明：
+ * - 支持对象数组或带 items/records 的对象结构；
+ * - 每项通过 mapNoteItem 归一字段；
+ */
+function parseJsonText(text){
+  try{
+    const data = JSON.parse(text)
+    const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
+    if (!Array.isArray(items)) return []
+    return items.map(mapNoteItem)
+  }catch(e){
+    importErrors.value = ['JSON 解析失败，请确认文件内容是否为有效的 JSON']
+    return []
+  }
+}
+
+/**
+ * 文件选择回调：读取文本并解析（自动按扩展名选择解析器）
+ */
+function onImportFileChange(ev){
+  try{
+    importErrors.value = []
+    const file = ev.target?.files?.[0]
+    if (!file) return
+    // 简单大小限制：5MB
+    if (file.size > 5 * 1024 * 1024){
+      importErrors.value = ['文件过大，建议分批导入（最多 5MB）']
+      return
+    }
+    importFileName.value = file.name
+    const reader = new FileReader()
+    reader.onload = () => {
+      const text = String(reader.result || '')
+      const ext = (file.name.split('.').pop() || '').toLowerCase()
+      let parsed = []
+      if (ext === 'csv') parsed = parseCsvText(text)
+      else if (ext === 'json') parsed = parseJsonText(text)
+      else {
+        importErrors.value = ['不支持的文件类型，请选择 .csv 或 .json']
+        parsed = []
+      }
+      importItems.value = parsed
+      importPreviewCount.value = parsed.length
+    }
+    reader.onerror = () => { importErrors.value = ['读取文件失败，请重试或更换文件'] }
+    reader.readAsText(file)
+  }catch{}
+}
+
+/**
+ * 提交导入：将解析后的 items 发送到后端
+ * 说明：
+ * - 路径约定：POST /shiyan/import；请求体 { items: [...] }；
+ * - 后端返回：建议返回导入成功条数与错误信息列表（若有）；
+ * - 成功后关闭面板并提示数量；可选跳转到“我的拾言”。
+ */
+async function importMyNotes(){
+  // 登录校验
+  if (!getToken()){ ElMessage.warning('请先登录'); return }
+  if (!canImport.value){ ElMessage.warning('请先选择有效的文件'); return }
+  if (importLoading.value) return
+  importLoading.value = true
+  try{
+    const payload = { items: importItems.value }
+    const { data } = await http.post('/shiyan/import', payload, { suppress401Redirect: true })
+    const ok = Number(data?.success ?? data?.imported ?? importItems.value.length)
+    const fails = Number(data?.failed ?? 0)
+    ElMessage.success(`导入完成：成功 ${ok} 条${fails>0 ? `，失败 ${fails} 条` : ''}`)
+    closeImportPanel()
+    // 可选：跳转到“我的拾言”查看导入结果
+    try{ router.push('/my-notes') }catch{}
+  }catch(e){
+    const msg = e?.response?.data?.message || '导入失败，请稍后重试'
+    importErrors.value = [msg]
+    ElMessage.error(msg)
+  }finally{
+    importLoading.value = false
   }
 }
 </script>

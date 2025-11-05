@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yunbq.backend.dto.NoteRequest;
 import com.yunbq.backend.dto.NoteItem;
+import org.springframework.util.StringUtils;
 import com.yunbq.backend.mapper.NoteMapper;
 import com.yunbq.backend.mapper.NoteLikeMapper;
 import com.yunbq.backend.mapper.NoteFavoriteMapper;
@@ -413,6 +414,48 @@ public class NoteService {
         ip.setTotal(items.size());
         ip.setRecords(items);
         return ip;
+    }
+
+    /**
+     * 批量导入拾言
+     * 说明：
+     * - 入参为当前用户ID与 NoteRequest 列表（来源于前端解析的 CSV/JSON 数据）；
+     * - 对每项进行最小校验：content 为空则计为失败并跳过；
+     * - 其余字段（tags/color/archived/isPublic）按已有 create 逻辑写入；
+     * - 返回导入统计信息：imported（成功条数）、failed（失败条数）、errors（可选错误消息列表）。
+     */
+    @Transactional
+    public Map<String, Object> importNotes(Long userId, List<NoteRequest> items) {
+        if (items == null || items.isEmpty()) {
+            return Map.of("imported", 0, "failed", 0);
+        }
+        int ok = 0;
+        int fail = 0;
+        List<String> errors = new java.util.ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            NoteRequest req = items.get(i);
+            // 最小校验：content 非空（去除空格）
+            String content = (req == null) ? null : req.getContent();
+            if (!StringUtils.hasText(content)) {
+                fail++;
+                errors.add("第" + (i + 1) + "条：内容为空，已跳过");
+                continue;
+            }
+            try {
+                // 直接复用 create 逻辑（包含标签解析与缓存失效处理）
+                this.create(userId, req);
+                ok++;
+            } catch (Exception e) {
+                fail++;
+                // 记录简要错误信息（不暴露堆栈），便于前端提示
+                errors.add("第" + (i + 1) + "条：" + (e.getMessage() == null ? "导入失败" : e.getMessage()));
+            }
+        }
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("imported", ok);
+        resp.put("failed", fail);
+        if (!errors.isEmpty()) resp.put("errors", errors);
+        return resp;
     }
     // 点赞相关
     @Transactional

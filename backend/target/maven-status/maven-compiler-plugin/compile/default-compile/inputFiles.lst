@@ -24,6 +24,7 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\UserSummary.
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\NoteRequest.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\LogService.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\config\CorsProperties.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\ImportNotesRequest.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\Message.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NoteLikeMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NavigationSiteMapper.java

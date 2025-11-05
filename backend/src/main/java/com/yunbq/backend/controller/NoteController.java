@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yunbq.backend.dto.NoteRequest;
 import com.yunbq.backend.dto.NoteItem;
 import com.yunbq.backend.dto.PageResult;
+import com.yunbq.backend.dto.ImportNotesRequest;
 import com.yunbq.backend.model.Note;
 import com.yunbq.backend.service.NoteService;
 import com.yunbq.backend.util.AuthUtil;
@@ -187,5 +188,31 @@ public class NoteController {
         resp.setPage(p.getCurrent());
         resp.setSize(p.getSize());
         return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 导入拾言（批量）
+     * 说明：
+     * - 前端请求：POST /shiyan/import（axios baseURL 已含 /api，实际路径为 /api/shiyan/import）；
+     * - 请求体结构：{ items: NoteRequest[] }，每项包含 content、tags、color、archived、isPublic；
+     * - 返回体建议：{ imported: 成功数量, failed: 失败数量, errors: [可选错误消息] }；
+     * - 登录校验：仅登录用户允许导入（当前控制器所有方法均依赖 AuthUtil.currentUserId 识别登录态）。
+     *
+     * HttpRequestMethodNotSupportedException 根因与修复：
+     * - 根因：此前后端未提供该 POST 映射，导致 Spring 抛出 405 并封装为该异常；
+     * - 修复：新增 @PostMapping("/import") 映射，使 /api/notes/import 与 /api/shiyan/import 均可访问。
+     */
+    @PostMapping("/import")
+    public ResponseEntity<Map<String, Object>> importNotes(@RequestBody ImportNotesRequest req) {
+        Long uid = AuthUtil.currentUserId();
+        // 详细日志：记录导入请求到达控制器与候选条目数，便于联调定位问题
+        int size = (req == null || req.getItems() == null) ? 0 : req.getItems().size();
+        log.info("[NoteController] POST /api/notes/import called, uid={}, items={}", uid, size);
+        // 未登录直接返回 401（与前端 suppress401Redirect 对齐）：避免将匿名导入写入数据库
+        if (uid == null) {
+            return ResponseEntity.status(401).body(Map.of("message", "请先登录后再导入"));
+        }
+        Map<String, Object> result = noteService.importNotes(uid, req == null ? java.util.Collections.emptyList() : req.getItems());
+        return ResponseEntity.ok(result);
     }
 }
