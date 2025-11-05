@@ -211,6 +211,8 @@
                   type="textarea"
                   :rows="4"
                   placeholder="内容与标签一起输入；标签以#开头，逗号分隔。例如：今天完成了任务 #工作,#计划"
+                  @focus="onEditFocus(n)"
+                  @blur="onEditBlur(n)"
                 />
               </div>
             </div>
@@ -952,6 +954,110 @@ function highlightHTML(s){
   out += escapeHtml(text.slice(last));
   return out;
 }
+
+// —— 粘贴修复：将来源于聊天应用的“图片表情/贴纸”转换为 Unicode Emoji ——
+// 说明：部分聊天应用复制到剪贴板时携带 HTML，<img> 承载表情图片；直接粘贴到 textarea 会丢失图片。
+// 方案：在捕获阶段监听 document 的 paste 事件，若目标位于本页编辑输入框，则解析剪贴板 HTML，
+//       将 <img ... alt|title|aria-label|data-emoji> 转换为对应的 Unicode Emoji 字符，并兼容中文别名。
+const focusedEditingId = ref(null);
+function onEditFocus(it){ focusedEditingId.value = it?.id ?? null; }
+function onEditBlur(){ focusedEditingId.value = null; }
+
+// 常见/热门映射：英文数据名与中文别名到 Unicode Emoji
+const emojiMap = {
+  // 经典笑脸
+  smile: '😊', happy: '😄', grin: '😁', laugh: '😆', joy: '😂', wink: '😉', blush: '😊', smirk: '😏',
+  neutral_face: '😐', expressionless: '😑', unamused: '😒', relieved: '😌',
+  surprised: '😮', astonished: '😲', scream: '😱',
+  sad: '☹️', crying: '😢', sob: '😭', weary: '😩', tired: '😫', disappointed: '😞',
+  angry: '😠', rage: '🤬', confounded: '😖',
+  thinking: '🤔', facepalm: '🤦', shushing_face: '🤫', lying_face: '🤥', zipper_mouth: '🤐',
+  // 爱心/庆祝
+  heart: '❤️', hearts: '💕', heart_eyes: '😍', kiss: '😘', kissing_heart: '😘',
+  broken_heart: '💔', two_hearts: '💕', sparkling_heart: '💖',
+  sparkles: '✨', star: '⭐', stars: '🌟', party_popper: '🎉', tada: '🎉', gift: '🎁', balloon: '🎈', ribbon: '🎀', confetti_ball: '🎊',
+  // 手势
+  thumbs_up: '👍', thumbsup: '👍', like: '👍', thumbs_down: '👎', clap: '👏', pray: '🙏',
+  ok_hand: '👌', victory_hand: '✌️', v: '✌️', wave: '👋', raised_hand: '✋', fist: '✊', rock: '🤘', handshake: '🤝',
+  // 自然/植物
+  tulip: '🌷', rose: '🌹', cherry_blossom: '🌸', sunflower: '🌻', hibiscus: '🌺', bouquet: '💐',
+  sun: '☀️', moon: '🌙', cloud: '☁️', fire: '🔥', rainbow: '🌈', leaf: '🍃', butterfly: '🦋',
+  // 其它常用图标
+  dog: '🐶', cat: '🐱', coffee: '☕', cake: '🍰', beer: '🍺', camera: '📷', music: '🎵', book: '📚', pencil: '✏️', check: '✔️', cross: '❌', warning: '⚠️', info: 'ℹ️', question: '❓', exclamation: '❗', rocket: '🚀',
+  // 中文别名（微信/QQ/贴吧等常见）
+  '微笑': '😊', '开心': '😊', '大笑': '😄', '坏笑': '😏', '笑哭': '😂', '眨眼': '😉', '捂脸': '🤦', '尴尬': '😬', '害羞': '☺️',
+  '可爱': '😊', '酷': '😎', '思考': '🤔', '惊讶': '😲', '震惊': '😱', '难过': '☹️', '大哭': '😭', '委屈': '😢', '无语': '😑', '闭嘴': '🤐',
+  '心': '❤️', '爱心': '❤️', '红心': '❤️', '心碎': '💔', '比心': '💕', '星星': '⭐', '闪耀': '✨',
+  '点赞': '👍', '赞': '👍', '不赞': '👎', '鼓掌': '👏', '祈祷': '🙏', '握手': '🤝', '再见': '👋', '耶': '✌️', 'ok': '👌',
+  '礼物': '🎁', '庆祝': '🎉', '气球': '🎈', '太阳': '☀️', '月亮': '🌙', '彩虹': '🌈', '叶子': '🍃', '蝴蝶': '🦋',
+  // 网络常见别名
+  'doge': '🐶', '泪目': '😭', '摸鱼': '🐟', '燃': '🔥', '真棒': '👍', '牛': '🐮'
+};
+
+function htmlToTextWithEmoji(html){
+  try{
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    div.querySelectorAll('img').forEach(img => {
+      const alt = img.getAttribute('alt') || '';
+      const title = img.getAttribute('title') || '';
+      const aria = img.getAttribute('aria-label') || '';
+      const dataEmoji = img.getAttribute('data-emoji') || img.getAttribute('data-name') || '';
+      let rep = '';
+      const cand = [alt, title, aria, dataEmoji].map(s => String(s).replace(/[\[\]]/g,'').trim()).filter(Boolean);
+      for (const c of cand){
+        if (/[\u2600-\u27BF\uD83C-\uDBFF\uDC00-\uDFFF]/.test(c)) { rep = c; break; }
+        if (emojiMap[c]) { rep = emojiMap[c]; break; }
+      }
+      const span = document.createElement('span');
+      span.textContent = rep || '';
+      img.replaceWith(span);
+    });
+    // 移除可能的脚本并获取纯文本
+    div.querySelectorAll('script,style').forEach(el => el.remove());
+    return div.textContent || div.innerText || '';
+  }catch{ return ''; }
+}
+
+function handlePaste(e){
+  try{
+    // 仅在当前页面编辑态输入框内处理
+    if (!focusedEditingId.value) return;
+    const target = e.target;
+    const wrapper = document.querySelector(`[data-note-id="${focusedEditingId.value}"]`);
+    if (!wrapper || !wrapper.contains(target)) return;
+    const cb = e.clipboardData || window.clipboardData;
+    if (!cb) return;
+    const html = cb.getData?.('text/html') || '';
+    if (!html) return; // 无 HTML 内容则交由默认粘贴处理
+    const converted = htmlToTextWithEmoji(html);
+    if (!converted) return;
+    e.preventDefault();
+    const ta = wrapper.querySelector('textarea');
+    if (!ta) return;
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? start;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    const ins = converted;
+    ta.value = `${before}${ins}${after}`;
+    const newVal = ta.value;
+    // 同步 v-model
+    const note = notes.value.find(x => x.id === focusedEditingId.value);
+    if (note) note.contentEdit = newVal;
+    // 恢复光标到插入末尾
+    const pos = before.length + ins.length;
+    ta.setSelectionRange(pos, pos);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }catch{}
+}
+
+onMounted(() => {
+  document.addEventListener('paste', handlePaste, true);
+});
+onUnmounted(() => {
+  document.removeEventListener('paste', handlePaste, true);
+});
 </script>
 
 <style scoped>

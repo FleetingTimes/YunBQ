@@ -13,7 +13,14 @@
         <!-- 文案重命名：将“便签”统一改为“拾言” -->
         <div class="title">新建拾言</div>
         <el-input v-model="draft.tags" placeholder="标签（用逗号分隔）" style="margin-bottom:6px;" />
-        <el-input v-model="draft.content" type="textarea" :rows="4" placeholder="内容" />
+        <el-input
+          v-model="draft.content"
+          type="textarea"
+          :rows="4"
+          placeholder="内容"
+          @focus="onComposerFocus"
+          @blur="onComposerBlur"
+        />
         <div style="display:flex; align-items:center; justify-content:space-between; margin-top:6px; gap:8px;">
           <el-switch v-model="draft.isPublic" active-text="公开" inactive-text="私有" />
           <div style="display:flex; align-items:center; gap:6px;">
@@ -41,7 +48,7 @@
 </template>
 
 <script setup>
-import { reactive, ref, onMounted, computed, watch } from 'vue'
+import { reactive, ref, onMounted, computed, watch, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
@@ -71,6 +78,104 @@ const danmuRows = 6
 const danmuSpeedScale = 1.35
 
 const draft = reactive({ content: '', isPublic: false, tags: '', color: '#ffd966' })
+const composerRef = ref(null)
+
+// —— 粘贴修复：聊天应用的图片表情转换为 Unicode Emoji ——
+const focusedComposer = ref(false)
+function onComposerFocus(){ focusedComposer.value = true }
+function onComposerBlur(){ focusedComposer.value = false }
+
+// 常见/热门映射：英文数据名与中文别名到 Unicode Emoji
+const emojiMap = {
+  // 经典笑脸
+  smile: '😊', happy: '😄', grin: '😁', laugh: '😆', joy: '😂', wink: '😉', blush: '😊', smirk: '😏',
+  neutral_face: '😐', expressionless: '😑', unamused: '😒', relieved: '😌',
+  surprised: '😮', astonished: '😲', scream: '😱',
+  sad: '☹️', crying: '😢', sob: '😭', weary: '😩', tired: '😫', disappointed: '😞',
+  angry: '😠', rage: '🤬', confounded: '😖',
+  thinking: '🤔', facepalm: '🤦', shushing_face: '🤫', lying_face: '🤥', zipper_mouth: '🤐',
+  // 爱心/庆祝
+  heart: '❤️', hearts: '💕', heart_eyes: '😍', kiss: '😘', kissing_heart: '😘',
+  broken_heart: '💔', two_hearts: '💕', sparkling_heart: '💖',
+  sparkles: '✨', star: '⭐', stars: '🌟', party_popper: '🎉', tada: '🎉', gift: '🎁', balloon: '🎈', ribbon: '🎀', confetti_ball: '🎊',
+  // 手势
+  thumbs_up: '👍', thumbsup: '👍', like: '👍', thumbs_down: '👎', clap: '👏', pray: '🙏',
+  ok_hand: '👌', victory_hand: '✌️', v: '✌️', wave: '👋', raised_hand: '✋', fist: '✊', rock: '🤘', handshake: '🤝',
+  // 自然/植物
+  tulip: '🌷', rose: '🌹', cherry_blossom: '🌸', sunflower: '🌻', hibiscus: '🌺', bouquet: '💐',
+  sun: '☀️', moon: '🌙', cloud: '☁️', fire: '🔥', rainbow: '🌈', leaf: '🍃', butterfly: '🦋',
+  // 其它常用图标
+  dog: '🐶', cat: '🐱', coffee: '☕', cake: '🍰', beer: '🍺', camera: '📷', music: '🎵', book: '📚', pencil: '✏️', check: '✔️', cross: '❌', warning: '⚠️', info: 'ℹ️', question: '❓', exclamation: '❗', rocket: '🚀',
+  // 中文别名（微信/QQ/贴吧等常见）
+  '微笑': '😊', '开心': '😊', '大笑': '😄', '坏笑': '😏', '笑哭': '😂', '眨眼': '😉', '捂脸': '🤦', '尴尬': '😬', '害羞': '☺️',
+  '可爱': '😊', '酷': '😎', '思考': '🤔', '惊讶': '😲', '震惊': '😱', '难过': '☹️', '大哭': '😭', '委屈': '😢', '无语': '😑', '闭嘴': '🤐',
+  '心': '❤️', '爱心': '❤️', '红心': '❤️', '心碎': '💔', '比心': '💕', '星星': '⭐', '闪耀': '✨',
+  '点赞': '👍', '赞': '👍', '不赞': '👎', '鼓掌': '👏', '祈祷': '🙏', '握手': '🤝', '再见': '👋', '耶': '✌️', 'ok': '👌',
+  '礼物': '🎁', '庆祝': '🎉', '气球': '🎈', '太阳': '☀️', '月亮': '🌙', '彩虹': '🌈', '叶子': '🍃', '蝴蝶': '🦋',
+  // 网络常见别名
+  'doge': '🐶', '泪目': '😭', '摸鱼': '🐟', '燃': '🔥', '真棒': '👍', '牛': '🐮'
+}
+
+function htmlToTextWithEmoji(html){
+  try{
+    const div = document.createElement('div')
+    div.innerHTML = html
+    div.querySelectorAll('img').forEach(img => {
+      const alt = img.getAttribute('alt') || ''
+      const title = img.getAttribute('title') || ''
+      const aria = img.getAttribute('aria-label') || ''
+      const dataEmoji = img.getAttribute('data-emoji') || img.getAttribute('data-name') || ''
+      let rep = ''
+      const cand = [alt, title, aria, dataEmoji].map(s => String(s).replace(/[\[\]]/g,'').trim()).filter(Boolean)
+      for (const c of cand){
+        if (/[\u2600-\u27BF\uD83C-\uDBFF\uDC00-\uDFFF]/.test(c)) { rep = c; break }
+        if (emojiMap[c]) { rep = emojiMap[c]; break }
+      }
+      const span = document.createElement('span')
+      span.textContent = rep || ''
+      img.replaceWith(span)
+    })
+    div.querySelectorAll('script,style').forEach(el => el.remove())
+    return div.textContent || div.innerText || ''
+  }catch{ return '' }
+}
+
+function handlePaste(e){
+  try{
+    if (!focusedComposer.value) return
+    const target = e.target
+    const root = composerRef.value || document.querySelector('.composer')
+    if (!root || !root.contains(target)) return
+    const cb = e.clipboardData || window.clipboardData
+    if (!cb) return
+    const html = cb.getData?.('text/html') || ''
+    if (!html) return
+    const converted = htmlToTextWithEmoji(html)
+    if (!converted) return
+    e.preventDefault()
+    const ta = root.querySelector('textarea')
+    if (!ta) return
+    const start = ta.selectionStart ?? ta.value.length
+    const end = ta.selectionEnd ?? start
+    const before = ta.value.slice(0, start)
+    const after = ta.value.slice(end)
+    const ins = converted
+    ta.value = `${before}${ins}${after}`
+    const pos = before.length + ins.length
+    ta.setSelectionRange(pos, pos)
+    ta.dispatchEvent(new Event('input', { bubbles: true }))
+    draft.content = ta.value
+  }catch{}
+}
+
+onMounted(async () => {
+  document.addEventListener('paste', handlePaste, true)
+  await nextTick();
+  composerRef.value = document.querySelector('.composer')
+})
+onUnmounted(() => {
+  document.removeEventListener('paste', handlePaste, true)
+})
 
 onMounted(() => { load() })
 watch(() => props.query, () => { load() })

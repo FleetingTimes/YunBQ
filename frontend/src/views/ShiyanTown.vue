@@ -29,6 +29,8 @@
               placeholder="写下一句触动心灵的话…（最后一行用 #标签1 #标签2 标注标签）"
               maxlength="500"
               show-word-limit
+              @focus="onComposerFocus"
+              @blur="onComposerBlur"
             />
             <!-- 操作行：右对齐；公开/私有下拉置于发布按钮之前 -->
             <div class="composer-actions">
@@ -138,6 +140,8 @@
                     maxlength="500"
                     show-word-limit
                     placeholder="修改拾言内容…（最后一行用 #标签1 #标签2 标注标签）"
+                    @focus="onEditFocus(it)"
+                    @blur="onEditBlur(it)"
                   />
                   <!-- 底部控制行：左侧可见性选择，右侧保存/取消按钮 -->
                   <div class="edit-controls">
@@ -213,6 +217,112 @@ const router = useRouter()
 
 const query = ref('')
 function onSearch(q){ query.value = q || '' }
+// —— 粘贴修复：将来源于聊天应用的“图片表情/贴纸”转换为 Unicode Emoji ——
+// 场景说明：部分聊天应用（微信/QQ/社交平台）在消息中使用 <img> 标签承载表情，复制到剪贴板时携带 HTML。
+// 默认粘贴到 textarea 仅保留纯文本，<img> 会丢失，导致“表情不可复制”。
+// 方案：在捕获阶段监听 document 的 paste 事件，若目标位于本页输入框，解析剪贴板中的 HTML，
+//       将 <img ... alt="🌷"> 或 data-emoji/title/aria-label 等属性转换为可插入的 Unicode 字符；
+//       同时兼容中文表情别名（如 [玫瑰] → 🌹、[鼓掌] → 👏）。
+const focusedComposer = ref(false)        // 是否当前聚焦“添加拾言”输入框
+const focusedEditingId = ref(null)        // 若处于编辑态，指向当前编辑的拾言 id
+function onComposerFocus(){ focusedComposer.value = true }
+function onComposerBlur(){ focusedComposer.value = false }
+function onEditFocus(it){ focusedEditingId.value = it?.id ?? null }
+function onEditBlur(){ focusedEditingId.value = null }
+
+// 常见映射：data-emoji 或中文别名到 Unicode Emoji；根据需要可继续扩充
+// 扩充热门表情覆盖：笑脸、手势、爱心、庆祝、自然、网络常见别名等。
+const emojiMap = {
+  // 经典笑脸
+  smile: '😊', happy: '😄', grin: '😁', laugh: '😆', joy: '😂', wink: '😉', blush: '😊', smirk: '😏',
+  neutral_face: '😐', expressionless: '😑', unamused: '😒', relieved: '😌',
+  surprised: '😮', astonished: '😲', scream: '😱',
+  sad: '☹️', crying: '😢', sob: '😭', weary: '😩', tired: '😫', disappointed: '😞',
+  angry: '😠', rage: '🤬', confounded: '😖',
+  thinking: '🤔', facepalm: '🤦', shushing_face: '🤫', lying_face: '🤥', zipper_mouth: '🤐',
+  // 爱心/庆祝
+  heart: '❤️', hearts: '💕', heart_eyes: '😍', kiss: '😘', kissing_heart: '😘',
+  broken_heart: '💔', two_hearts: '💕', sparkling_heart: '💖',
+  sparkles: '✨', star: '⭐', stars: '🌟', party_popper: '🎉', tada: '🎉', gift: '🎁', balloon: '🎈', ribbon: '🎀', confetti_ball: '🎊',
+  // 手势
+  thumbs_up: '👍', thumbsup: '👍', like: '👍', thumbs_down: '👎', clap: '👏', pray: '🙏',
+  ok_hand: '👌', victory_hand: '✌️', v: '✌️', wave: '👋', raised_hand: '✋', fist: '✊', rock: '🤘', handshake: '🤝',
+  // 自然/植物
+  tulip: '🌷', rose: '🌹', cherry_blossom: '🌸', sunflower: '🌻', hibiscus: '🌺', bouquet: '💐',
+  sun: '☀️', moon: '🌙', cloud: '☁️', fire: '🔥', rainbow: '🌈', leaf: '🍃', butterfly: '🦋',
+  // 其它常用图标
+  dog: '🐶', cat: '🐱', coffee: '☕', cake: '🍰', beer: '🍺', camera: '📷', music: '🎵', book: '📚', pencil: '✏️', check: '✔️', cross: '❌', warning: '⚠️', info: 'ℹ️', question: '❓', exclamation: '❗', rocket: '🚀',
+  // 中文别名（微信/QQ/贴吧等常见）
+  '微笑': '😊', '开心': '😊', '大笑': '😄', '坏笑': '😏', '笑哭': '😂', '眨眼': '😉', '捂脸': '🤦', '尴尬': '😬', '害羞': '☺️',
+  '可爱': '😊', '酷': '😎', '思考': '🤔', '惊讶': '😲', '震惊': '😱', '难过': '☹️', '大哭': '😭', '委屈': '😢', '无语': '😑', '闭嘴': '🤐',
+  '心': '❤️', '爱心': '❤️', '红心': '❤️', '心碎': '💔', '比心': '💕', '星星': '⭐', '闪耀': '✨',
+  '点赞': '👍', '赞': '👍', '不赞': '👎', '鼓掌': '👏', '祈祷': '🙏', '握手': '🤝', '再见': '👋', '耶': '✌️', 'ok': '👌',
+  '礼物': '🎁', '庆祝': '🎉', '气球': '🎈', '太阳': '☀️', '月亮': '🌙', '彩虹': '🌈', '叶子': '🍃', '蝴蝶': '🦋',
+  // 网络常见别名
+  'doge': '🐶', '泪目': '😭', '摸鱼': '🐟', '燃': '🔥', '真棒': '👍', '牛': '🐮'
+}
+
+// 从剪贴板 HTML中提取文本并将 <img> 表情转换为 Unicode
+function htmlToTextWithEmoji(html){
+  try{
+    const div = document.createElement('div')
+    div.innerHTML = html
+    // 将所有 <img> 替换为其 alt/title/aria-label 或 data-emoji 的映射字符
+    div.querySelectorAll('img').forEach(img => {
+      const alt = img.getAttribute('alt') || ''
+      const title = img.getAttribute('title') || ''
+      const aria = img.getAttribute('aria-label') || ''
+      const dataEmoji = img.getAttribute('data-emoji') || img.getAttribute('data-name') || ''
+      let rep = ''
+      const cand = [alt, title, aria, dataEmoji].map(s => String(s).replace(/[\[\]]/g,'').trim()).filter(Boolean)
+      for (const c of cand){
+        if (/[\u2600-\u27BF\uD83C-\uDBFF\uDC00-\uDFFF]/.test(c)) { rep = c; break }
+        if (emojiMap[c]) { rep = emojiMap[c]; break }
+      }
+      const span = document.createElement('span')
+      span.textContent = rep || ''
+      img.replaceWith(span)
+    })
+    // 处理可能的 <span class="emoji">直接文本
+    div.querySelectorAll('span.emoji, i.emoji').forEach(el => {
+      const t = el.textContent || el.getAttribute('title') || el.getAttribute('aria-label') || ''
+      const clean = String(t).trim()
+      el.textContent = emojiMap[clean] || clean
+    })
+    return div.textContent || ''
+  }catch{ return '' }
+}
+
+// 统一粘贴处理：将 HTML 表情转换后插入到当前输入框的光标位置
+function handlePaste(e){
+  try{
+    const target = e?.target
+    const isTextarea = target && target.classList && target.classList.contains('el-textarea__inner')
+    if (!isTextarea) return
+    const html = e.clipboardData?.getData('text/html') || ''
+    const plain = e.clipboardData?.getData('text/plain') || ''
+    const enriched = html && html.includes('<img') ? htmlToTextWithEmoji(html) : plain
+    if (!enriched) return
+    e.preventDefault()
+    const start = target.selectionStart ?? 0
+    const end = target.selectionEnd ?? start
+    if (focusedComposer.value){
+      const old = String(composer.value.content || '')
+      composer.value.content = old.slice(0, start) + enriched + old.slice(end)
+      setTimeout(() => { try{ target.selectionStart = target.selectionEnd = start + enriched.length }catch{} }, 0)
+      return
+    }
+    if (focusedEditingId.value != null){
+      const id = focusedEditingId.value
+      const old = String(editDraft.value[id] || '')
+      editDraft.value[id] = old.slice(0, start) + enriched + old.slice(end)
+      setTimeout(() => { try{ target.selectionStart = target.selectionEnd = start + enriched.length }catch{} }, 0)
+      return
+    }
+  }catch{}
+}
+onMounted(() => { try{ document.addEventListener('paste', handlePaste, true) }catch{} })
+onUnmounted(() => { try{ document.removeEventListener('paste', handlePaste, true) }catch{} })
 
 // —— 添加拾言草稿与发布逻辑 ——
 // 说明：与 NotesBody.vue 的创建保持一致，后端 DTO 使用 camelCase 的 isPublic；
