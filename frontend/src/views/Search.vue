@@ -125,7 +125,8 @@ async function fetchPage(p = 1){
   isLoading.value = true
   try{
     // 使用 /shiyan 接口：传递 q + page + size；不强制 mineOnly，以保持“公开 + 我的”的联合搜索
-    const { data } = await http.get('/shiyan', { params: { q: query.value, page: p, size: size.value }, suppress401Redirect: true })
+    // 非登录态：服务端会自动限制为公开；登录态：默认返回“公开 + 我的全部”，此处排除归档项。
+    const { data } = await http.get('/shiyan', { params: { q: query.value, page: p, size: size.value, archived: false }, suppress401Redirect: true })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     const mapped = (items || []).map(normalizeNote)
     const t = (data?.total ?? data?.count ?? null)
@@ -145,10 +146,23 @@ async function fetchPage(p = 1){
 }
 function reload(){ page.value = 1; total.value = 0; listItems.value = []; fetchPage(1) }
 function loadMore(){ if (hasNext.value && !isLoading.value) fetchPage(page.value + 1) }
+// 工具函数：查找右侧滚动容器（TwoPaneLayout 的 rightMain）并设置 IO 的 root
+function getScrollParent(el){
+  // 详细注释：Search 页右侧主区域为独立滚动容器，需将 IO 的 root 指向该容器。
+  let node = el?.parentElement
+  while (node){
+    const style = window.getComputedStyle(node)
+    const overflowY = style.overflowY
+    if (overflowY === 'auto' || overflowY === 'scroll') return node
+    node = node.parentElement
+  }
+  return null
+}
 function setupInfiniteScroll(){
   try{
     if (!('IntersectionObserver' in window)) return
-    io = new IntersectionObserver((entries) => { for (const e of entries){ if (e.isIntersecting) loadMore() } })
+    const root = getScrollParent(loadMoreSentinel.value)
+    io = new IntersectionObserver((entries) => { for (const e of entries){ if (e.isIntersecting) loadMore() } }, { root, rootMargin: '200px', threshold: 0 })
     if (loadMoreSentinel.value) io.observe(loadMoreSentinel.value)
   }catch{}
 }

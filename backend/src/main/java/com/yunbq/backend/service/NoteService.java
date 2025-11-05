@@ -113,14 +113,18 @@ public class NoteService {
             qw.eq("user_id", userId);
             if (isPublic != null) qw.eq("is_public", isPublic);
         } else {
-            // 默认范围：公开 OR 我的
+            // 默认范围（登录态）：公开 OR 我的
+            // 说明：当未显式要求仅公开或仅私有时，展示“他人公开 + 我的全部”以提升信息密度。
             qw.and(w -> w.eq("user_id", userId).or().eq("is_public", true));
-            // 如果明确传了 isPublic=false，则仅我的私有
+            // 显式筛选：
+            // - isPublic=false → 仅我的私有便签；
+            // - isPublic=true  → 仅公开便签（不包含“我的私有”）。
             if (Boolean.FALSE.equals(isPublic)) {
                 qw.eq("user_id", userId).eq("is_public", false);
             } else if (Boolean.TRUE.equals(isPublic)) {
-                // 仅公开（含他人公开 + 我公开）
-                qw.and(w -> w.eq("is_public", true).or().eq("user_id", userId));
+                // 修正：此前误用了 (is_public=true OR user_id=userId)，导致包含“我的私有”。
+                // 现在严格限定仅公开，符合“公开拾言”页面预期与前端传参。
+                qw.eq("is_public", true);
             }
         }
 

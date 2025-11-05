@@ -304,15 +304,15 @@ async function fetchPage(){
   loading.value = true
   try{
     // 仅展示公开拾言：尽量通过参数告知后端；若后端无此参数也会在前端过滤
-    const { data } = await http.get('/shiyan', { params: { page: page.value, size: size.value, publicOnly: true } })
+    // 修正参数：后端识别 isPublic，而非 publicOnly；同时排除归档项
+    const { data } = await http.get('/shiyan', { params: { page: page.value, size: size.value, isPublic: true, archived: false } })
     const raw = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     let list = Array.isArray(raw) ? raw.map(mapNoteItem) : []
-    // 客户端过滤：确保仅保留公开项（isPublic/is_public 为真）
-    list = list.filter(it => Boolean(it.isPublic ?? true))
-    if (list.length === 0){ done.value = true }
+    // 注意：后端已按 isPublic=true 过滤，这里不再二次过滤，避免出现“第二页仅含私有而被前端过滤为空”的问题。
+    if (raw.length === 0){ done.value = true }
     items.value.push(...list)
-    // 下一页
-    if (list.length > 0) page.value += 1
+    // 下一页推进基于服务端返回记录数判断，防止过滤造成的误判
+    if (raw.length > 0) page.value += 1
   }catch(e){
     // 后端未启动或网络错误时：显示提示但不阻塞页面
     const msg = e?.response?.data?.message || '加载失败，请稍后重试'
@@ -326,12 +326,27 @@ async function fetchPage(){
 // —— 无限滚动：锚点进入视窗触发加载 ——
 function setupInfiniteScroll(){
   if (!moreSentinel.value) return
-  // IntersectionObserver：低成本且稳定；阈值设为 1% 提前触发
+  // 找到滚动容器：TwoPaneLayout 将右侧正文设为唯一滚动容器（.right-main.scrollable-content）
+  // 为保证在该容器滚动时也能正确触发观察，将 IntersectionObserver 的 root 设置为该容器。
+  const getScrollParent = (el) => {
+    let p = el?.parentElement
+    try{
+      while(p){
+        const s = getComputedStyle(p)
+        if (/(auto|scroll)/.test(s.overflowY)) return p
+        p = p.parentElement
+      }
+    }catch{}
+    return null
+  }
+  const rootEl = getScrollParent(moreSentinel.value)
+
+  // IntersectionObserver：在滚动容器内触发，阈值 1% + 提前 200px 触发加载下一页
   io = new IntersectionObserver((entries) => {
     for (const e of entries){
       if (e.isIntersecting) fetchPage()
     }
-  }, { root: null, rootMargin: '120px', threshold: 0.01 })
+  }, { root: rootEl || null, rootMargin: '200px', threshold: 0.01 })
   io.observe(moreSentinel.value)
 }
 function teardownInfiniteScroll(){

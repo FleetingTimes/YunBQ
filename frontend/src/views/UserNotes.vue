@@ -167,7 +167,8 @@ async function fetchPage(p = 1){
   if (isLoading.value) return
   isLoading.value = true
   try{
-    const { data } = await http.get('/shiyan', { params: { page: p, size: size.value, isPublic: true }, suppress401Redirect: true })
+    // 请求公开拾言并排除归档项；说明：本页仅呈现目标用户的公开内容，服务端按公开分页，前端再按作者过滤。
+    const { data } = await http.get('/shiyan', { params: { page: p, size: size.value, isPublic: true, archived: false }, suppress401Redirect: true })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     const mapped = (items || []).map(normalizeNote)
     if (p <= 1) notes.value = mapped; else notes.value = notes.value.concat(mapped)
@@ -180,10 +181,25 @@ async function fetchPage(p = 1){
 
 function loadMore(){ if (hasNext.value && !isLoading.value) fetchPage(page.value + 1) }
 
+// 工具函数：获取右侧滚动容器（TwoPaneLayout 的 rightMain）以正确触发触底
+function getScrollParent(el){
+  // 详细注释：TwoPaneLayout 将右侧主区域设置为独立滚动容器（overflow:auto）。
+  // 若 IO 的 root 未指向该容器，则在页面滚动不到视口底部时，哨兵不会进入视口，导致“只加载第一页”。
+  // 这里沿父链查找最近的可滚动容器，并作为 IO 的 root。
+  let node = el?.parentElement
+  while (node){
+    const style = window.getComputedStyle(node)
+    const overflowY = style.overflowY
+    if (overflowY === 'auto' || overflowY === 'scroll') return node
+    node = node.parentElement
+  }
+  return null
+}
 function setupInfiniteScroll(){
   try{
     if (!('IntersectionObserver' in window)) return
-    io = new IntersectionObserver((entries) => { for (const e of entries){ if (e.isIntersecting) loadMore() } })
+    const root = getScrollParent(loadMoreSentinel.value)
+    io = new IntersectionObserver((entries) => { for (const e of entries){ if (e.isIntersecting) loadMore() } }, { root, rootMargin: '200px', threshold: 0 })
     if (loadMoreSentinel.value) io.observe(loadMoreSentinel.value)
   }catch{}
 }

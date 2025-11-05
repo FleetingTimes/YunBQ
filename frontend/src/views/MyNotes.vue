@@ -572,10 +572,24 @@ async function setupInfiniteScroll(){
   await nextTick();
   if (!loadMoreSentinel.value) return;
   if (sentinelObserver){ try{ sentinelObserver.disconnect(); }catch{} }
+  // 修复说明：TwoPaneLayout 的右侧主区域是独立滚动容器（overflow:auto）。
+  // 若 IO 的 root 绑定为浏览器视口（root=null），则当页面本身不滚动时，哨兵不会进入视口，导致无法触发下一页加载。
+  // 这里动态查找最近的可滚动父容器并作为 IO 的 root，配合较大的 rootMargin 提前触发加载，提升体验。
+  function getScrollParent(el){
+    let node = el?.parentElement;
+    while (node){
+      const style = window.getComputedStyle(node);
+      const overflowY = style.overflowY;
+      if (overflowY === 'auto' || overflowY === 'scroll') return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+  const root = getScrollParent(loadMoreSentinel.value);
   sentinelObserver = new IntersectionObserver((entries) => {
     const entry = entries[0];
     if (entry?.isIntersecting){ loadMore(); }
-  }, { root: null, rootMargin: '0px', threshold: 1.0 });
+  }, { root, rootMargin: '200px', threshold: 0 });
   sentinelObserver.observe(loadMoreSentinel.value);
 }
 
