@@ -78,16 +78,20 @@
             </div>
       <!-- 管理员：右下添加拾言入口（与普通用户不同，位置更靠近头像） -->
             <div class="add-entry-bottom" v-if="isAdmin">
-      <el-tooltip content="添加拾言" placement="left">
-        <el-button circle size="small" @click="goNotes" title="添加拾言">
+              <!-- 修复：为卡片内“添加拾言”按钮增加 @click.stop，避免事件冒泡到父级 hover/tooltip 容器导致点击被吞。
+                   注：用户反馈问题并非“卡片消失”，但实际 DOM 层级与包裹组件（Tooltip）可能拦截 click 冒泡。
+                   加上 stop 后，可确保点击事件只触发跳转逻辑。 -->
+              <el-tooltip content="添加拾言" placement="left">
+                <el-button circle size="small" @click.stop="goNotes" title="添加拾言">
                   <img src="https://api.iconify.design/mdi/note-plus-outline.svg?color=%23409eff" alt="add" aria-hidden="true" width="18" height="18" />
                 </el-button>
               </el-tooltip>
             </div>
       <!-- 普通用户右上角添加拾言入口 -->
             <div class="add-entry" v-if="!isAdmin">
-      <el-tooltip content="添加拾言" placement="left">
-        <el-button circle size="small" @click="goNotes" title="添加拾言">
+              <!-- 同步修复：普通用户右上角“添加拾言”入口也增加 @click.stop，避免点击事件被父容器（悬浮卡片）拦截。 -->
+              <el-tooltip content="添加拾言" placement="left">
+                <el-button circle size="small" @click.stop="goNotes" title="添加拾言">
                   <img src="https://api.iconify.design/mdi/note-plus-outline.svg?color=%23409eff" alt="add" aria-hidden="true" width="18" height="18" />
                 </el-button>
               </el-tooltip>
@@ -1135,8 +1139,14 @@ async function exportMyNotes(){
   border-bottom: 1px solid var(--el-border-color-extra-light);
 }
 .profile-header .top-actions { position: absolute; right: 8px; top: 8px; display:flex; gap:8px; }
-.profile-header .add-entry { position: absolute; right: 8px; top: 8px; }
-.profile-header .add-entry-bottom { position: absolute; right: 8px; bottom: 8px; }
+.profile-header .add-entry { 
+  /* 绝对定位右上角，确保在头像栈顶，避免被后续兄弟节点（如 avatar-line）覆盖导致点击无效 */
+  position: absolute; right: 8px; top: 8px; z-index: 3; 
+}
+.profile-header .add-entry-bottom { 
+  /* 绝对定位右下角，并提升层级避免被其它块覆盖（Pointer 事件被遮挡时将导致点击无效） */
+  position: absolute; right: 8px; bottom: 8px; z-index: 3; 
+}
 .profile-header .avatar-line { 
   /* 头像与昵称垂直居中显示，更贴近示例图 */
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
