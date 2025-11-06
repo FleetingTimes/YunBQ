@@ -51,6 +51,13 @@ public class SecurityConfig {
                 // 允许匿名访问公开便签的查询接口
                 .requestMatchers(HttpMethod.GET, "/api/notes").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notes/**").permitAll()
+                // 新增：放行 /api/shiyan 路径别名的 GET 查询，支持未登录浏览拾言
+                // 说明：NoteController 使用 @RequestMapping({"/api/notes", "/api/shiyan"})，两者等价；
+                // 这里显式加入 /api/shiyan 的规则，避免某些环境下通配未匹配导致 401。
+                .requestMatchers(HttpMethod.GET, "/api/shiyan").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/shiyan/**").permitAll()
+                // 新增：放行按用户名查询公开资料接口（用于 UserNotes.vue 显示签名/昵称/头像）
+                .requestMatchers(HttpMethod.GET, "/api/account/user").permitAll()
                 // 显式放行 liked 列表（用于列出“我点赞的便签”）。
                 // 理论上上面的通配规则已覆盖，但在当前环境下 /api/notes/liked 返回 401，
                 // 为确保行为符合预期，这里补充精确路径的放行以规避匹配异常。

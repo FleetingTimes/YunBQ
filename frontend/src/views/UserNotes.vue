@@ -67,6 +67,8 @@ import { ref, computed, onMounted, onUnmounted, defineAsyncComponent } from 'vue
 import { useRoute } from 'vue-router'
 import { http, avatarFullUrl } from '@/api/http'
 import { ElMessage } from 'element-plus'
+// 新增：引入本地登录态工具，用于在点赞/收藏前做未登录提醒而非跳转
+import { getToken } from '@/utils/auth'
 
 // 布局与通用组件
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
@@ -210,8 +212,10 @@ function teardownInfiniteScroll(){ try{ if (io) io.disconnect(); io = null }catc
 // - 与“我的拾言/收藏/搜索”等页面保持一致的端点与行为；
 // - 点赞：POST /shiyan/{id}/like 或 /shiyan/{id}/unlike；返回最新计数与是否已点赞；
 // - 收藏：POST /shiyan/{id}/favorite 或 /shiyan/{id}/unfavorite；返回最新计数与是否已收藏；
-// - 未登录（401）：由全局拦截器跳转登录，并携带当前 redirect；本页无需额外处理。
+// - 未登录提示：在交互开始前检查本地 token，无则提示“请先登录”，不再触发全局 401 跳转，提升用户体验。
 async function toggleLike(n){
+  // 未登录直接提示并终止交互（不跳转登录）
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
   try{
     if (n.likeLoading) return
     n.likeLoading = true
@@ -227,6 +231,8 @@ async function toggleLike(n){
   }
 }
 async function toggleFavorite(n){
+  // 未登录直接提示并终止交互（不跳转登录）
+  if (!getToken()) { ElMessage.warning('请先登录'); return }
   try{
     if (n.favoriteLoading) return
     n.favoriteLoading = true
@@ -249,7 +255,8 @@ onMounted(async () => {
   // 尝试拉取对方公开资料（若后端提供该端点），用于显示签名
   try {
     if (targetUsername.value) {
-      const { data } = await http.get('/account/user', { params: { username: targetUsername.value }, suppress401Redirect: true })
+      // 后端已开放匿名访问 /api/account/user，此处无需 suppress401Redirect
+      const { data } = await http.get('/account/user', { params: { username: targetUsername.value } })
       // 兼容不同字段命名
       profile.value.signature = String(data?.signature ?? data?.sig ?? '').trim()
     }

@@ -29,6 +29,35 @@ public class AccountController {
     private static final Logger log = LoggerFactory.getLogger(AccountController.class);
     public AccountController(UserMapper userMapper, PasswordResetService resetService){ this.userMapper = userMapper; this.resetService = resetService; }
 
+    /**
+     * 按用户名查询公开的用户信息（匿名可访问）。
+     *
+     * 用途：UserNotes.vue 在查看“他人拾言”时显示对方的昵称、头像、签名。
+     * 前端请求示例：GET /api/account/user?username=alice
+     * 返回字段：id、username、nickname、signature、avatarUrl（均为只读公开信息）。
+     * 安全：不返回敏感字段（邮箱、角色等）；允许匿名访问，便于未登录浏览对方资料。
+     */
+    @GetMapping("/user")
+    public ResponseEntity<?> getUserPublic(@RequestParam("username") String username){
+        String u = username == null ? null : username.trim();
+        if (u == null || u.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("message","username 不能为空"));
+        }
+        // 按用户名精确查询；若未来需要支持昵称回退，可在此加入 OR 条件。
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", u));
+        if (user == null) {
+            return ResponseEntity.status(404).body(Map.of("message","用户不存在"));
+        }
+        // 仅返回公开字段，避免泄露邮箱等敏感信息。
+        return ResponseEntity.ok(Map.of(
+                "id", user.getId(),
+                "username", user.getUsername(),
+                "nickname", user.getNickname(),
+                "signature", user.getSignature(),
+                "avatarUrl", user.getAvatarUrl()
+        ));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<?> me(){
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

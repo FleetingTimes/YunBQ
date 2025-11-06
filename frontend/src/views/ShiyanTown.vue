@@ -562,31 +562,33 @@ function mapNoteItem(it){
   }
 }
 
-// —— 拉取一页数据（性能：节流与错误容忍） ——
+// —— 拉取一页数据（后端已支持匿名公开访问） ——
+// 说明：后端已在 SecurityConfig 放行 /api/shiyan/** 的 GET 请求，
+// 并且 NoteService.list 在未登录时仅返回公开便签。
+// 因此移除此前的 401 回退逻辑与 suppress401Redirect，简化为直接请求。
 async function fetchPage(){
   if (loading.value || done.value) return
   loading.value = true
   try{
-    // 仅展示公开拾言：尽量通过参数告知后端；若后端无此参数也会在前端过滤
-    // 修正参数：后端识别 isPublic，而非 publicOnly；同时排除归档项
-    const { data } = await http.get('/shiyan', { params: { page: page.value, size: size.value, isPublic: true, archived: false } })
+    // 注意：原本使用别名路径 `/shiyan`（后端 NoteController 使用 @RequestMapping({"/api/notes", "/api/shiyan"})）。
+    // 在部分环境中，若后端尚未部署最新的 SecurityConfig（未显式放行 /api/shiyan/** 的 GET），
+    // 可能出现对 `/shiyan` 的请求返回 401，而 `/notes` 已在历史配置中被放行。
+    // 为保证“拾言小镇”在未登录状态下稳定加载，这里将请求路径切换为 `/notes`，与后端路由等价。
+    // 当后端更新完成后，仍然可以继续使用 `/notes`；无需对前端再做额外改动。
+    const { data } = await http.get('/notes', {
+      params: { page: page.value, size: size.value, isPublic: true, archived: false }
+    })
     const raw = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
-    let list = Array.isArray(raw) ? raw.map(mapNoteItem) : []
-    // 注意：后端已按 isPublic=true 过滤，这里不再二次过滤，避免出现“第二页仅含私有而被前端过滤为空”的问题。
+    const list = Array.isArray(raw) ? raw.map(mapNoteItem) : []
     if (raw.length === 0){ done.value = true }
     items.value.push(...list)
-    // 下一页推进基于服务端返回记录数判断，防止过滤造成的误判
     if (raw.length > 0) page.value += 1
   }catch(e){
-    // 后端未启动或网络错误时：显示提示但不阻塞页面
     const msg = e?.response?.data?.message || '加载失败，请稍后重试'
-    ElMessage.error(msg)
+    if (page.value <= 1){ ElMessage.error(msg) }
   }finally{
     initialLoading.value = false
     loading.value = false
-    // 兜底填充：若列表高度不足以使哨兵进入滚动容器视窗，则主动尝试继续拉取下一页
-    // 说明：在某些布局或浏览器环境下，IntersectionObserver 可能因 root 绑定异常而未及时触发；
-    //       该逻辑将检查哨兵是否“近似可见”（加入 200px 提前量），若仍未到达底部且未完成，则继续拉取。
     try { setTimeout(() => { autoFillIfShort(5) }, 0) } catch{}
   }
 }
