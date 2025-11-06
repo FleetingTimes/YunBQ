@@ -630,6 +630,16 @@ function onHoverLeave(){
 // 加载未读消息计数与是否存在新消息
 // 接口：GET /messages/unread-counts → { counts: { like, favorite, system }, total, hasNew }
 async function loadUnread(){
+  // 未登录时禁用请求：避免 401 与多余网络开销，同时清空徽章状态
+  // 详细说明：
+  // - 需求：前端在未登录时，不应调用 /api/messages/counts；
+  // - 实现：检查本地是否存在有效 token（getToken）；如不存在，直接复位计数并返回。
+  // - UI：保持顶栏“NEW”提示与徽章为 0，避免误导用户。
+  if (!getToken()){
+    unreadCounts.value = { like: 0, favorite: 0, system: 0 }
+    hasNewMessages.value = false
+    return
+  }
   try{
     // 路径修正：后端控制器为 /api/messages/counts（不是 unread-counts）
     const { data } = await http.get('/messages/counts', { suppress401Redirect: true })

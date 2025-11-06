@@ -575,7 +575,8 @@ async function fetchPage(){
     // 可能出现对 `/shiyan` 的请求返回 401，而 `/notes` 已在历史配置中被放行。
     // 为保证“拾言小镇”在未登录状态下稳定加载，这里将请求路径切换为 `/notes`，与后端路由等价。
     // 当后端更新完成后，仍然可以继续使用 `/notes`；无需对前端再做额外改动。
-    const { data } = await http.get('/notes', {
+    // 端点统一：后端已 permitAll GET /api/shiyan/**，将临时 /notes 还原为 /shiyan
+    const { data } = await http.get('/shiyan', {
       params: { page: page.value, size: size.value, isPublic: true, archived: false }
     })
     const raw = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])

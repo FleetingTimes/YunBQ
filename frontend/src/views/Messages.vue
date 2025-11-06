@@ -115,6 +115,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { http, avatarFullUrl } from '@/api/http'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+// 登录态工具：用于在未登录时禁用消息计数请求
+import { getToken } from '@/utils/auth'
 // 默认头像占位图：用于头像为 null 或加载失败时的兜底显示
 import defaultAvatar from '@/assets/default-avatar.svg'
 
@@ -256,6 +258,9 @@ function loadMore(){ if (hasNext.value && !isLoading.value) fetchPage(page.value
 
 // —— 加载未读计数（用于左栏徽章与顶端提示）——
 async function loadUnread(){
+  // 未登录时禁用请求：满足“未登录不调用 /api/messages/counts”的需求
+  // 设计：直接返回并保持徽章为 0，不弹提示，避免打扰
+  if (!getToken()) return
   try{
     // 路径修正：后端控制器为 /api/messages/counts（不是 unread-counts）
     const { data } = await http.get('/messages/counts', { suppress401Redirect: true })
