@@ -19,11 +19,19 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 导航站点服务层
- * 提供导航站点的业务逻辑处理
- * 
- * @author YunBQ
- * @since 2024-11-01
+ * 导航站点服务（NavigationSiteService）
+ * 职责：
+ * - 管理导航站点的增删改查、分页检索、导入导出与排序；
+ * - 提供按分类、标签、推荐、热门、用户维度的视图与查询；
+ * - 保障站点与分类之间的关联合法性（创建/更新时校验 categoryId）。
+ *
+ * 设计要点：
+ * - 排序策略：默认按 `sort_order`、`id` 升序，用于稳定展示与导出；
+ * - 导出格式：CSV 字段转义与分类导出保持一致，便于互操作；
+ * - 兼容说明：部分 Mapper 方法不支持多标签与 limit，这里在服务层做拆分与截断处理。
+ *
+ * 作者：YunBQ
+ * 时间：2024-11-01
  */
 @Service
 public class NavigationSiteService {
@@ -44,6 +52,9 @@ public class NavigationSiteService {
      * - 导出功能需要全量数据，不做启用状态筛选；
      * - 通过 MyBatis-Plus 的 QueryWrapper 指定排序；
      * - 如后续需要按时间、用户等维度筛选，可在 Controller 接口参数中扩展并在此处应用条件。
+     *
+     * 返回：
+     * - 全量站点列表。
      */
     public java.util.List<NavigationSite> getAllSites() {
         return siteMapper.selectList(
@@ -54,12 +65,17 @@ public class NavigationSiteService {
 
     /**
      * 将站点列表导出为 CSV 字符串
-     *
      * CSV 格式约定：
      * - 第一行是表头，字段顺序与 NavigationSite 属性一致（便于导入与对齐）；
      * - 文本字段统一进行转义：包含逗号、双引号、换行时使用双引号包裹，并将内部双引号替换为两个双引号；
      * - 空值输出为空字符串；
      * - 时间字段使用 toString()（ISO-8601），便于后续解析。
+     *
+     * 参数：
+     * - sites：待导出的站点列表。
+     *
+     * 返回：
+     * - CSV 字符串。
      */
     public String exportSitesToCsv(java.util.List<NavigationSite> sites) {
         StringBuilder sb = new StringBuilder();
@@ -91,6 +107,12 @@ public class NavigationSiteService {
      * - null 输出为空；
      * - 将值转为字符串；
      * - 若包含逗号、双引号、换行（\n/\r），则使用双引号包裹，并将内部双引号替换为两个双引号。
+     *
+     * 参数：
+     * - val：待转义的字段值。
+     *
+     * 返回：
+     * - 已转义的安全 CSV 字段字符串。
      */
     private String csv(Object val) {
         if (val == null) return "";
@@ -104,9 +126,10 @@ public class NavigationSiteService {
     
     /**
      * 根据分类ID获取站点列表
-     * 
-     * @param categoryId 分类ID
-     * @return 站点列表
+     * 参数：
+     * - categoryId：分类 ID。
+     * 返回：
+     * - 站点列表（按排序权重升序）。
      */
     public List<NavigationSite> getSitesByCategory(Long categoryId) {
         // 修复：Mapper 方法名与 Service 不一致
@@ -118,9 +141,10 @@ public class NavigationSiteService {
     
     /**
      * 获取推荐站点
-     * 
-     * @param limit 限制数量
-     * @return 推荐站点列表
+     * 参数：
+     * - limit：返回数量上限。
+     * 返回：
+     * - 推荐站点列表（按点击次数降序）。
      */
     public List<NavigationSite> getFeaturedSites(int limit) {
         // 修复：Mapper 方法名与 Service 不一致
@@ -132,9 +156,10 @@ public class NavigationSiteService {
     
     /**
      * 获取热门站点
-     * 
-     * @param limit 限制数量
-     * @return 热门站点列表
+     * 参数：
+     * - limit：返回数量上限。
+     * 返回：
+     * - 热门站点列表（按点击次数降序）。
      */
     public List<NavigationSite> getPopularSites(int limit) {
         // 修复：Mapper 方法名与 Service 不一致
@@ -146,10 +171,16 @@ public class NavigationSiteService {
     
     /**
      * 根据标签搜索站点
-     * 
-     * @param tags 标签（支持逗号分隔的多个关键词）
-     * @param limit 限制数量（当 Mapper 不支持 limit 时在内存中截断）
-     * @return 站点列表
+     * 行为：
+     * - 拆分多标签，仅使用第一个非空标签进行查询；
+     * - 若 `limit>0`，对结果列表进行内存截断。
+     *
+     * 参数：
+     * - tags：标签字符串（支持逗号/空白分隔多个关键词）；
+     * - limit：返回数量上限。
+     *
+     * 返回：
+     * - 站点列表（可能已截断）。
      */
     public List<NavigationSite> searchByTags(String tags, int limit) {
         // 兼容说明：Mapper 当前提供的是 searchByTag(String tag) 单标签查询，且不支持 limit 参数。
@@ -177,9 +208,10 @@ public class NavigationSiteService {
     
     /**
      * 获取用户添加的站点
-     * 
-     * @param userId 用户ID
-     * @return 用户站点列表
+     * 参数：
+     * - userId：用户 ID。
+     * 返回：
+     * - 用户站点列表（按创建时间倒序）。
      */
     public List<NavigationSite> getUserSites(Long userId) {
         // 修复：Mapper 方法名与 Service 不一致
@@ -191,15 +223,20 @@ public class NavigationSiteService {
     
     /**
      * 分页查询导航站点
-     * 
-     * @param page 页码
-     * @param size 每页大小
-     * @param name 站点名称（模糊查询）
-     * @param categoryId 分类ID
-     * @param isEnabled 是否启用
-     * @param isFeatured 是否推荐
-     * @param userId 用户ID（查询用户添加的站点）
-     * @return 分页结果
+     * 行为：
+     * - 支持名称模糊匹配与分类/启用/推荐/用户维度过滤；
+     * - 按 `sort_order`、`id` 升序返回分页结果。
+     *
+     * 参数：
+     * - page/size：分页参数；
+     * - name：站点名称（模糊查询）；
+     * - categoryId：分类 ID；
+     * - isEnabled：启用状态；
+     * - isFeatured：是否推荐；
+     * - userId：用户 ID（查询用户添加的站点）。
+     *
+     * 返回：
+     * - {@link Page} 包装的 {@link NavigationSite} 列表与分页信息。
      */
     public Page<NavigationSite> listSites(int page, int size, String name, Long categoryId, 
                                          Boolean isEnabled, Boolean isFeatured, Long userId) {
@@ -238,9 +275,10 @@ public class NavigationSiteService {
     
     /**
      * 根据ID获取导航站点
-     * 
-     * @param id 站点ID
-     * @return 导航站点
+     * 参数：
+     * - id：站点 ID。
+     * 返回：
+     * - 站点实体（可能为 null）。
      */
     public NavigationSite getById(Long id) {
         return siteMapper.selectById(id);
@@ -248,10 +286,20 @@ public class NavigationSiteService {
     
     /**
      * 创建导航站点
-     * 
-     * @param site 导航站点信息
-     * @param userId 创建用户ID（可为null，表示系统管理员创建）
-     * @return 创建的导航站点
+     * 行为：
+     * - 校验 `categoryId` 非空并存在；
+     * - 填充创建与更新时间戳、默认排序权重、启用/推荐状态与点击次数；
+     * - 持久化并返回创建后的实体。
+     *
+     * 参数：
+     * - site：站点信息；
+     * - userId：创建用户 ID（可为 null，表示系统）。
+     *
+     * 返回：
+     * - 创建后的站点实体。
+     *
+     * 异常：
+     * - RuntimeException：分类ID为空或指定分类不存在时抛出。
      */
     @Transactional
     public NavigationSite createSite(NavigationSite site, Long userId) {
@@ -315,10 +363,20 @@ public class NavigationSiteService {
     
     /**
      * 更新导航站点
-     * 
-     * @param id 站点ID
-     * @param site 更新的站点信息
-     * @return 更新后的导航站点
+     * 行为：
+     * - 校验站点存在性；
+     * - 若传入 `categoryId`，校验对应分类存在；
+     * - 更新非空字段并刷新 `updatedAt`。
+     *
+     * 参数：
+     * - id：站点 ID；
+     * - site：更新的站点信息。
+     *
+     * 返回：
+     * - 更新后的站点实体。
+     *
+     * 异常：
+     * - RuntimeException：站点不存在或指定分类不存在时抛出。
      */
     @Transactional
     public NavigationSite updateSite(Long id, NavigationSite site) {

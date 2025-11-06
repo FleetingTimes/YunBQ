@@ -19,6 +19,21 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import jakarta.servlet.http.HttpServletResponse;
 
+/**
+ * 全局安全配置（Spring Security 6）
+ * 责任与设计要点：
+ * - 配置无状态会话（JWT 认证），禁用 CSRF；
+ * - 明确匿名放行规则（如公开拾言查询 /api/shiyan/** 与 /api/notes/** 的 GET）；
+ * - 严格限制管理接口（/api/admin/** 与 /api/navigation/admin/** 仅 ADMIN 可访问）；
+ * - 统一 CORS 策略（允许常见本地开发端口，兜底加入 PATCH 方法以防预检失败）；
+ * - 过滤器顺序：将请求日志过滤器置于 SecurityContextHolderFilter 之前，
+ *   确保 requestId 在安全链路与业务链路中贯穿；JWT 过滤器置于 UsernamePasswordAuthenticationFilter 之前。
+ * 使用说明：
+ * - 若新增公开接口，请在 authorizeHttpRequests 中补充精确的 permitAll 规则（带方法与路径）；
+ * - 若新增角色限制，请同时在路径层面与方法级（@PreAuthorize）进行约束，实现双保险；
+ * - 切勿将自定义过滤器作为 addFilterBefore/After 的锚点，应使用 Spring 提供的内置过滤器类，
+ *   否则会因缺少注册顺序导致启动失败。
+ */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -36,6 +51,12 @@ public class SecurityConfig {
         this.corsProperties = corsProperties;
     }
 
+    /**
+     * 安全过滤链：配置认证与授权、异常处理、CORS、过滤器顺序等。
+     * @param http HttpSecurity 构建器，由 Spring 注入
+     * @return SecurityFilterChain 供容器使用
+     * @throws Exception 当配置出现非法组合或过滤器注册异常时抛出
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -81,6 +102,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.HEAD, "/api/navigation/**").permitAll()
                 .anyRequest().authenticated()
             )
+            // 异常处理：统一返回 401/403，避免泄露内部错误信息
             .exceptionHandling(e -> e
                 .authenticationEntryPoint((req, res, ex) -> res.sendError(HttpServletResponse.SC_UNAUTHORIZED))
                 .accessDeniedHandler((req, res, ex) -> res.sendError(HttpServletResponse.SC_FORBIDDEN))
@@ -93,16 +115,26 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * 密码编码器：使用 BCrypt（含随机盐）确保密码哈希安全。
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /**
+     * 认证管理器：供登录流程（用户名/密码）使用，统一从 Spring 的 AuthenticationConfiguration 获取。
+     */
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
         return configuration.getAuthenticationManager();
     }
 
+    /**
+     * CORS 配置源：支持本地开发端口与常用方法/请求头；
+     * 优先读取 application.yml 中的 cors 配置，缺省时采用兜底集合。
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

@@ -47,7 +47,13 @@ public class LogService {
      */
     /**
      * 异步写入审计日志。
-     * 开关控制：logdb.audit-enabled
+     * <p>
+     * 开关控制：`logdb.audit-enabled`。
+     *
+     * @param userId 触发该动作的用户 ID，允许为 {@code null}（匿名或系统动作）。
+     * @param level  审计级别，空则默认 "INFO"；建议使用 "INFO"/"WARN"/"ERROR" 等枚举。
+     * @param message 简要业务描述，如 "note 123 liked by user 45"。
+     * @implNote 使用 {@link org.springframework.scheduling.annotation.Async} 异步写入，避免阻塞主流程；关闭开关时直接跳过。
      */
     @Async("logTaskExecutor")
     public void logAudit(Long userId, String level, String message) {
@@ -68,9 +74,19 @@ public class LogService {
      */
     /**
      * 异步写入请求日志。
-     * 开关控制：logdb.request-enabled；采样：logdb.request-sampling-percent。
-     * - 当采样 < 100 时，使用简单的百分比随机采样，避免数据库压力。
-     * - requestId 关联用于跨模块定位同一次请求。
+     * <p>
+     * 开关控制：`logdb.request-enabled`；采样：`logdb.request-sampling-percent`。
+     * 当采样比例小于 100 时，采用简单百分比随机采样，减少数据库压力。
+     *
+     * @param method     HTTP 方法，如 GET/POST。
+     * @param uri        请求路径（不含查询串）。
+     * @param query      原始查询字符串，用于定位请求参数。
+     * @param ip         远端 IP。
+     * @param userAgent  UA 字符串。
+     * @param status     响应状态码。
+     * @param durationMs 处理耗时（毫秒）。
+     * @param userId     关联用户 ID，可为 {@code null}。
+     * @param requestId  请求唯一标识，用于与其他日志串联。
      */
     @Async("logTaskExecutor")
     public void logRequest(String method, String uri, String query,
@@ -108,7 +124,12 @@ public class LogService {
      */
     /**
      * 异步写入认证成功日志。
-     * 开关控制：logdb.auth-enabled；携带 requestId 便于与请求日志串联。
+     *
+     * @param userId    成功登录用户的 ID。
+     * @param username  成功登录的用户名。
+     * @param ip        登录来源 IP。
+     * @param userAgent UA 字符串。
+     * @param requestId 关联请求 ID。
      */
     @Async("logTaskExecutor")
     public void logAuthSuccess(Long userId, String username, String ip, String userAgent, String requestId) {
@@ -132,7 +153,11 @@ public class LogService {
      */
     /**
      * 异步写入认证失败日志。
-     * 开关控制：logdb.auth-enabled；携带 requestId 便于与请求日志串联。
+     *
+     * @param reason    失败原因说明（如密码错误、用户不存在）。
+     * @param ip        登录来源 IP。
+     * @param userAgent UA 字符串。
+     * @param requestId 关联请求 ID。
      */
     @Async("logTaskExecutor")
     public void logAuthFailure(String reason, String ip, String userAgent, String requestId) {
@@ -156,7 +181,13 @@ public class LogService {
      */
     /**
      * 异步写入错误日志。
-     * 开关控制：logdb.error-enabled；携带 requestId 便于在异常聚合时回溯具体请求。
+     * <p>
+     * 开关控制：`logdb.error-enabled`；建议携带 {@code requestId} 以便在异常聚合时回溯具体请求。
+     *
+     * @param userId   当前用户 ID，可为 {@code null}。
+     * @param path     出错时的请求路径。
+     * @param e        捕获的异常。
+     * @param requestId 关联请求 ID。
      */
     @Async("logTaskExecutor")
     public void logError(Long userId, String path, Throwable e, String requestId) {
@@ -174,6 +205,12 @@ public class LogService {
         errorLogMapper.insert(el);
     }
 
+    /**
+     * 将异常堆栈转换为字符串，便于持久化与导出。
+     *
+     * @param e 捕获的异常对象。
+     * @return 异常堆栈完整文本。
+     */
     private String stackTraceToString(Throwable e) {
         java.io.StringWriter sw = new java.io.StringWriter();
         java.io.PrintWriter pw = new java.io.PrintWriter(sw);
@@ -188,6 +225,9 @@ public class LogService {
 
     /**
      * 获取审计日志列表（可按级别筛选），按时间倒序。
+     *
+     * @param level 可选的审计级别过滤；为空则不过滤。
+     * @return 审计日志集合，时间倒序。
      */
     public java.util.List<AuditLog> listAuditLogs(String level) {
         com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<AuditLog> qw = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
@@ -197,9 +237,11 @@ public class LogService {
     }
 
     /**
-     * 将审计日志导出为CSV文本。
-     * 表头：id,userId,level,message,createdAt
-     * 字段转义规则：使用 csv() 方法处理逗号、引号与换行。
+     * 将审计日志导出为 CSV 文本。
+     *
+     * @param items 待导出的审计日志集合。
+     * @return CSV 文本，表头：id,userId,level,message,createdAt。
+     * @implNote 使用 {@link #csv(String)} 对字段进行转义，处理逗号、引号与换行。
      */
     public String exportAuditLogsToCsv(java.util.List<AuditLog> items) {
         StringBuilder sb = new StringBuilder();
@@ -217,6 +259,11 @@ public class LogService {
 
     /**
      * 获取认证日志列表（可按成功/失败、用户名、requestId筛选），按时间倒序。
+     *
+     * @param success   过滤成功或失败；为空则不过滤。
+     * @param username  用户名模糊匹配；为空则不过滤。
+     * @param requestId 请求 ID 精确匹配；为空则不过滤。
+     * @return 认证日志集合，时间倒序。
      */
     public java.util.List<AuthLog> listAuthLogs(Boolean success, String username, String requestId) {
         com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<AuthLog> qw = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
@@ -228,8 +275,10 @@ public class LogService {
     }
 
     /**
-     * 将认证日志导出为CSV文本。
-     * 表头：id,userId,username,success,reason,ip,userAgent,requestId,createdAt
+     * 将认证日志导出为 CSV 文本。
+     *
+     * @param items 待导出的认证日志集合。
+     * @return CSV 文本，表头：id,userId,username,success,reason,ip,userAgent,requestId,createdAt。
      */
     public String exportAuthLogsToCsv(java.util.List<AuthLog> items) {
         StringBuilder sb = new StringBuilder();
@@ -250,7 +299,12 @@ public class LogService {
     }
 
     /**
-     * 获取请求日志列表（可按URI、状态码、requestId筛选），按时间倒序。
+     * 获取请求日志列表（可按 URI、状态码、requestId 筛选），按时间倒序。
+     *
+     * @param uri       URI 模糊匹配；为空则不过滤。
+     * @param status    状态码精确匹配；为空则不过滤。
+     * @param requestId 请求 ID 精确匹配；为空则不过滤。
+     * @return 请求日志集合，时间倒序。
      */
     public java.util.List<RequestLog> listRequestLogs(String uri, Integer status, String requestId) {
         com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<RequestLog> qw = new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();

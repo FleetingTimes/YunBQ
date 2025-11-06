@@ -277,3 +277,11 @@ async function toggleFavorite(n){
 .load-btn:hover:not(:disabled) { background:#f5f7ff; border-color:#e0e9ff; }
 .load-sentinel { width: 100%; height: 1px; }
 </style>
+<!--
+  全站搜索视图（Search）
+  说明：
+  - 复用 TwoPaneLayout 与 AppTopBar，在右侧主区域进行独立滚动；
+  - 服务端分页：按关键字与页码加载，兼容不同返回结构（items/records/total/count）；
+  - 未登录时默认仅显示公开内容；登录时合并公开与我的全部（排除归档项）；
+  - 使用 IntersectionObserver 触发“加载更多”，并将 root 指定为右侧滚动容器。
+-->

@@ -14,11 +14,19 @@ import java.util.ArrayList;
 import java.util.Map;
 
 /**
- * 导航分类服务层
- * 提供导航分类的业务逻辑处理
- * 
- * @author YunBQ
- * @since 2024-11-01
+ * 导航分类服务（NavigationCategoryService）
+ * 职责：
+ * - 管理导航分类的增删改查、分页检索与导入导出；
+ * - 提供一级/二级分类的视图与排序管理；
+ * - 对分类的启用状态与父子关系进行维护与校验。
+ *
+ * 设计要点：
+ * - 分页与排序：默认按 `parent_id`、`sort_order`、`id` 排序，保证层级与顺序稳定；
+ * - 父子关系：更新与导入时允许 `parentId=null` 表示根分类，并进行基本防御性校验；
+ * - 导出格式：CSV 字段转义规则与站点导出保持一致，便于互操作与比对。
+ *
+ * 作者：YunBQ
+ * 时间：2024-11-01
  */
 @Service
 public class NavigationCategoryService {
@@ -31,8 +39,10 @@ public class NavigationCategoryService {
     
     /**
      * 获取所有启用的一级分类
-     * 
-     * @return 一级分类列表
+     * 返回仅包含根分类（`parent_id IS NULL`）且 `is_enabled=true` 的列表。
+     *
+     * 返回：
+     * - 一级分类列表。
      */
     public List<NavigationCategory> getRootCategories() {
         return categoryMapper.selectRootCategories();
@@ -40,9 +50,10 @@ public class NavigationCategoryService {
     
     /**
      * 根据父级ID获取子分类
-     * 
-     * @param parentId 父级分类ID
-     * @return 子分类列表
+     * 参数：
+     * - parentId：父级分类 ID（不可为 null）。
+     * 返回：
+     * - 子分类列表（按排序与 ID 升序）。
      */
     public List<NavigationCategory> getSubCategories(Long parentId) {
         return categoryMapper.selectByParentId(parentId);
@@ -50,8 +61,8 @@ public class NavigationCategoryService {
     
     /**
      * 获取所有启用的分类（包含一级和二级）
-     * 
-     * @return 所有启用分类列表
+     * 返回：
+     * - 启用状态为 true 的全部分类列表。
      */
     public List<NavigationCategory> getAllEnabledCategories() {
         return categoryMapper.selectAllEnabled();
@@ -60,11 +71,14 @@ public class NavigationCategoryService {
     /**
      * 获取所有分类（管理员导出使用）
      * 返回包含一级与二级分类的完整列表，按父级、排序权重与ID升序。
-     * 
+     *
      * 设计说明：
-     * - 导出功能通常需要全量数据，因此不对 is_enabled 做过滤；
-     * - 按 parent_id、sort_order、id 排序可以保证层级与顺序稳定，便于对齐；
+     * - 导出功能通常需要全量数据，因此不对 `is_enabled` 做过滤；
+     * - 按 `parent_id`、`sort_order`、`id` 排序可以保证层级与顺序稳定，便于对齐；
      * - 如需在导出时支持筛选条件（仅启用、仅某父级等），可在 Controller 扩展参数并在此处应用条件。
+     *
+     * 返回：
+     * - 全量分类列表。
      */
     public List<NavigationCategory> getAllCategories() {
         return categoryMapper.selectList(
@@ -121,13 +135,19 @@ public class NavigationCategoryService {
     
     /**
      * 分页查询导航分类
-     * 
-     * @param page 页码
-     * @param size 每页大小
-     * @param name 分类名称（模糊查询）
-     * @param parentId 父级分类ID（null表示查询所有分类，包括一级和二级；具体值表示查询该父级下的子分类）
-     * @param isEnabled 是否启用
-     * @return 分页结果
+     * 行为：
+     * - 名称模糊匹配 `name`；
+     * - 当 `parentId` 为 null 时查询所有层级；为具体值时查询该父级的子分类；
+     * - 按 `parent_id`、`sort_order`、`id` 升序返回分页结果。
+     *
+     * 参数：
+     * - page/size：分页参数；
+     * - name：分类名称（模糊查询）；
+     * - parentId：父级分类ID（null 查询全部，非 null 查询该父级下子分类）；
+     * - isEnabled：启用状态筛选。
+     *
+     * 返回：
+     * - {@link Page} 包装的 {@link NavigationCategory} 列表与分页信息。
      */
     public Page<NavigationCategory> listCategories(int page, int size, String name, Long parentId, Boolean isEnabled) {
         QueryWrapper<NavigationCategory> queryWrapper = new QueryWrapper<>();
@@ -169,9 +189,16 @@ public class NavigationCategoryService {
     
     /**
      * 创建导航分类
-     * 
-     * @param category 导航分类信息
-     * @return 创建的导航分类
+     * 行为：
+     * - 填充创建与更新时间戳；
+     * - 若未设置 `sortOrder`，同父级下取最大值+1；
+     * - 若未设置 `isEnabled`，默认启用。
+     *
+     * 参数：
+     * - category：分类信息（允许 `parentId=null` 作为根分类）。
+     *
+     * 返回：
+     * - 创建后的分类实体。
      */
     @Transactional
     public NavigationCategory createCategory(NavigationCategory category) {
@@ -206,10 +233,20 @@ public class NavigationCategoryService {
     
     /**
      * 更新导航分类
-     * 
-     * @param id 分类ID
-     * @param category 更新的分类信息
-     * @return 更新后的导航分类
+     * 行为：
+     * - 校验分类存在性；
+     * - 允许更新 `parentId`（含 null，表示设为根分类），并进行基本合法性校验（父级不可为自身、父级需存在）；
+     * - 对传入的非空字段进行更新，刷新 `updatedAt`。
+     *
+     * 参数：
+     * - id：分类ID；
+     * - category：更新的分类信息。
+     *
+     * 返回：
+     * - 更新后的分类实体。
+     *
+     * 异常：
+     * - RuntimeException：分类不存在或父级非法时抛出。
      */
     @Transactional
     public NavigationCategory updateCategory(Long id, NavigationCategory category) {
@@ -281,8 +318,16 @@ public class NavigationCategoryService {
     
     /**
      * 删除导航分类
-     * 
-     * @param id 分类ID
+     * 行为：
+     * - 校验分类存在性；
+     * - 当存在子分类时拒绝删除；
+     * - 可扩展校验是否有关联站点后再删除（目前 TODO）。
+     *
+     * 参数：
+     * - id：分类 ID。
+     *
+     * 异常：
+     * - RuntimeException：分类不存在或仍有子分类时抛出。
      */
     @Transactional
     public void deleteCategory(Long id) {
@@ -307,9 +352,14 @@ public class NavigationCategoryService {
     
     /**
      * 批量更新分类排序
-     * 
-     * @param categoryIds 分类ID列表（按新的排序顺序）
-     * @param parentId 父级分类ID
+     * 行为：
+     * - 按传入顺序重写同父级下的 `sort_order`，从 1 开始；
+     * - 根据 `parentId` 为 null/非 null 区分根分类与子分类集合；
+     * - 刷新 `updatedAt`。
+     *
+     * 参数：
+     * - categoryIds：分类 ID 列表（表示新的排序顺序）；
+     * - parentId：父级分类 ID（null 表示根分类集合）。
      */
     @Transactional
     public void updateCategoriesOrder(List<Long> categoryIds, Long parentId) {
@@ -330,9 +380,14 @@ public class NavigationCategoryService {
     
     /**
      * 切换分类启用状态
-     * 
-     * @param id 分类ID
-     * @return 更新后的分类
+     * 行为：
+     * - 取反 `is_enabled` 并刷新 `updatedAt`。
+     *
+     * 参数：
+     * - id：分类 ID。
+     *
+     * 返回：
+     * - 更新后的分类实体。
      */
     @Transactional
     public NavigationCategory toggleEnabled(Long id) {
@@ -352,13 +407,16 @@ public class NavigationCategoryService {
 
     /**
      * 根据导入记录匹配已存在的分类（用于去重与更新）
-     *
      * 优先级：
      * 1) id 精确匹配；
      * 2) name + parentId 组合匹配（父级允许为 null）；
      * 3) 当 parentId 为空（根分类），按 name 唯一匹配。
      *
-     * 返回：命中则返回已有分类，否则返回 null。
+     * 参数：
+     * - c：用于匹配的分类信息。
+     *
+     * 返回：
+     * - 命中则返回已有分类，否则返回 null。
      */
     public NavigationCategory findExistingByKeys(NavigationCategory c) {
         if (c == null) return null;
@@ -391,16 +449,19 @@ public class NavigationCategoryService {
 
     /**
      * 批量导入导航分类（逐条处理，汇总统计）
-     *
      * 事务策略：
      * - 使用同一事务上下文，逐条处理并捕获异常，不因单条失败而整体回滚；
      * - 成功的记录会提交，失败的记录收集到 errors 列表中返回。
      *
      * 字段处理：
-     * - 创建：填充 createdAt/updatedAt、isEnabled、sortOrder；
-     * - 更新：仅更新非空字段，并刷新 updatedAt；允许更新 parentId（含 null）。
+     * - 创建：填充 `createdAt`/`updatedAt`、`isEnabled`、`sortOrder`；
+     * - 更新：仅更新非空字段，并刷新 `updatedAt`；允许更新 `parentId`（含 null）。
      *
-     * 返回统计：total/created/updated/errors。
+     * 参数：
+     * - categories：待导入分类列表。
+     *
+     * 返回：
+     * - 统计信息 Map：`total`、`created`、`updated`、`errors`（每项包含索引、名称与错误消息）。
      */
     @Transactional
     public Map<String, Object> importCategories(List<NavigationCategory> categories) {

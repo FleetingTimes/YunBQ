@@ -1,4 +1,13 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
+/**
+ * 前端路由配置
+ * 说明：
+ * - 使用 Hash 路由（createWebHashHistory）以简化部署与回跳处理；
+ * - 路由别名：统一将“拾言”主路径改为 `/shiyan`，保留 `/notes` 作为别名兼容旧链接；
+ * - 登录守卫：对 `meta.requiresAuth` 页面在进入前检查本地 token；无 token 时跳转到登录页并携带 redirect；
+ * - 管理员守卫：对 `meta.requiresAdmin` 页面调用后端 `/admin/health` 校验角色，防止前端伪造；
+ * - 用户页：`/user/:username/shiyan` 显示某用户公开拾言，无需登录。
+ */
 
 export const routes = [
   { path: '/', component: () => import('../views/Square.vue') },

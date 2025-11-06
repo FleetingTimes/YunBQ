@@ -27,6 +27,21 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+/**
+ * 拾言服务（NoteService）
+ * 职责：
+ * - 管理便签的增删改查与分页检索；
+ * - 提供公开便签的“最近/热门”聚合视图，并与 {@link NoteCacheService} 协作做轻量缓存；
+ * - 处理点赞与收藏交互，并在成功时通过 {@link MessageService} 生成行为消息通知作者；
+ * - 支持批量导入简单的 NoteRequest 列表。
+ *
+ * 设计要点：
+ * - 缓存失效：便签的新增/更新/删除、点赞/收藏变化均会影响热门/最近列表，需要按粒度失效对应缓存键空间；
+ * - 权限与可见性：公开便签任何登录用户可互动；私有便签仅作者可互动（点赞/收藏）；
+ * - 查询范围：登录态下默认返回“我的全部”与“他人公开”的合并视图，支持参数限定仅公开或仅私有；
+ * - 头像与作者名：为前端提供作者昵称与头像相对路径，前端负责拼接完整 URL 并兜底默认头像；
+ * - JPA/Mapper：使用 MyBatis-Plus 的 QueryWrapper 与 Page 实现分页与聚合统计。
+ */
 public class NoteService {
     private final NoteMapper noteMapper;
     private final NoteLikeMapper likeMapper;
@@ -50,6 +65,23 @@ public class NoteService {
     }
 
     @Transactional
+    /**
+     * 创建便签
+     * 行为：
+     * - 将请求体中的内容与标签进行最小解析与标准化（如从内容中解析 #标签），
+     * - 写入数据库并设置创建/更新时间；
+     * - 在成功后失效热门与最近相关缓存键。
+     *
+     * 参数：
+     * - userId：当前用户 ID（便签作者）；
+     * - req：便签请求体（包含 content/tags/color/archived/isPublic）。
+     *
+     * 返回：
+     * - 新创建的 {@link Note} 实体对象。
+     *
+     * 异常：
+     * - 运行时异常：在不可预期错误时可能抛出，调用方应在控制层统一处理。
+     */
     public Note create(Long userId, NoteRequest req) {
         // 兼容：若未显式提供 tags，则从 content 中解析 #标签（逗号分隔），并清理内容
         Parsed ct = parseFromContent(req.getContent(), req.getTags());
@@ -70,6 +102,25 @@ public class NoteService {
     }
 
     @Transactional
+    /**
+     * 更新便签
+     * 行为：
+     * - 校验便签存在性和归属（仅作者可更新）；
+     * - 将请求体与旧值合并，解析内容中的标签并标准化；
+     * - 更新数据库记录与更新时间；
+     * - 在成功后失效热门与最近相关缓存键。
+     *
+     * 参数：
+     * - userId：当前用户 ID（必须为作者）；
+     * - id：便签 ID；
+     * - req：更新请求体（允许部分字段为空）。
+     *
+     * 返回：
+     * - 更新后的 {@link Note} 实体对象。
+     *
+     * 异常：
+     * - RuntimeException：便签不存在或无权限时抛出。
+     */
     public Note update(Long userId, Long id, NoteRequest req) {
         Note n = noteMapper.selectById(id);
         if (n == null || !n.getUserId().equals(userId)) {
@@ -91,6 +142,20 @@ public class NoteService {
     }
 
     @Transactional
+    /**
+     * 删除便签
+     * 行为：
+     * - 校验便签存在性和归属（仅作者可删除）；
+     * - 删除数据库记录；
+     * - 在成功后失效热门与最近相关缓存键。
+     *
+     * 参数：
+     * - userId：当前用户 ID（必须为作者）；
+     * - id：便签 ID。
+     *
+     * 异常：
+     * - RuntimeException：便签不存在或无权限时抛出。
+     */
     public void delete(Long userId, Long id) {
         Note n = noteMapper.selectById(id);
         if (n == null || !n.getUserId().equals(userId)) {
@@ -101,6 +166,24 @@ public class NoteService {
         try { noteCache.evictHotAll(); noteCache.evictRecentAll(); } catch (Exception ignored) {}
     }
 
+    /**
+     * 分页检索便签列表
+     * 说明：
+     * - 未登录用户仅可见公开便签；登录用户默认可见“他人公开 + 我的全部”；
+     * - 支持使用 mineOnly、isPublic、archived、q 进行范围与筛选；
+     * - 结果包含作者昵称与头像相对路径，以及点赞/收藏统计与当前用户态标记。
+     *
+     * 参数：
+     * - userId：当前用户 ID，未登录可为 null；
+     * - page/size：分页参数；
+     * - q：关键词（匹配 content 与 tags）；
+     * - archived：是否归档筛选；
+     * - isPublic：可见性筛选（true 仅公开；false 仅我的私有；null 为默认行为）；
+     * - mineOnly：是否仅我的便签。
+     *
+     * 返回：
+     * - MyBatis-Plus {@link Page} 包装的 {@link NoteItem} 列表与分页信息。
+     */
     public Page<NoteItem> list(Long userId, int page, int size, String q, Boolean archived, Boolean isPublic, Boolean mineOnly) {
         QueryWrapper<Note> qw = new QueryWrapper<>();
 
@@ -211,7 +294,20 @@ public class NoteService {
         return ip;
     }
 
-    // 最近公开便签：按更新时间倒序，仅公开且未归档，返回前 size 条
+    /**
+     * 最近公开便签
+     * 行为：
+     * - 按更新时间倒序，仅公开且未归档，返回前 size 条；
+     * - 先尝试读取缓存（不含用户态 liked/favorited），缓存命中则直接返回；
+     * - 若用户已登录，补充 likedByMe、favoritedByMe 标记。
+     *
+     * 参数：
+     * - userId：当前用户 ID，可为 null；
+     * - size：返回条数，<=0 时使用默认 10。
+     *
+     * 返回：
+     * - {@link Page} 包装的 {@link NoteItem} 列表（当前页固定为 1）。
+     */
     public Page<NoteItem> recentPublic(Long userId, int size) {
         if (size <= 0) size = 10;
         // 先尝试读取缓存（不含用户态）
@@ -302,7 +398,21 @@ public class NoteService {
         return ip;
     }
 
-    // 热门公开便签：按综合热度排序（收藏、点赞、时效加权），仅公开且未归档
+    /**
+     * 热门公开便签
+     * 行为：
+     * - 仅公开且未归档，先取最近 days 天内的候选集合（最多 300 条），
+     * - 计算综合热度分（收藏权重 1.0，点赞权重 0.5，时效加权 0.2~1.0）并排序截断；
+     * - 结果写入热门缓存，不含用户态；登录用户补充 likedByMe/favoritedByMe。
+     *
+     * 参数：
+     * - userId：当前用户 ID，可为 null；
+     * - size：返回条数，<=0 使用默认 10；
+     * - days：候选范围的时间窗口天数，<=0 使用默认 30。
+     *
+     * 返回：
+     * - {@link Page} 包装的 {@link NoteItem} 列表（当前页固定为 1）。
+     */
     public Page<NoteItem> hotPublic(Long userId, int size, int days) {
         if (size <= 0) size = 10;
         if (days <= 0) days = 30;
@@ -423,6 +533,13 @@ public class NoteService {
      * - 对每项进行最小校验：content 为空则计为失败并跳过；
      * - 其余字段（tags/color/archived/isPublic）按已有 create 逻辑写入；
      * - 返回导入统计信息：imported（成功条数）、failed（失败条数）、errors（可选错误消息列表）。
+     *
+     * 参数：
+     * - userId：当前用户 ID；
+     * - items：待导入的便签请求列表。
+     *
+     * 返回：
+     * - 统计信息 Map：imported、failed、errors（可选）。
      */
     @Transactional
     public Map<String, Object> importNotes(Long userId, List<NoteRequest> items) {
@@ -459,6 +576,23 @@ public class NoteService {
     }
     // 点赞相关
     @Transactional
+    /**
+     * 点赞便签
+     * 行为：
+     * - 私有便签仅作者可点赞；公开便签任何登录用户可点赞；
+     * - 若未点赞则插入一条点赞记录，并向作者发送“收到的赞”消息（避免自赞发消息）；
+     * - 点赞变化影响热门，失效热门缓存。
+     *
+     * 参数：
+     * - userId：当前用户 ID；
+     * - noteId：便签 ID。
+     *
+     * 返回：
+     * - Map：{"count": 总点赞数, "likedByMe": true}
+     *
+     * 异常：
+     * - RuntimeException：便签不存在或私有便签非作者操作时抛出。
+     */
     public Map<String, Object> like(Long userId, Long noteId) {
         Note n = noteMapper.selectById(noteId);
         if (n == null) throw new RuntimeException("笔记不存在");
@@ -485,6 +619,16 @@ public class NoteService {
     }
 
     @Transactional
+    /**
+     * 取消点赞
+     * 行为：
+     * - 校验可见性与归属规则；
+     * - 删除当前用户的点赞记录；
+     * - 失效热门缓存。
+     *
+     * 返回：
+     * - Map：{"count": 总点赞数, "likedByMe": false}
+     */
     public Map<String, Object> unlike(Long userId, Long noteId) {
         Note n = noteMapper.selectById(noteId);
         if (n == null) throw new RuntimeException("笔记不存在");
@@ -497,6 +641,18 @@ public class NoteService {
         return Map.of("count", count, "likedByMe", false);
     }
 
+    /**
+     * 点赞信息查询
+     * 行为：
+     * - 返回便签的总点赞数与当前用户是否已点赞。
+     *
+     * 参数：
+     * - userId：当前用户 ID；
+     * - noteId：便签 ID。
+     *
+     * 返回：
+     * - Map：{"count": 总点赞数, "likedByMe": 是否点赞}
+     */
     public Map<String, Object> likeInfo(Long userId, Long noteId) {
         Note n = noteMapper.selectById(noteId);
         if (n == null) throw new RuntimeException("笔记不存在");
@@ -507,6 +663,16 @@ public class NoteService {
 
     // 收藏相关
     @Transactional
+    /**
+     * 收藏便签
+     * 行为：
+     * - 私有便签仅作者可收藏；公开便签任何登录用户可收藏；
+     * - 若未收藏则插入一条收藏记录，并向作者发送“收到的收藏”消息（避免自藏发消息）；
+     * - 收藏变化影响热门，失效热门缓存。
+     *
+     * 返回：
+     * - Map：{"count": 总收藏数, "favoritedByMe": true}
+     */
     public Map<String, Object> favorite(Long userId, Long noteId) {
         Note n = noteMapper.selectById(noteId);
         if (n == null) throw new RuntimeException("笔记不存在");
@@ -533,6 +699,16 @@ public class NoteService {
     }
 
     @Transactional
+    /**
+     * 取消收藏
+     * 行为：
+     * - 校验可见性与归属规则；
+     * - 删除当前用户的收藏记录；
+     * - 失效热门缓存。
+     *
+     * 返回：
+     * - Map：{"count": 总收藏数, "favoritedByMe": false}
+     */
     public Map<String, Object> unfavorite(Long userId, Long noteId) {
         Note n = noteMapper.selectById(noteId);
         if (n == null) throw new RuntimeException("笔记不存在");
@@ -545,6 +721,18 @@ public class NoteService {
         return Map.of("count", count, "favoritedByMe", false);
     }
 
+    /**
+     * 收藏信息查询
+     * 行为：
+     * - 返回便签的总收藏数与当前用户是否已收藏。
+     *
+     * 参数：
+     * - userId：当前用户 ID；
+     * - noteId：便签 ID。
+     *
+     * 返回：
+     * - Map：{"count": 总收藏数, "favoritedByMe": 是否收藏}
+     */
     public Map<String, Object> favoriteInfo(Long userId, Long noteId) {
         Note n = noteMapper.selectById(noteId);
         if (n == null) throw new RuntimeException("笔记不存在");
@@ -553,6 +741,20 @@ public class NoteService {
         return Map.of("count", count, "favoritedByMe", favoritedByMe);
     }
 
+    /**
+     * 分页检索“我收藏的便签”
+     * 行为：
+     * - 先取当前用户收藏的 noteId 集合，再按条件筛选便签并分页；
+     * - 返回作者信息、统计数据与当前用户态（likedByMe/favoritedByMe）。
+     *
+     * 参数：
+     * - userId：当前用户 ID；
+     * - page/size：分页参数；
+     * - q：关键词搜索（content/tags）。
+     *
+     * 返回：
+     * - {@link Page} 包装的 {@link NoteItem} 列表与分页信息。
+     */
     public Page<NoteItem> listFavorited(Long userId, int page, int size, String q) {
         // 先取用户已收藏的 note_id 集合，再按条件筛选便签并分页
         List<Long> favIds = favoriteMapper.selectList(new QueryWrapper<NoteFavorite>().eq("user_id", userId))
@@ -651,6 +853,20 @@ public class NoteService {
      * 注意：
      * - 当 userId 为空（匿名访问）时，无法计算“我是否点赞/收藏”，统一返回 false；
      * - 为了简化实现，liked 集合为空时直接返回空分页结果。
+     */
+    /**
+     * 分页检索“我点赞的便签”
+     * 行为：
+     * - 先取当前用户点赞的 noteId 集合，再按条件筛选便签并分页；
+     * - 返回作者信息、统计数据与当前用户态（likedByMe/favoritedByMe）。
+     *
+     * 参数：
+     * - userId：当前用户 ID；
+     * - page/size：分页参数；
+     * - q：关键词搜索（content/tags）。
+     *
+     * 返回：
+     * - {@link Page} 包装的 {@link NoteItem} 列表与分页信息。
      */
     public Page<NoteItem> listLiked(Long userId, int page, int size, String q) {
         // 若未登录，无用户上下文，直接返回空列表（也可改为公开便签中过滤，但前端喜欢页语义为“我点赞过的”）
@@ -752,6 +968,11 @@ public class NoteService {
     // 已移除：标签统计接口实现
 
     // ========= 解析工具 =========
+    /**
+     * 内容解析结果
+     * 说明：
+     * - 用于承载从原始内容中解析出的主体内容与标准化标签串。
+     */
     private static class Parsed {
         final String content;
         final String tags;
@@ -759,6 +980,20 @@ public class NoteService {
     }
     /**
      * 若 tags 为空，尝试从 content 中提取以 # 开头、逗号分隔的标签；并将这些标签从内容中移除。
+     */
+    /**
+     * 从原始内容解析标签并清理内容
+     * 行为：
+     * - 若提供 rawTags 使用其为主，否则从 rawContent 中提取以 `#tag` 形式出现的标签；
+     * - 规范化标签串（去重、去空、统一分隔与大小写策略）；
+     * - 返回清理后的内容与最终标签串。
+     *
+     * 参数：
+     * - rawContent：原始便签内容；
+     * - rawTags：显式传入的标签串，可为空。
+     *
+     * 返回：
+     * - {@link Parsed}：包含清理后的内容与标准化标签。
      */
     private static Parsed parseFromContent(String rawContent, String rawTags){
         String content = (rawContent == null) ? "" : rawContent;
@@ -786,6 +1021,13 @@ public class NoteService {
                                 .trim();
         return new Parsed(cleaned, joined);
     }
+    /**
+     * 标签串标准化
+     * 行为：
+     * - 按逗号/空白分隔拆分标签，去除空白与重复；
+     * - 可选采用统一大小写策略（当前保持原样），再按逗号拼接；
+     * - 返回适合存储与检索的轻量字符串表示。
+     */
     private static String normalizeTags(String s){
         if (s == null) return "";
         String[] parts = s.split(",");

@@ -5,10 +5,14 @@ import com.yunbq.backend.model.AuditLog;
 import org.apache.ibatis.annotations.Mapper;
 
 /**
- * 审计日志 Mapper 接口。
- * 说明：
- * - 继承 MyBatis-Plus 的 BaseMapper，直接具备增删改查的基础能力。
- * - 当前项目中 AdminController 已依赖该接口进行分页查询，因此需要补齐定义。
+ * 审计日志 Mapper 接口
+ * 职责：
+ * - 提供审计日志的增删改查基础能力；
+ * - 管理后台使用 QueryWrapper + Page 进行分页与排序。
+ *
+ * 分页与排序：
+ * - 管理端列表通常按 `created_at DESC` 返回最近记录在前；
+ * - 过滤字段（如 level）由控制器构造条件后交由 Mapper 执行。
  */
 @Mapper
 public interface AuditLogMapper extends BaseMapper<AuditLog> {

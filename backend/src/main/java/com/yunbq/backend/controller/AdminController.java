@@ -36,8 +36,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 管理员后台接口（仅 ADMIN 角色可访问）
+ * 职责：
+ * - 用户管理：分页查询、创建、更新、删除、导入/导出；
+ * - 日志审计：请求日志、认证日志、错误日志的分页与导出；
+ * - 批量操作：CSV/JSON 的导入导出、排序更新等。
+ * 安全策略：
+ * - 所有方法均使用 `@PreAuthorize("hasRole('ADMIN')")` 进行方法级鉴权；
+ * - 路由前缀 `/api/admin/**` 在 `SecurityConfig` 中也受路径级限制，形成双重保护；
+ * - 对敏感写操作（创建/更新/删除）启用 `@Transactional` 保证原子性。
+ * 使用说明：
+ * - 前端调用需携带有效的 JWT（包含 role=ADMIN），否则返回 401/403；
+ * - 导入接口支持 `multipart/form-data` 与 JSON 请求体，根据具体方法说明选择；
+ * - 导出接口返回二进制数据（CSV/JSON），前端需设置正确的下载处理。
+ */
 @RestController
 @RequestMapping("/api/admin")
+/**
+ * 管理后台控制器
+ * 职责：
+ * - 提供站点级管理能力（如导航、用户、系统健康检查等）入口；
+ * - 作为前端管理员路由的权限探针（如 /admin/health 用于快速校验登录且具备管理员角色）。
+ * 安全：
+ * - 仅限管理员访问，依赖安全配置中的角色授权；
+ * - 返回数据避免包含敏感信息，必要时进行脱敏/聚合统计。
+ */
 public class AdminController {
 
     private final UserMapper userMapper;
@@ -67,12 +91,47 @@ public class AdminController {
         this.passwordEncoder = passwordEncoder;
     }
 
+    /**
+     * 管理员健康检查探针。
+     *
+     * 用途：
+     * - 供前端在进入管理后台时快速校验当前登录用户是否具备 ADMIN 角色；
+     * - 常用于路由守卫或权限检测的初始请求。
+     *
+     * 安全：
+     * - 受 {@code @PreAuthorize("hasRole('ADMIN')")} 保护；
+     * - 未携带有效令牌或角色不匹配将由安全层返回 401/403。
+     *
+     * 返回：
+     * - 200 OK 且主体为 { ok: true, message: "admin access granted" }；
+     * - 错误由 Spring Security 层拦截（不进入控制器逻辑）。
+     */
     @GetMapping("/health")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(Map.of("ok", true, "message", "admin access granted"));
     }
 
+    /**
+     * 分页查询用户列表（管理员）。
+     *
+     * 分页/筛选/排序：
+     * - 筛选：{@code q} 支持对用户名、昵称、邮箱的模糊匹配；
+     * - 排序：按 {@code id} 倒序返回，最近注册的用户优先显示；
+     * - 分页：{@code page} 从 1 开始，{@code size} 默认 10。
+     *
+     * 边界与约束：
+     * - {@code size} 建议不超过 100；过大将增加数据库与网络负载；
+     * - 模糊查询具体大小写与索引命中由数据库方言决定，需结合索引设计与统计信息调优；
+     * - 结果中的 {@link UserSummary} 不包含密码/哈希，仅提供“是否已设置密码”的布尔状态以满足隐私要求。
+     *
+     * 安全：仅管理员可访问，未授权请求由安全层返回 401/403。
+     *
+     * @param page 页码，默认 1
+     * @param size 每页条数，默认 10（建议 ≤ 100）
+     * @param q 搜索关键字（用户名/昵称/邮箱模糊匹配），可选
+     * @return 用户列表的分页结果
+     */
     @GetMapping("/users")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResult<UserSummary>> listUsers(
@@ -105,12 +164,19 @@ public class AdminController {
     }
 
     /**
-     * 创建用户（管理员）
+     * 创建用户（管理员）。
      *
-     * 入参说明：
-     * - 支持字段：username(必填)、nickname、email、signature、avatarUrl、role（ADMIN/USER）、password（可选明文）
-     * - 若提供 password（明文），将进行 BCrypt 哈希后写入 passwordHash；未提供则不设置密码（不可登录）。
-     * - email 若已被其他用户占用，将返回 409。
+     * 筛选/排序：不适用（创建动作）。
+     *
+     * 入参与校验：
+     * - 必填：{@code username}；可选：{@code nickname}、{@code email}、{@code signature}、{@code avatarUrl}、{@code role}（ADMIN/USER）、{@code password}（明文或留空）；
+     * - 若提供 {@code password} 明文，将进行 BCrypt 哈希后写入 {@code passwordHash}；未提供则不设置密码（不可登录）；
+     * - {@code email} 与 {@code username} 唯一性检查，冲突返回 409；
+     * - {@code role} 未提供时默认 {@code USER}。
+     *
+     * 边界与约束：
+     * - 字段长度、格式由数据库与实体约束决定；建议前后端保持同一校验规则；
+     * - 并发下的唯一性冲突由数据库约束与查询-插入原子性保证，当前实现采用显式查询再插入的方式，仍可能存在竞态，必要时可引入唯一索引与重试逻辑。
      *
      * 返回：创建后的用户摘要（不含密码/哈希），与列表接口保持一致。
      */
@@ -164,12 +230,18 @@ public class AdminController {
     }
 
     /**
-     * 更新用户（管理员）
+     * 更新用户（管理员）。
      *
-     * 入参说明：
-     * - 支持更新：nickname、email、signature、avatarUrl、role、password（明文，覆盖原密码）
-     * - 如需修改 username，可传入 username（需通过唯一性检查）。
-     * - email 若与其他用户冲突，返回 409。
+     * 筛选/排序：不适用（更新动作）。
+     *
+     * 入参与校验：
+     * - 支持更新：{@code nickname}、{@code email}、{@code signature}、{@code avatarUrl}、{@code role}、{@code password}（明文，覆盖原密码）；
+     * - 可更新 {@code username}（需通过唯一性检查）；{@code email} 与其他用户冲突返回 409；
+     * - 仅覆盖入参中提供的非空字段，其余保持不变。
+     *
+     * 边界与约束：
+     * - 并发更新建议引入乐观锁（版本号）或基于更新时间的冲突检测，当前实现为直接覆盖；
+     * - 明文密码将进行 BCrypt 哈希后入库，避免弱口令明文存储。
      *
      * 返回：更新后的用户摘要。
      */
@@ -227,9 +299,24 @@ public class AdminController {
     }
 
     /**
-     * 删除用户（管理员）
+     * 删除指定用户（管理员）。
      *
-     * 安全提示：可根据需要限制删除自身或 ADMIN 账号，这里仅做简单删除。
+     * 筛选/排序/分页：不适用（删除动作）。
+     *
+     * 行为说明：
+     * - 根据路径变量 {@code id} 删除对应的用户记录；当前实现为“硬删除”，不会做软删除标记；
+     * - 若用户不存在返回 404。
+     *
+     * 边界与约束：
+     * - 并发删除/更新可能导致竞态（如先删后更），必要时可引入外键约束或软删除设计；
+     * - 可在服务层限制“删除自身账号”或“删除其他 ADMIN 账号”，并建议补充审计日志。
+     *
+     * 异常与响应：
+     * - 404 Not Found：{@code id} 对应的用户不存在；
+     * - 200 OK：删除成功，返回 { ok: true }。
+     *
+     * @param id 被删除的用户主键ID
+     * @return 删除结果
      */
     @DeleteMapping("/users/{id}")
     @PreAuthorize("hasRole('ADMIN')")
@@ -253,6 +340,25 @@ public class AdminController {
         return (v instanceof String) ? (String) v : v.toString();
     }
 
+    /**
+     * 分页查询审计日志。
+     *
+     * 分页/筛选/排序：
+     * - 筛选：{@code level} 按日志级别（INFO/WARN/ERROR）过滤；
+     * - 排序：按 {@code created_at} 倒序，最新记录优先；
+     * - 分页：{@code page} 从 1 开始，{@code size} 默认 10。
+     *
+     * 边界与约束：
+     * - {@code size} 建议不超过 200，过大分页会影响数据库扫描与网络传输；
+     * - 高并发写入场景下，结果的“最新优先”不保证严格实时顺序（依赖时间精度）。
+     *
+     * 使用场景：管理端查看系统重要操作与导入/导出动作的历史记录。
+     *
+     * @param page 页码，默认 1
+     * @param size 每页条数，默认 10（建议 ≤ 200）
+     * @param level 日志级别过滤，可选
+     * @return 审计日志的分页结果
+     */
     @GetMapping("/logs")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResult<AuditLog>> listLogs(
@@ -272,7 +378,16 @@ public class AdminController {
 
     /**
      * 导出审计日志（支持 csv 或 json）。
-     * 说明：JSON 导出直接序列化到字节；CSV 导出通过服务层构建文本并添加 UTF-8 BOM。
+     *
+     * 筛选/排序：
+     * - 可按 {@code level} 过滤（INFO/WARN/ERROR）；排序为 {@code created_at} 倒序（与分页接口一致）。
+     *
+     * 边界与约束：
+     * - 大量数据导出可能占用内存与带宽，建议结合筛选缩小范围或采用分页批量导出；
+     * - CSV 导出添加 UTF-8 BOM 以兼容 Excel；JSON 导出直接序列化为字节。
+     *
+     * 参数：
+     * - {@code format}：csv 或 json（默认 csv）。
      */
     @GetMapping("/logs/export")
     @PreAuthorize("hasRole('ADMIN')")
@@ -299,6 +414,25 @@ public class AdminController {
         }
     }
 
+    /**
+     * 分页查询请求访问日志。
+     *
+     * 分页/筛选/排序：
+     * - 筛选：{@code uri} 模糊匹配；{@code status} 状态码过滤；{@code requestId} 精确匹配；
+     * - 排序：按 {@code created_at} 倒序；
+     * - 分页：{@code page} 从 1 开始，{@code size} 默认 10。
+     *
+     * 边界与约束：
+     * - {@code size} 建议不超过 200；
+     * - 模糊匹配可能导致索引失效，必要时可引入前缀匹配或专用检索方案。
+     *
+     * @param page 页码，默认 1
+     * @param size 每页条数，默认 10（建议 ≤ 200）
+     * @param uri 按 URI 模糊过滤，可选
+     * @param status 按状态码过滤，可选
+     * @param requestId 按请求ID过滤，可选
+     * @return 请求日志的分页结果
+     */
     @GetMapping("/request-logs")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResult<RequestLog>> listRequestLogs(
@@ -321,7 +455,18 @@ public class AdminController {
     }
 
     /**
-     * 导出请求日志（支持 csv 或 json），可带筛选。
+     * 导出请求日志（支持 csv 或 json）。
+     *
+     * 筛选/排序：
+     * - 支持 {@code uri} 模糊匹配、{@code status} 状态码与 {@code requestId} 精确匹配；
+     * - 排序为 {@code created_at} 倒序（与分页接口一致）。
+     *
+     * 边界与约束：
+     * - 大量数据导出可能占用内存与带宽，建议结合筛选缩小范围或采用分页批量导出；
+     * - CSV 添加 UTF-8 BOM；JSON 直接序列化。
+     *
+     * 参数：
+     * - {@code format}：csv 或 json（默认 csv）。
      */
     @GetMapping("/request-logs/export")
     @PreAuthorize("hasRole('ADMIN')")
@@ -350,6 +495,25 @@ public class AdminController {
         }
     }
 
+    /**
+     * 分页查询认证日志。
+     *
+     * 分页/筛选/排序：
+     * - 筛选：{@code success} 登录成功/失败；{@code username} 模糊匹配；{@code requestId} 精确匹配；
+     * - 排序：按 {@code created_at} 倒序；
+     * - 分页：{@code page} 从 1 开始，{@code size} 默认 10。
+     *
+     * 边界与约束：
+     * - {@code size} 建议不超过 200；
+     * - 高并发登录场景下，时间戳的精度可能导致边界页顺序出现微小抖动。
+     *
+     * @param page 页码，默认 1
+     * @param size 每页条数，默认 10（建议 ≤ 200）
+     * @param success 登录是否成功，可选
+     * @param username 用户名模糊匹配，可选
+     * @param requestId 请求ID过滤，可选
+     * @return 认证日志的分页结果
+     */
     @GetMapping("/auth-logs")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResult<AuthLog>> listAuthLogs(
@@ -372,7 +536,17 @@ public class AdminController {
     }
 
     /**
-     * 导出认证日志（支持 csv 或 json），可带筛选。
+     * 导出认证日志（支持 csv 或 json）。
+     *
+     * 筛选/排序：
+     * - 支持 {@code success}、{@code username}、{@code requestId}；排序为 {@code created_at} 倒序（与分页接口一致）。
+     *
+     * 边界与约束：
+     * - 大量数据导出可能占用内存与带宽，建议结合筛选缩小范围或采用分页批量导出；
+     * - CSV 添加 UTF-8 BOM；JSON 直接序列化。
+     *
+     * 参数：
+     * - {@code format}：csv 或 json（默认 csv）。
      */
     @GetMapping("/auth-logs/export")
     @PreAuthorize("hasRole('ADMIN')")
@@ -401,6 +575,24 @@ public class AdminController {
         }
     }
 
+    /**
+     * 分页查询错误日志。
+     *
+     * 分页/筛选/排序：
+     * - 筛选：{@code exception} 按异常类名模糊匹配；{@code requestId} 精确匹配；
+     * - 排序：按 {@code created_at} 倒序；
+     * - 分页：{@code page} 从 1 开始，{@code size} 默认 10。
+     *
+     * 边界与约束：
+     * - {@code size} 建议不超过 200；
+     * - 异常类名模糊匹配可能导致索引失效，必要时可做前缀匹配或关键词检索。
+     *
+     * @param page 页码，默认 1
+     * @param size 每页条数，默认 10（建议 ≤ 200）
+     * @param exception 异常类名过滤，可选
+     * @param requestId 请求ID过滤，可选
+     * @return 错误日志的分页结果
+     */
     @GetMapping("/error-logs")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PageResult<ErrorLog>> listErrorLogs(
@@ -421,7 +613,17 @@ public class AdminController {
     }
 
     /**
-     * 导出错误日志（支持 csv 或 json），可带筛选。
+     * 导出错误日志（支持 csv 或 json）。
+     *
+     * 筛选/排序：
+     * - 支持 {@code exception} 与 {@code requestId}；排序为 {@code created_at} 倒序（与分页接口一致）。
+     *
+     * 边界与约束：
+     * - 大量数据导出可能占用内存与带宽，建议结合筛选缩小范围或采用分页批量导出；
+     * - CSV 添加 UTF-8 BOM；JSON 直接序列化。
+     *
+     * 参数：
+     * - {@code format}：csv 或 json（默认 csv）。
      */
     @GetMapping("/error-logs/export")
     @PreAuthorize("hasRole('ADMIN')")
@@ -450,9 +652,19 @@ public class AdminController {
     }
 
     /**
-     * 导出用户信息（支持 csv 或 json 格式）。
-     * 说明：导出所有用户或根据搜索条件过滤的用户列表，包含用户基本信息、角色、头像地址和密码状态。
-     * 注意：不导出真实密码或哈希，仅导出是否已设置密码的状态。
+     * 导出用户信息（支持 csv 或 json）。
+     *
+     * 筛选/排序：
+     * - 支持 {@code q} 对用户名/昵称/邮箱的模糊匹配；
+     * - 排序为 {@code id} 倒序（与列表接口一致）。
+     *
+     * 边界与约束：
+     * - 导出的是用户摘要，不包含密码或哈希，仅导出“是否已设置密码”的状态；
+     * - 大量数据导出可能占用内存与带宽，建议结合筛选缩小范围或采用分页批量导出；
+     * - CSV 添加 UTF-8 BOM；JSON 直接序列化。
+     *
+     * 参数：
+     * - {@code format}：csv 或 json（默认 csv）。
      */
     @GetMapping("/users/export")
     @PreAuthorize("hasRole('ADMIN')")
@@ -537,14 +749,23 @@ public class AdminController {
     }
 
     /**
-     * 高级导出用户信息（支持 csv 或 json 格式）。
-     * 说明：
-     * - 与普通导出不同，高级导出会包含完整的用户字段，包括敏感的密码哈希（passwordHash）。
-     * - 该功能仅面向管理员，通常用于数据迁移或灾备；请谨慎使用并妥善存储导出文件。
-     * - 后端会记录审计日志，包含触发管理员ID、格式与导出数量，方便后续审计追踪。
-     * 安全性：
-     * - 接口受 @PreAuthorize("hasRole('ADMIN')") 限制；
-     * - 建议仅在受信任的网络环境中使用，并确保导出文件存储加密。
+     * 高级导出用户信息（支持 csv 或 json）。
+     *
+     * 内容与安全：
+     * - 输出完整用户字段（含敏感的 {@code passwordHash}），仅面向管理员，用于数据迁移或灾备；
+     * - 记录审计日志（管理员ID、格式、导出数量），便于追踪；
+     * - 建议在受信任网络环境中使用，并确保导出文件加密存储。
+     *
+     * 筛选/排序：
+     * - 支持 {@code q} 对用户名/昵称/邮箱的模糊匹配；
+     * - 排序为 {@code id} 倒序（与列表接口一致）。
+     *
+     * 边界与约束：
+     * - 大量数据导出可能占用内存与带宽，建议结合筛选缩小范围或采用分页批量导出；
+     * - CSV 添加 UTF-8 BOM；JSON 直接序列化。
+     *
+     * 参数：
+     * - {@code format}：csv 或 json（默认 csv）。
      */
     @GetMapping("/users/export/advanced")
     @PreAuthorize("hasRole('ADMIN')")

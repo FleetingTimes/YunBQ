@@ -19,8 +19,29 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Random;
 
+/**
+ * 第三方登录接口（QQ/微信）
+ * 职责：
+ * - 构造跳转到第三方授权页的 URL（qqLogin/wxLogin）；
+ * - 处理授权回调（qqCallback/wxCallback）：交换 `code` 为 `access_token` 与 `openid`，
+ *   若用户不存在则自动注册，最终颁发 JWT 并重定向至前端首页；
+ * 配置：
+ * - 在 `application.yml` 中配置 `oauth.qq.*` 与 `oauth.wechat.*`，并设置 `frontend.base-url`；
+ * 安全：
+ * - 回调接口不需要登录；
+ * - 颁发的 JWT 包含 `uid/uname/role` 声明，前端存储于本地并用于后续鉴权。
+ */
 @RestController
 @RequestMapping("/api/auth")
+/**
+ * 社交登录控制器
+ * 职责：
+ * - 对接第三方社交平台的授权登录流程（OAuth 等）；
+ * - 将第三方身份与站内用户绑定，返回站内登录态（JWT）。
+ * 安全：
+ * - 严格校验第三方回调参数与状态（state/nonce），防止 CSRF；
+ * - 记录登录审计日志，追踪来源与设备信息。
+ */
 public class SocialAuthController {
 
     @Value("${oauth.qq.app-id:}")
@@ -50,6 +71,18 @@ public class SocialAuthController {
     }
 
     @GetMapping("/qq/login")
+    /**
+     * QQ 登录：跳转到 QQ 授权页。
+     *
+     * 行为：
+     * - 校验是否已在配置文件中设置 {@code oauth.qq.app-id/app-key}；
+     * - 构造 QQ OAuth 授权 URL 并以 302 重定向返回；
+     * - 附带随机 {@code state} 参数用于 CSRF 防护（当前实现未做回调校验，建议后续增强）。
+     *
+     * 返回：
+     * - 302 Redirect 到 QQ 授权页；
+     * - 501 Not Implemented，当未配置必要参数时返回提示消息。
+     */
     public ResponseEntity<?> qqLogin() {
         if (qqAppId == null || qqAppId.isBlank() || qqAppKey == null || qqAppKey.isBlank()) {
             return ResponseEntity.status(501).body(Map.of("message", "未配置QQ登录，请在 application.yml 配置 oauth.qq.app-id/app-key"));
@@ -64,6 +97,19 @@ public class SocialAuthController {
     }
 
     @GetMapping("/qq/callback")
+    /**
+     * QQ 登录回调：用授权码换取令牌并登录。
+     *
+     * @param code 由 QQ 授权页回传的授权码
+     * @param state 防 CSRF 的状态值（当前实现未进行强校验，建议增强）
+     * @return 302 Redirect 到前端回调页，携带站内 JWT；错误时返回 400/501。
+     *
+     * 行为：
+     * - 使用 {@code code} 换取 {@code access_token}；
+     * - 使用 {@code access_token} 获取 {@code openid}；
+     * - 若用户不存在则自动注册；
+     * - 生成站内 JWT，并重定向到前端回调页，携带 token 与用户信息。
+     */
     public ResponseEntity<?> qqCallback(@RequestParam String code, @RequestParam(required = false) String state) {
         if (qqAppId == null || qqAppId.isBlank() || qqAppKey == null || qqAppKey.isBlank()) {
             return ResponseEntity.status(501).body(Map.of("message", "未配置QQ登录"));
@@ -100,6 +146,18 @@ public class SocialAuthController {
     }
 
     @GetMapping("/wechat/login")
+    /**
+     * 微信登录：跳转到微信扫码授权页。
+     *
+     * 行为：
+     * - 校验是否已配置 {@code oauth.wechat.app-id/secret}；
+     * - 构造微信二维码登录 URL 并以 302 重定向返回；
+     * - 附带随机 {@code state} 参数用于 CSRF 防护（当前实现未做回调校验，建议后续增强）。
+     *
+     * 返回：
+     * - 302 Redirect 到微信扫码授权页；
+     * - 501 Not Implemented，当未配置必要参数时返回提示消息。
+     */
     public ResponseEntity<?> wxLogin() {
         if (wxAppId == null || wxAppId.isBlank() || wxSecret == null || wxSecret.isBlank()) {
             return ResponseEntity.status(501).body(Map.of("message", "未配置微信登录，请在 application.yml 配置 oauth.wechat.app-id/secret"));
@@ -116,6 +174,18 @@ public class SocialAuthController {
     }
 
     @GetMapping("/wechat/callback")
+    /**
+     * 微信登录回调：用授权码换取令牌并登录。
+     *
+     * @param code 由微信授权页回传的授权码
+     * @param state 防 CSRF 的状态值（当前实现未进行强校验，建议增强）
+     * @return 302 Redirect 到前端回调页，携带站内 JWT；错误时返回 400/501。
+     *
+     * 行为：
+     * - 使用 {@code code} 换取 {@code access_token} 与 {@code openid}；
+     * - 若用户不存在则自动注册；
+     * - 生成站内 JWT，并重定向到前端回调页，携带 token 与用户信息。
+     */
     public ResponseEntity<?> wxCallback(@RequestParam String code, @RequestParam(required = false) String state) {
         if (wxAppId == null || wxAppId.isBlank() || wxSecret == null || wxSecret.isBlank()) {
             return ResponseEntity.status(501).body(Map.of("message", "未配置微信登录"));
@@ -137,6 +207,18 @@ public class SocialAuthController {
     }
 
     private ResponseEntity<?> issueTokenAndRedirect(String username, String nicknameIfNew) {
+        /**
+         * 为社交登录用户颁发站内 JWT，并重定向到前端回调页。
+         *
+         * 行为：
+         * - 根据社交平台标识创建或查找站内用户；
+         * - 生成 JWT，包含用户ID、用户名与角色声明；
+         * - 重定向到前端回调页（{@code frontend.base-url}/#/oauth/callback），并在查询参数中携带 token。
+         *
+         * 安全：
+         * - 站内 JWT 的有效期与刷新策略由 {@code JwtUtil} 控制；
+         * - 前端应安全存储 token 并在后续请求中通过 Authorization 头传递。
+         */
         // 查找是否已有用户；若无则创建
         User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
         if (user == null) {

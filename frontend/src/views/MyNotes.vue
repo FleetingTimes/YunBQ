@@ -1,3 +1,20 @@
+<!--
+  我的拾言视图（MyNotes）
+  职责与结构：
+  - 两栏统一布局：复用 TwoPaneLayout 的“全宽吸顶顶栏 + 右侧正文滚动容器”；
+  - 顶栏：AppTopBar 统一品牌与快捷入口；正文含个人资料摘要、过滤栏与拾言列表；
+  - 提供“回到顶部”与触底加载，兼容移动端与桌面端的滚动体验。
+  数据与接口：
+  - 服务端分页：通过 /shiyan?q&page&size 拉取数据，使用 total 判断是否还有下一页；
+  - 创建/更新/删除：POST/PUT/DELETE /shiyan 及 /shiyan/{id}；
+  - 点赞/收藏：POST /shiyan/{id}/like|unlike 与 /favorite|unfavorite；字段统一映射与兼容处理。
+  细节与修复：
+  - Emoji 粘贴修复：将聊天应用中的图片表情映射为 Unicode Emoji（emojiMap）；
+  - 编辑态聚焦管理与防并发加载；过滤栏与作者信息展示对齐。
+  安全与权限：
+  - 页面需要登录（路由 meta.requiresAuth）；
+  - 写操作仅允许作者本人或具备权限的用户；错误统一提示，避免信息泄露。
+-->
 <template>
   <!-- 接入统一布局：使用 TwoPaneLayout 提供“全宽吸顶顶栏 + 右侧正文滚动”
        改造要点：
@@ -1238,3 +1255,11 @@ onUnmounted(() => {
 .load-more-btn:disabled { opacity:0.6; cursor:not-allowed; }
 .load-more-sentinel { width:100%; max-width:640px; height:1px; }
 </style>
+<!--
+  我的拾言视图（MyNotes）
+  说明：
+  - 复用 TwoPaneLayout 与 AppTopBar，右侧为个人资料、过滤栏与列表；
+  - 需要登录：由路由 `meta.requiresAuth` 控制，进入前校验本地 token；
+  - 服务端分页：使用 page/size/total 控制翻页与“是否还有下一页”；
+  - 交互：支持批量操作、回到顶部、触底加载，避免并发与重复加载。
+-->

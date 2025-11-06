@@ -84,6 +84,19 @@
           <release>17</release>
         </configuration>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.6.3</version>
+        <configuration>
+          <source>17</source>
+          <encoding>UTF-8</encoding>
+          <doclint>none</doclint>
+          <failOnError>false</failOnError>
+          <!-- 避免中文注释与非标准标签导致构建失败，允许生成时忽略严格校验 -->
+          <additionalparam>-Xdoclint:none</additionalparam>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

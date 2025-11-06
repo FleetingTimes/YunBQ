@@ -47,6 +47,24 @@
   </div>
 </template>
 
+<!--
+  NotesBody 组件（添加拾言主体）
+  职责：
+  - 顶部草稿编辑器：内容输入、标签、可见性与颜色选择；
+  - 弹幕流展示：rows/speed-scale 控制，支持新发布高亮；
+  - 列表区域：按年份分组与时间线展示，卡片复用 NoteCard。
+  数据与接口：
+  - 创建：POST /shiyan；查询：GET /shiyan?q&page&size；
+  - 更新/删除：PUT/DELETE /shiyan/{id}；
+  - 喜欢/收藏：POST /shiyan/{id}/like|unlike 与 /favorite|unfavorite；
+  - 字段兼容与映射：normalize 统一后端不同命名（content/text、like_count/liked 等）。
+  细节与修复：
+  - 表情粘贴修复：将聊天应用的图片表情映射为 Unicode Emoji（emojiMap）；
+  - 触底加载与“加载更多”按钮并存，防止并发请求；
+  可访问性与安全：
+  - 公私有切换通过 isPublic 字段；
+  - 接口错误统一提示；编辑器聚焦状态明确（onComposerFocus/Blur）。
+-->
 <script setup>
 import { reactive, ref, onMounted, computed, watch, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'

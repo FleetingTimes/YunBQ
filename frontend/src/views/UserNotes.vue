@@ -1,3 +1,15 @@
+<!--
+  他人拾言视图（UserNotes）
+  职责与结构：
+  - 复用 TwoPaneLayout 与公共顶栏，右侧展示目标用户的公开拾言列表；
+  - 顶栏与滚动容器统一交互与视觉表现，适配移动端与桌面端。
+  数据与交互：
+  - 通过路由参数 :username 渲染目标用户；作者信息可由 query 传入（nickname/avatar/signature）；
+  - 支持服务端分页与触底加载；列表卡片复用 NoteCard 并兼容字段命名差异。
+  安全与体验：
+  - 未登录时点赞/收藏仅提示，不强制跳转；
+  - 接口错误统一提示；空状态与骨架加载保持一致体验。
+-->
 <template>
   <!-- 他人拾言页：复用 TwoPaneLayout 与公共顶栏，右侧展示目标用户的公开拾言 -->
   <TwoPaneLayout class="user-notes-layout">
@@ -298,3 +310,11 @@ function formatMD(t){
 .load-sentinel { width:100%; max-width:640px; height:1px; }
 .empty-wrap { padding: 12px 0; }
 </style>
+<!--
+  他人拾言视图（UserNotes）
+  说明：
+  - 通过路由参数 `:username` 渲染某用户公开拾言，无需登录；
+  - 作者信息可由路由 query 传入（nickname/avatar/signature），保持来源一致；
+  - 点赞/收藏在未登录时仅提示，不强制跳转；
+  - 后续如后端提供按用户过滤接口，可将前端过滤切换为后端查询。
+-->

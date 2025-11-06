@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: yunbq-mysql
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    networks:
+      - yunbq-net
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    restart: always
+
+  redis:
+    image: redis:7
+    container_name: yunbq-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - yunbq-net
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    restart: always
+
+  backend:
+    image: eclipse-temurin:17-jre
+    container_name: yunbq-backend
+    working_dir: /app
+    volumes:
+      - ./backend/target/backend-0.0.1-SNAPSHOT.jar:/app/app.jar:ro
+      - ./uploads:/opt/yunbq/uploads
+    environment:
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      SPRING_DATA_REDIS_HOST: ${SPRING_DATA_REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${SPRING_DATA_REDIS_PORT}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES}
+      # SPRING_SQL_INIT_MODE: ${SPRING_SQL_INIT_MODE:-never}
+    command: ["java","-Xms256m","-Xmx512m","-jar","/app/app.jar","--spring.profiles.active=prod"]
+    networks:
+      - yunbq-net
+    expose:
+      - "8080"
+    depends_on:
+      - mysql
+      - redis
+    restart: always
+
+  nginx:
+    image: nginx:stable
+    container_name: yunbq-nginx
+    volumes:
+      - ./frontend/dist:/usr/share/nginx/html:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./uploads:/opt/yunbq/uploads:ro
+    networks:
+      - yunbq-net
+    ports:
+      - "${EXPOSE_PORT:-6639}:${EXPOSE_PORT:-6639}"
+    depends_on:
+      - backend
+    restart: always
+
+networks:
+  yunbq-net:
+    driver: bridge

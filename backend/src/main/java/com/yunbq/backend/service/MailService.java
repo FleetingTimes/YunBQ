@@ -9,6 +9,17 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
 @Service
+/**
+ * 邮件服务（MailService）
+ * 职责：
+ * - 发送邮箱绑定或验证相关的简单邮件（验证码）；
+ * - 当未配置邮件服务时，采用控制台日志输出作为回退，便于开发与联调。
+ *
+ * 配置说明：
+ * - 依赖 Spring Boot 的 `spring.mail.*` 配置；
+ * - 当 `JavaMailSender` 未注入或 `spring.mail.username` 为空时，视为未配置；
+ * - 生产环境建议开启 SMTP 账号与应用专用密码，并限制频率、防止滥用。
+ */
 public class MailService {
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
 
@@ -18,6 +29,17 @@ public class MailService {
     @Value("${spring.mail.username:}")
     private String from;
 
+    /**
+     * 发送邮箱绑定验证码
+     * 行为：
+     * - 若邮件服务已配置，发送主题为“云便签邮箱绑定验证码”的文本邮件；
+     * - 若未配置，则在日志与控制台输出验证码作为回退；
+     * - 捕获发送异常并记录错误日志，同时仍输出回退信息，保障联调。
+     *
+     * 参数：
+     * - to：收件人邮箱地址；
+     * - code：验证码字符串（建议 6 位）。
+     */
     public void sendBindEmailCode(String to, String code) {
         // Fallback to console if mail isn't configured
         if (mailSender == null || from == null || from.isBlank()) {

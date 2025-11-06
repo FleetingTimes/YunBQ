@@ -14,6 +14,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+/**
+ * 用户服务（UserService）
+ * 职责：
+ * - 管理用户注册、登录与密码重置的核心流程；
+ * - 在注册时做唯一性校验与密码哈希，设置默认角色与时间戳；
+ * - 在登录时校验凭据并签发 JWT，统一返回基本身份信息；
+ * - 在密码重置时通过邮箱定位用户并更新加密后的密码哈希（示例实现）。
+ *
+ * 安全与实现要点：
+ * - 密码哈希：依赖 {@link PasswordEncoder} 的安全哈希与校验，禁止明文比较；
+ * - 令牌签发：使用 {@link JwtUtil} 生成基于用户 ID/用户名/角色的 JWT；
+ * - 异常策略：注册/登录失败抛出运行时异常，由控制层统一转换为合适的 HTTP 状态与消息；
+ * - 隐私保护：登录失败不暴露用户是否存在的具体信息，降低被枚举风险。
+ */
 @Service
 public class UserService {
     private final UserMapper userMapper;
@@ -26,6 +40,23 @@ public class UserService {
         this.jwtUtil = jwtUtil;
     }
 
+    /**
+     * 注册用户
+     * 行为：
+     * - 进行用户名唯一性检查；
+     * - 对密码进行哈希（如 BCrypt）；
+     * - 设置默认角色为 `USER` 并填充创建时间；
+     * - 持久化到数据库并返回创建后的实体。
+     *
+     * 参数：
+     * - req：注册请求体（username/password/nickname/email）。
+     *
+     * 返回：
+     * - 创建后的 {@link User} 实体。
+     *
+     * 异常：
+     * - RuntimeException：当用户名已存在时抛出。
+     */
     @Transactional
     public User register(RegisterRequest req) {
         User existing = userMapper.selectOne(new QueryWrapper<User>().eq("username", req.getUsername()));
@@ -43,6 +74,24 @@ public class UserService {
         return user;
     }
 
+    /**
+     * 用户登录
+     * 行为：
+     * - 按用户名查询用户并校验密码哈希；
+     * - 通过 {@link JwtUtil} 签发 JWT；
+     * - 返回包含 token 与用户基本信息的响应体。
+     *
+     * 参数：
+     * - req：登录请求（用户名、密码；可选验证码不在此处强制校验）。
+     *
+     * 返回：
+     * - {@link AuthResponse}：包含 `token`、`userId`、`username`、`nickname`、`role`。
+     *
+     * 异常与安全：
+     * - RuntimeException：用户不存在或密码错误时抛出，控制层转换为 400/401；
+     * - 使用 `PasswordEncoder.matches` 做密码校验，避免明文比较；
+     * - 可结合请求/认证日志做限流与锁定保护（此处为基础实现）。
+     */
     public AuthResponse login(AuthRequest req) {
         User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", req.getUsername()));
         if (user == null || !passwordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
@@ -53,6 +102,19 @@ public class UserService {
     }
 
 
+    /**
+     * 通过邮箱重置密码（示例实现）
+     * 行为：
+     * - 按邮箱查找用户并将新密码进行哈希后更新到数据库；
+     * - 不返回具体失败原因，避免被枚举用户信息。
+     *
+     * 参数：
+     * - email：邮箱地址；
+     * - newPassword：新的明文密码（将哈希后入库）。
+     *
+     * 返回：
+     * - 是否更新成功（true/false）。
+     */
     public boolean resetPasswordByEmail(String email, String newPassword) {
         if (email == null || email.isBlank()) return false;
         User user = userMapper.selectOne(new QueryWrapper<User>().eq("email", email));

@@ -23,6 +23,19 @@ import org.slf4j.LoggerFactory;
 // - 保持与历史路径 /api/notes 等价，避免前端旧版本或第三方脚本立即失效；
 // - 所有方法映射均继承该别名数组，因此不需要逐个方法重复添加别名。
 @RequestMapping({"/api/notes", "/api/shiyan"})
+/**
+ * 拾言（便签）接口控制器
+ * 职责：
+ * - 提供拾言的查询、创建、编辑、删除等业务端点（包括公开与个人视图）；
+ * - 点赞/取消点赞、收藏/取消收藏等交互端点；
+ * - 返回结构兼容前端字段命名差异（如 likeCount/like_count, favoriteCount/favorite_count）。
+ * 安全：
+ * - 部分查询接口允许匿名访问（公开内容）；
+ * - 交互与个人数据相关端点需要登录，使用 JwtAuthenticationFilter 写入 SecurityContext；
+ * - 通过 AuthUtil.currentUserId() 获取当前用户ID，空值表示未登录。
+ * 日志：
+ * - 重要操作路径记录审计日志（如点赞/收藏），便于后续分析与导出。
+ */
 public class NoteController {
 
     private final NoteService noteService;
@@ -35,6 +48,26 @@ public class NoteController {
     }
 
     @GetMapping
+    /**
+     * 便签列表（分页）。
+     *
+     * 过滤参数：
+     * - {@code q}：全文检索关键字（内容/标签等）；
+     * - {@code archived}：是否仅返回归档便签（null 表示不限）；
+     * - {@code isPublic}：是否仅返回公开便签（null 表示不限）；
+     * - {@code mineOnly}：是否仅返回当前用户的便签（true 需登录）。
+     *
+     * 分页参数：
+     * - {@code page}：页码，默认 1；
+     * - {@code size}：每页条数，默认 10。
+     *
+     * 安全与行为：
+     * - 登录态通过 {@code AuthUtil.currentUserId()} 识别；
+     * - 未登录时仅返回公开内容，且用户态标记（我是否点赞/收藏）均为 false；
+     * - 服务层负责精确的过滤逻辑与范围控制（例如 size 的上限）。
+     *
+     * @return 200 OK，{@code PageResult<NoteItem>}，包含 items/total/page/size
+     */
     public ResponseEntity<PageResult<NoteItem>> list(@RequestParam(defaultValue = "1") int page,
                                            @RequestParam(defaultValue = "10") int size,
                                            @RequestParam(required = false) String q,
@@ -55,6 +88,16 @@ public class NoteController {
     }
 
     @PostMapping
+    /**
+     * 新建便签。
+     *
+     * @param req 创建请求体，包含内容、标签、颜色、是否归档、是否公开等字段
+     * @return 200 OK，返回新建后的便签实体
+     *
+     * 安全与校验：
+     * - 需要登录；未登录应返回 401（由服务层或全局异常处理负责）；
+     * - 字段校验由 {@code @Valid} 与服务层共同保证，异常统一转为 400。
+     */
     public ResponseEntity<Note> create(@Valid @RequestBody NoteRequest req) {
         Long uid = AuthUtil.currentUserId();
         // 说明：避免直接访问请求体的字段导致编译问题，仅记录已接收到创建请求与当前用户。
@@ -63,6 +106,17 @@ public class NoteController {
     }
 
     @PutMapping("/{id}")
+    /**
+     * 更新便签。
+     *
+     * @param id 便签ID
+     * @param req 更新请求体，包含内容/标签等可修改字段
+     * @return 200 OK，返回更新后的便签实体
+     *
+     * 安全与并发：
+     * - 需要登录，且仅允许作者更新；服务层会校验所有权并抛出相应异常；
+     * - 建议前端在编辑页面使用乐观更新策略并处理冲突。
+     */
     public ResponseEntity<Note> update(@PathVariable Long id, @Valid @RequestBody NoteRequest req) {
         Long uid = AuthUtil.currentUserId();
         // 说明：同上，避免访问请求体中的具体字段，保留最有用的参数用于审计。
@@ -71,6 +125,15 @@ public class NoteController {
     }
 
     @DeleteMapping("/{id}")
+    /**
+     * 删除便签。
+     *
+     * @param id 便签ID
+     * @return 204 No Content，删除成功不返回实体
+     *
+     * 安全：
+     * - 需要登录，且仅允许作者删除；服务层会校验所有权与状态（例如已归档/公开的删除策略）。
+     */
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         Long uid = AuthUtil.currentUserId();
         log.info("[NoteController] DELETE /api/notes/{} delete called, uid={}", id, uid);
@@ -80,6 +143,14 @@ public class NoteController {
 
     // 点赞接口
     @PostMapping("/{id}/like")
+    /**
+     * 点赞便签。
+     *
+     * @param id 便签ID
+     * @return 200 OK，形如：{ "liked": true, "likeCount": 12, ... }
+     *
+     * 说明：需要登录；重复点赞会保持幂等（依赖服务层实现）。
+     */
     public ResponseEntity<Map<String,Object>> like(@PathVariable Long id) {
         Long uid = AuthUtil.currentUserId();
         // 详细注释：当点击“喜欢”图标触发点赞时，该日志能证明控制层方法被调用，以及当前用户与目标便签ID。
@@ -88,6 +159,14 @@ public class NoteController {
     }
 
     @PostMapping("/{id}/unlike")
+    /**
+     * 取消点赞便签。
+     *
+     * @param id 便签ID
+     * @return 200 OK，形如：{ "liked": false, "likeCount": 11, ... }
+     *
+     * 说明：需要登录；未点赞时取消点赞也应保持幂等。
+     */
     public ResponseEntity<Map<String,Object>> unlike(@PathVariable Long id) {
         Long uid = AuthUtil.currentUserId();
         log.info("[NoteController] POST /api/notes/{}/unlike called, uid={}", id, uid);
@@ -95,6 +174,14 @@ public class NoteController {
     }
 
     @GetMapping("/{id}/likes")
+    /**
+     * 查询便签点赞信息。
+     *
+     * @param id 便签ID
+     * @return 200 OK，形如：{ "liked": true/false, "likeCount": N, ... }
+     *
+     * 说明：匿名用户的 {@code liked=false}，登录用户依据自己的点赞记录返回。
+     */
     public ResponseEntity<Map<String,Object>> likeInfo(@PathVariable Long id) {
         Long uid = AuthUtil.currentUserId();
         log.info("[NoteController] GET /api/notes/{}/likes called, uid={}", id, uid);
@@ -103,6 +190,14 @@ public class NoteController {
 
     // 收藏接口
     @PostMapping("/{id}/favorite")
+    /**
+     * 收藏便签。
+     *
+     * @param id 便签ID
+     * @return 200 OK，形如：{ "favorited": true, "favoriteCount": 8, ... }
+     *
+     * 说明：需要登录；重复收藏保持幂等。
+     */
     public ResponseEntity<Map<String,Object>> favorite(@PathVariable Long id) {
         Long uid = AuthUtil.currentUserId();
         log.info("[NoteController] POST /api/notes/{}/favorite called, uid={}", id, uid);
@@ -110,6 +205,14 @@ public class NoteController {
     }
 
     @PostMapping("/{id}/unfavorite")
+    /**
+     * 取消收藏便签。
+     *
+     * @param id 便签ID
+     * @return 200 OK，形如：{ "favorited": false, "favoriteCount": 7, ... }
+     *
+     * 说明：需要登录；未收藏时取消收藏也保持幂等。
+     */
     public ResponseEntity<Map<String,Object>> unfavorite(@PathVariable Long id) {
         Long uid = AuthUtil.currentUserId();
         log.info("[NoteController] POST /api/notes/{}/unfavorite called, uid={}", id, uid);
@@ -117,6 +220,14 @@ public class NoteController {
     }
 
     @GetMapping("/{id}/favorites")
+    /**
+     * 查询便签收藏信息。
+     *
+     * @param id 便签ID
+     * @return 200 OK，形如：{ "favorited": true/false, "favoriteCount": N, ... }
+     *
+     * 说明：匿名用户的 {@code favorited=false}，登录用户依据自己的收藏记录返回。
+     */
     public ResponseEntity<Map<String,Object>> favoriteInfo(@PathVariable Long id) {
         Long uid = AuthUtil.currentUserId();
         log.info("[NoteController] GET /api/notes/{}/favorites called, uid={}", id, uid);
@@ -124,6 +235,16 @@ public class NoteController {
     }
 
     @GetMapping("/favorites")
+    /**
+     * 我收藏的便签（分页）。
+     *
+     * @param page 页码，默认 1
+     * @param size 每页条数，默认 10
+     * @param q    关键字过滤（可选）
+     * @return 200 OK，分页结果
+     *
+     * 说明：未登录时仅返回公开内容；登录时返回个人收藏列表，并附带用户态标记。
+     */
     public ResponseEntity<PageResult<NoteItem>> listFavorited(@RequestParam(defaultValue = "1") int page,
                                                    @RequestParam(defaultValue = "10") int size,
                                                    @RequestParam(required = false) String q) {
@@ -163,6 +284,14 @@ public class NoteController {
 
     // 最近公开便签（匿名可访问）
     @GetMapping("/recent")
+    /**
+     * 最近公开便签（分页）。
+     *
+     * @param size 每页条数，默认 10
+     * @return 200 OK，分页结果，仅包含公开内容
+     *
+     * 说明：匿名可访问；登录用户附带用户态标记（点赞/收藏）。
+     */
     public ResponseEntity<PageResult<NoteItem>> recent(@RequestParam(defaultValue = "10") int size) {
         Long uid = AuthUtil.currentUserId();
         log.info("[NoteController] GET /api/notes/recent called, uid={}, size={} ", uid, size);
@@ -177,6 +306,15 @@ public class NoteController {
 
     // 热门公开便签（按综合热度排序，匿名可访问）
     @GetMapping("/hot")
+    /**
+     * 热门公开便签（分页）。
+     *
+     * @param size 每页条数，默认 10
+     * @param days 热度统计窗口天数，默认 30
+     * @return 200 OK，分页结果，按综合热度降序
+     *
+     * 说明：匿名可访问；登录用户附带用户态标记（点赞/收藏）。
+     */
     public ResponseEntity<PageResult<NoteItem>> hot(@RequestParam(defaultValue = "10") int size,
                                                     @RequestParam(defaultValue = "30") int days) {
         Long uid = AuthUtil.currentUserId();
