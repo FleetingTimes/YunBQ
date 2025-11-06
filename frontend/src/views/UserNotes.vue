@@ -170,7 +170,10 @@ async function fetchPage(p = 1){
   isLoading.value = true
   try{
     // 请求公开拾言并排除归档项；说明：本页仅呈现目标用户的公开内容，服务端按公开分页，前端再按作者过滤。
-    const { data } = await http.get('/shiyan', { params: { page: p, size: size.value, isPublic: true, archived: false }, suppress401Redirect: true })
+    // 注意：历史线上环境已对 `/api/notes` 放行匿名 GET；而 `/api/shiyan` 在旧版安全配置中可能未显式放行，导致 401。
+    // 为保障“未登录时也能查看他人拾言”，这里将列表查询端点切换为 `/notes`，与后端路由等价（NoteController 使用两个路径别名）。
+    // 这样即使 /shiyan 尚未在后端放行，本页依旧能正常加载公开数据。
+    const { data } = await http.get('/notes', { params: { page: p, size: size.value, isPublic: true, archived: false } })
     const items = Array.isArray(data) ? data : (data?.items ?? data?.records ?? [])
     const mapped = (items || []).map(normalizeNote)
     if (p <= 1) notes.value = mapped; else notes.value = notes.value.concat(mapped)
