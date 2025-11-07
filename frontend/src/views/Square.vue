@@ -38,7 +38,13 @@
     <!-- 右下：广场正文内容，保留 query 传参；通过 ref 暴露滚动方法与高亮更新事件供父级桥接 -->
     <template #rightMain>
       <div class="square-container">
-        <SquareBody ref="bodyRef" :query="query" @update:activeId="val => activeId = val" />
+        <!-- 关键修复：传入与侧栏一致的 sections，确保左右锚点 id 完全一致 -->
+        <SquareBody 
+          ref="bodyRef" 
+          :sections="sections" 
+          :query="query" 
+          @update:activeId="val => activeId = val" 
+        />
       </div>
     </template>
   </TwoPaneLayout>

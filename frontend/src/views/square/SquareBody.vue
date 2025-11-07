@@ -84,6 +84,22 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+/**
+ * 变更说明（详细注释）：
+ * 为解决“侧边栏子导航点击后打开其他导航”的问题，
+ * 本组件新增 props.sections，并优先使用父组件传入的导航数据进行渲染与滚动定位。
+ * 背景与原因：
+ * - Square.vue 与 SquareBody.vue 之前各自调用 useNavigation()，
+ *   由于组合式函数是按调用实例化，两个组件会持有“各自独立的状态源”。
+ * - 在分类数据异步加载或回退为默认硬编码数据的时序差异下，
+ *   左侧 SideNav 与右侧卡片使用的 sections 可能不一致（如一方是默认、另一方是后端数据）。
+ * - 当用户点击子导航时，传递的 id 与右侧实际渲染的卡片 id 不一致，
+ *   导致 scrollTo('#'+id) 命中错误元素或找不到目标，从而出现“滚到其他导航”的现象。
+ * 解决方案：
+ * - 通过 props.sections 接收并复用父组件中 SideNav 使用的同一份导航数据，
+ *   保证左右两侧的 id 与结构完全一致，避免因多源状态造成的错配。
+ * - 当未传入 sections（保持向后兼容）时，才回退为内部 useNavigation 的 sideNavSections。
+ */
 import { useRoute } from 'vue-router'
 import { getToken } from '@/utils/auth'
 import NavigationSiteList from '@/components/NavigationSiteList.vue'
@@ -95,8 +111,31 @@ const emit = defineEmits(['update:activeId'])
 // 路由引用：在 setup 阶段创建，避免 onMounted 内部未初始化导致的空引用
 const route = useRoute()
 
-// 导航数据管理：使用新的导航系统
-const { sideNavSections: navigationSections, fetchCategories } = useNavigation()
+// Props：可选由父组件传入的导航数据（优先使用以保证左右一致）
+const props = defineProps({
+  /**
+   * sections：父组件传入的导航结构数组
+   * 结构示例：
+   * [
+   *   { id: 'category-1', label: '开发工具', children: [ { id:'category-7', label:'在线编辑器' } ] },
+   *   { id: 'site', label: '聚合拾言' }
+   * ]
+   */
+  sections: { type: Array, default: () => [] },
+  /**
+   * query：搜索关键词（保留原功能）
+   */
+  query: { type: String, default: '' }
+})
+
+// 内部导航数据管理：仅在未传入 props.sections 时启用
+const { sideNavSections: internalSections, fetchCategories } = useNavigation()
+
+// 统一的导航数据入口：优先使用 props.sections，其次使用 internalSections
+const navigationSections = computed(() => {
+  const arr = Array.isArray(props.sections) ? props.sections : []
+  return arr.length ? arr : (internalSections?.value || [])
+})
 
 // 响应式状态管理
 const tokenRef = ref('')
@@ -202,6 +241,7 @@ function handleScroll(){
 
   // 收集所有锚点元素
   const nodes = []
+  // 使用统一的导航数据（props.sections 优先）进行高亮计算
   if (navigationSections.value) {
     for (const section of navigationSections.value) {
       const elTop = (contentRef.value || container).querySelector('#' + section.id)
@@ -242,8 +282,10 @@ function handleScroll(){
 
 // 页面挂载时的初始化
 onMounted(async () => {
-  // 加载导航分类数据
-  await fetchCategories()
+  // 若未传入 sections，则加载导航分类数据以提供后备渲染
+  if (!(Array.isArray(props.sections) && props.sections.length)){
+    await fetchCategories()
+  }
   
   // 初始化登录状态
   refreshAuth()
