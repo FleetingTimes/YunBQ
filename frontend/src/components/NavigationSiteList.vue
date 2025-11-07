@@ -192,6 +192,25 @@ onMounted(() => {
   setupMobileMatch()
 })
 
+/**
+ * 监听 deferLoad 变更：在“点击导航”时强制立即加载对应卡片
+ * 背景与目标：
+ * - 为了提升性能，卡片默认采用 IntersectionObserver 在进入视口前 200px 时才加载；
+ * - 当用户点击底部的导航项，目标卡片通常尚未进入视口，若不立即加载，会出现“空卡片”体验；
+ * - 通过父组件在点击时将该卡片的 `deferLoad` 置为 false，我们在此监听到后即可立刻触发 `loadSites()`，
+ *   既保留了整体的懒加载策略，又保证了“用户主动点击时立即可见”的交互一致性，达到两全其美。
+ */
+watch(() => props.deferLoad, (val) => {
+  try{
+    // 当 deferLoad 切换为 false 且尚未加载过时，立即加载一次
+    if (val === false && !hasLoaded.value) {
+      loadSites()
+    }
+  }catch(e){
+    console.warn('deferLoad 监听触发失败，保持懒加载行为：', e)
+  }
+})
+
 // 监听分类ID变化，重新加载数据
 // 说明：仅在分类ID为有效正整数时才触发加载，避免无效 ID 造成不必要请求与错误提示
 watch(() => props.categoryId, (newId) => {

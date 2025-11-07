@@ -54,6 +54,7 @@
                 :title="child.label"
                 :subtitle="child.description || '推荐站点'"
                 :categoryId="child.categoryId"
+                :deferLoad="!(activeId === child.id || forceLoadIds.has(child.id))"
               />
             </template>
             <!-- 无子分类：直接渲染父分类卡片 -->
@@ -64,6 +65,7 @@
                 :title="section.label"
                 :subtitle="section.description || '推荐站点'"
                 :categoryId="section.categoryId"
+                :deferLoad="!(activeId === section.id || forceLoadIds.has(section.id))"
               />
             </template>
           </div>
@@ -83,7 +85,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, reactive } from 'vue'
 /**
  * 变更说明（详细注释）：
  * 为解决“侧边栏子导航点击后打开其他导航”的问题，
@@ -142,6 +144,123 @@ const tokenRef = ref('')
 const isLoggedIn = computed(() => !!(tokenRef.value && tokenRef.value.trim()))
 const activeId = ref('site')
 const contentRef = ref(null)
+/**
+ * forceLoadIds：强制预加载集合（响应式 Set）
+ * 用途：
+ * - 首屏：对“可见区域 + 少量预备数据”的卡片，加入此集合以关闭懒加载，立即加载数据；
+ * - 空闲后台：在浏览器空闲时逐步把后续卡片加入此集合，后台预取，提升后续滚动体验；
+ * - 优先加载：当用户点击某导航项时（已通过 activeId 触发），也可以冪等地加入集合以保证即时加载。
+ * 说明：
+ * - Vue 3 对 Map/Set 有原生响应式支持；此处使用 reactive(new Set()) 以确保模板中 has() 能触发更新；
+ */
+const forceLoadIds = reactive(new Set())
+
+/**
+ * 预取参数（可按需微调）：
+ * - INITIAL_PREFETCH：初始加载的“少量预备数据”数量（除当前活跃卡片外）；
+ * - IDLE_CHUNK：后台空闲每次预取的卡片数量；
+ */
+const INITIAL_PREFETCH = 3
+const IDLE_CHUNK = 2
+
+/**
+ * allCardIds：按渲染顺序扁平化后的卡片 id 列表
+ * 结构：优先使用 props.sections（保证与侧栏一致），有子分类则取子分类 id，否则取父分类 id
+ */
+const allCardIds = computed(() => {
+  const res = []
+  const sections = navigationSections.value || []
+  for (const s of sections) {
+    if (s?.children?.length) {
+      for (const c of s.children) {
+        if (c?.id) res.push(c.id)
+      }
+    } else {
+      if (s?.id) res.push(s.id)
+    }
+  }
+  return res
+})
+
+// 背景空闲调度句柄（兼容 rIC 与 setTimeout）与进度索引
+let idleHandle = null
+const prefetchIndex = ref(0)
+
+/**
+ * 初始化分层预加载：
+ * - 将当前活跃项与前若干个卡片加入 forceLoadIds，立即加载；
+ * - 启动后台空闲预取，在不打扰主线程的情况下逐步加载剩余卡片。
+ */
+function initLayeredPrefetch(){
+  try {
+    // 1) 当前活跃项优先：点击/默认选中项必须立即加载
+    if (activeId.value) forceLoadIds.add(activeId.value)
+
+    // 2) 初始少量预备数据：按渲染顺序选取前 N 个卡片
+    const ids = allCardIds.value
+    prefetchIndex.value = 0
+    const take = Math.min(INITIAL_PREFETCH, Math.max(0, ids.length - prefetchIndex.value))
+    for (let i = 0; i < take; i++) {
+      const id = ids[prefetchIndex.value++]
+      if (id) forceLoadIds.add(id)
+    }
+
+    // 3) 启动空闲后台预取：逐块将后续卡片加入预取集合
+    startIdlePrefetch()
+  } catch (e) {
+    console.warn('初始化分层预加载失败，继续常规懒加载：', e)
+  }
+}
+
+/**
+ * 空闲后台预取：在浏览器空闲时逐步加载后续卡片
+ * 策略：每次空闲期加入少量（IDLE_CHUNK）卡片到 forceLoadIds，直到耗尽
+ * 兼容：优先使用 requestIdleCallback，若不可用则回退 setTimeout
+ */
+function startIdlePrefetch(){
+  const ids = allCardIds.value
+  const runner = (deadline) => {
+    try {
+      let added = 0
+      while (added < IDLE_CHUNK && prefetchIndex.value < ids.length) {
+        const id = ids[prefetchIndex.value++]
+        if (id && !forceLoadIds.has(id)) {
+          forceLoadIds.add(id)
+          added++
+        }
+        // 若剩余空闲时间不足则提前退出，留到下一轮
+        if (deadline && typeof deadline.timeRemaining === 'function' && deadline.timeRemaining() < 8) {
+          break
+        }
+      }
+    } catch (e) {
+      // 忽略，保持后续轮次继续
+    } finally {
+      // 若尚未覆盖全部卡片，继续安排下一轮
+      if (prefetchIndex.value < ids.length) {
+        scheduleNextIdle()
+      } else {
+        idleHandle = null
+      }
+    }
+  }
+
+  function scheduleNextIdle(){
+    try {
+      if ('requestIdleCallback' in window) {
+        idleHandle = window.requestIdleCallback(runner, { timeout: 1200 })
+      } else {
+        // 回退为轻量定时器，避免占用主线程：延迟一段时间再执行一小块
+        idleHandle = setTimeout(() => runner(), 800)
+      }
+    } catch (e) {
+      // 极端环境：直接同步推进少量，避免完全停滞
+      runner()
+    }
+  }
+
+  scheduleNextIdle()
+}
 
 // 工具函数：刷新登录状态
 function refreshAuth(){
@@ -170,11 +289,58 @@ function getScrollContainer(){
 
 // 滚动到指定锚点
 function scrollTo(id){
+  // 提前设置活跃项：让目标卡片在本次点击时立即关闭懒加载并触发数据加载
+  // 说明：这一步使得 NavigationSiteList 收到 deferLoad=false，从而在 watch 中立刻调用 loadSites()
+  // 这样既保留整体懒加载策略，又保证“点击即加载、滚动即有内容”，避免空白卡片体验。
+  activeId.value = id
+  try{ emit('update:activeId', id) }catch{}
+  // 冪等加入强制预取集合：确保该卡片无论懒加载状态如何都立即加载
+  try { if (id) forceLoadIds.add(id) } catch {}
+
   const container = getScrollContainer()
   if (!container) return
 
-  const el = (contentRef.value || container).querySelector('#' + id)
-  if (!el) return
+  let el = (contentRef.value || container).querySelector('#' + id)
+  /**
+   * 锚点缺失的首次点击保护（详细注释）：
+   * 背景：
+   * - 当父组件的 sections 刚从“默认后备数据”切换为“后端真实分类数据”时，
+   *   右侧卡片的 DOM（含锚点 #id）可能尚未完成渲染；
+   * - 此时第一次点击底部子导航，scrollTo 立即查找锚点可能返回 null，
+   *   若直接退出，会让后续高亮逻辑以“最近锚点”命中错误卡片，出现错位。
+   * 方案：
+   * - 在锚点未找到时，进行短时重试（最多 8 次，每次 60ms，总计约 480ms），
+   *   等待 Vue 完成渲染与 HMR 更新，确保首次点击也能正确滚动到目标卡片。
+   * - 若重试后仍不存在，则优雅退出，不做错误滚动。
+   */
+  if (!el){
+    let attempts = 0
+    const max = 8
+    const timer = setInterval(() => {
+      try{
+        el = (contentRef.value || container).querySelector('#' + id)
+        if (el || attempts >= max){ clearInterval(timer) }
+        if (el){
+          // 找到锚点后执行滚动（与下方逻辑一致）
+          const isScrollableContent = container.classList?.contains('scrollable-content')
+          const isContentScroll = container.classList?.contains('content-scroll')
+          const containerStyles = getComputedStyle(container)
+          const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
+          let offset = containerPadTop
+          offset += (isScrollableContent || isContentScroll) ? 16 : ((document.querySelector('.square-header')?.offsetHeight || 0) + 24)
+          const elRect = el.getBoundingClientRect()
+          const containerRect = container.getBoundingClientRect()
+          const visibleDelta = elRect.top - containerRect.top
+          const targetTop = Math.max(0, container.scrollTop + visibleDelta - offset)
+          container.scrollTo({ top: targetTop, behavior: 'smooth' })
+          activeId.value = id
+          try{ emit('update:activeId', id) }catch{}
+        }
+        attempts++
+      }catch{ attempts++ }
+    }, 60)
+    return
+  }
 
   // 修复滚动偏移计算：针对 TwoPaneLayout 布局优化
   // 说明：
@@ -182,15 +348,17 @@ function scrollTo(id){
   // - 标题不会"遮挡"卡片，因为它们是垂直排列的，标题在上方，卡片在下方；
   // - 因此不需要减去标题高度，只需要一个小的安全间距即可。
   const isScrollableContent = container.classList?.contains('scrollable-content')
+  const isContentScroll = container.classList?.contains('content-scroll')
   const containerStyles = getComputedStyle(container)
   const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
   
   // 设置合适的安全间距：
-  // - 在 TwoPaneLayout (.scrollable-content) 中使用较小的间距 (16px)
-  // - 在其他布局中保持原有逻辑以确保兼容性
+  // - 在 TwoPaneLayout 的右侧滚动容器（.scrollable-content）或本组件内部滚动容器（.content-scroll）中，
+  //   都不需要减去标题高度（因为标题不在这些滚动容器内），仅保留较小的安全间距 (16px)。
+  // - 仅当滚动容器不是上述两者时，才回退为“标题高度 + 24px”的兼容逻辑。
   let offset = containerPadTop
-  if (isScrollableContent) {
-    // TwoPaneLayout：只需要小的安全间距，不减去标题高度
+  if (isScrollableContent || isContentScroll) {
+    // 统一处理：当前滚动容器不包含 .square-header，无需扣减标题高度
     offset += 16
   } else {
     // 其他布局：保持原有逻辑（向后兼容）
@@ -207,13 +375,9 @@ function scrollTo(id){
   
   container.scrollTo({ top: targetTop, behavior: 'smooth' })
 
-  // 更新活跃项并通知父组件
+  // 更新活跃项并通知父组件（冪等：前面已设置一次，这里保持一致）
   activeId.value = id
-  try{ 
-    emit('update:activeId', id) 
-  } catch { 
-    /* 忽略异常以保证滚动稳定 */ 
-  }
+  try{ emit('update:activeId', id) } catch { /* 忽略异常以保证滚动稳定 */ }
 }
 
 // 滚动高亮处理
@@ -224,13 +388,14 @@ function handleScroll(){
   // 修复滚动偏移计算：与 scrollTo 方法保持一致
   // 说明：高亮判断的偏移量应该与滚动定位的偏移量一致，确保交互的连贯性
   const isScrollableContent = container.classList?.contains('scrollable-content')
+  const isContentScroll = container.classList?.contains('content-scroll')
   const containerStyles = getComputedStyle(container)
   const containerPadTop = parseFloat(containerStyles.paddingTop || '0')
   
   // 使用与 scrollTo 相同的偏移计算逻辑
   let offset = containerPadTop
-  if (isScrollableContent) {
-    // TwoPaneLayout：只需要小的安全间距
+  if (isScrollableContent || isContentScroll) {
+    // 当前滚动容器不包含标题，保持较小安全间距
     offset += 16
   } else {
     // 其他布局：保持原有逻辑
@@ -310,6 +475,9 @@ onMounted(async () => {
   if (container) { 
     container.addEventListener('scroll', handleScroll, { passive: true })
   }
+
+  // 初始化分层预加载：首屏少量 + 空闲后台
+  initLayeredPrefetch()
   
   // 清理函数
   onUnmounted(() => {
@@ -319,6 +487,14 @@ onMounted(async () => {
     if (container) {
       container.removeEventListener('scroll', handleScroll)
     }
+    // 释放后台预取调度句柄
+    try {
+      if (idleHandle && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleHandle)
+      } else if (idleHandle) {
+        clearTimeout(idleHandle)
+      }
+    } catch {}
   })
 })
 
