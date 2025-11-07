@@ -507,7 +507,16 @@ async function saveEdit(it){
     it.tags = tagsStr
     it.isPublic = (editVisibility.value[it.id] === 'public')
     it.updatedAt = Date.now()
-    ElMessage.success('已更新')
+    // 更新成功提示：根据可见性变化给出更明确的反馈
+    // 若改为“私有”，该拾言不应继续出现在“拾言小镇”（仅展示公开内容）。
+    // 为避免列表残留（首屏数据为公开，但本地数据已被乐观更新为私有），此处主动移除该条目。
+    if (!it.isPublic) {
+      // 从当前列表移除该拾言，使“拾言小镇”视图与公开性语义保持一致
+      items.value = items.value.filter(x => x.id !== it.id)
+      ElMessage.success('已更新为私有，已从拾言小镇隐藏')
+    } else {
+      ElMessage.success('已更新为公开')
+    }
     cancelEdit(it)
   }catch(e){
     const status = e?.response?.status

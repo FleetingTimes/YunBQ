@@ -100,4 +100,15 @@ async function onSubmit(){
 <style scoped>
 /* 顶栏占据页面顶部高度时，为注册卡片增加顶部间距，避免被遮挡。 */
 .with-topbar { padding-top: 68px; }
+
+/* 高度填充：正文区占满“顶栏与底栏之间”的可视高度
+   计算：100vh - 顶栏高度(默认 68px) - 底栏高度(默认 0)
+   说明：
+   - 可通过 CSS 变量在全局层面配置 --topbar-height / --footer-height；
+   - 与上方 padding-top 占位配合，确保总高度不超过视口。 */
+.auth-wrapper.with-topbar { min-height: calc(100vh - var(--topbar-height, 68px) - var(--footer-height, 0px)); box-sizing: border-box; }
+
+/* 正文卡片宽度控制：统一登录/注册/找回密码页的卡片宽度为 460px
+   说明：覆盖全局 .auth-card 的 max-width=440px，使三页视觉一致 */
+.auth-card { max-width: 460px; }
 </style>

@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -56,10 +57,25 @@ public class PasswordResetController {
         String email = body.get("email");
         String captchaId = body.get("captchaId");
         String captchaCode = body.get("captchaCode");
-        boolean pass = captchaService.verify(captchaId, captchaCode);
-        if (!pass) return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "验证码错误"));
+        // 基础邮箱格式校验，减少无效调用与误发
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "邮箱不能为空"));
+        }
+        Pattern p = Pattern.compile("^[\\w.-]+@[\\w.-]+\\.[A-Za-z]{2,}$");
+        if (!p.matcher(email).matches()) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "邮箱格式不正确"));
+        }
+        // 图形验证码改为“可选”：仅在 captchaId 与 captchaCode 均提供时才进行校验
+        if (captchaId != null && !captchaId.isBlank() && captchaCode != null && !captchaCode.isBlank()) {
+            boolean pass = captchaService.verify(captchaId, captchaCode);
+            if (!pass) return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "验证码错误"));
+        }
         try {
-            resetService.createCode(email);
+            // 静默存在性检查：不存在则不发送，但统一返回 ok，避免被枚举
+            boolean exists = userService.existsByEmail(email);
+            if (exists) {
+                resetService.createCode(email);
+            }
             return ResponseEntity.ok(Map.of("ok", true));
         } catch (RuntimeException ex) {
             return ResponseEntity.status(429).body(Map.of("ok", false, "message", ex.getMessage()));
@@ -87,10 +103,66 @@ public class PasswordResetController {
         String email = body.get("email");
         String code = body.get("code");
         String newPassword = body.get("newPassword");
+        String captchaId = body.get("captchaId");
+        String captchaCode = body.get("captchaCode");
+        // 最终重置需校验图形验证码：防止暴力尝试与重放
+        if (captchaId == null || captchaId.isBlank() || captchaCode == null || captchaCode.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "请先完成图形验证码"));
+        }
+        boolean captchaPass = captchaService.verify(captchaId, captchaCode);
+        if (!captchaPass) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "验证码错误"));
+        }
+        // 基础强度校验：至少 8 位，需包含大小写字母与数字
+        if (!isStrongPassword(newPassword)) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "密码强度不足，需包含大小写字母与数字且不少于8位"));
+        }
         boolean pass = resetService.verifyCode(email, code);
         if (!pass) return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "验证码无效或已过期"));
         boolean changed = userService.resetPasswordByEmail(email, newPassword);
         if (!changed) return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "邮箱不存在"));
         return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    /**
+     * 仅校验邮箱验证码有效性（不消费验证码）。
+     *
+     * 用途：前端在“发送邮箱验证码”后，用户输入验证码并点击“验证验证码”按钮时调用；
+     * 成功时不移除验证码，保留供后续 /reset 环节消费；失败会累计错误次数以限制暴力尝试。
+     *
+     * 请求体字段：
+     * - email：账户邮箱（必填）；
+     * - code：邮箱验证码（必填，期望 6 位数字）。
+     * 成功返回：{ ok:true }；失败返回 { ok:false, message }。
+     */
+    @PostMapping("/verify")
+    public ResponseEntity<Map<String,Object>> verify(@RequestBody Map<String,String> body) {
+        String email = body.get("email");
+        String code = body.get("code");
+        if (email == null || email.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "邮箱不能为空"));
+        }
+        if (code == null || code.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "验证码不能为空"));
+        }
+        boolean pass = resetService.checkCode(email, code);
+        if (!pass) return ResponseEntity.badRequest().body(Map.of("ok", false, "message", "验证码无效或已过期"));
+        return ResponseEntity.ok(Map.of("ok", true));
+    }
+
+    /**
+     * 简易密码强度检查：
+     * - 长度至少 8；
+     * - 至少包含一个小写字母、一个大写字母、一个数字；
+     * - 可根据需要扩展特殊字符要求。
+     */
+    private boolean isStrongPassword(String s) {
+        if (s == null) return false;
+        String pwd = s.trim();
+        if (pwd.length() < 8) return false;
+        boolean hasLower = pwd.matches(".*[a-z].*");
+        boolean hasUpper = pwd.matches(".*[A-Z].*");
+        boolean hasDigit = pwd.matches(".*[0-9].*");
+        return hasLower && hasUpper && hasDigit;
     }
 }

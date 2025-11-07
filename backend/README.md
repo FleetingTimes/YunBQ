@@ -49,7 +49,30 @@
 - `likeCount`, `likedByMe`
 
 ## Auth
-- All endpoints require valid `Authorization: Bearer <token>` header.
+- Public endpoints:
+  - `POST /api/auth/register` — 用户注册（username、password、nickname、email）
+  - `POST /api/auth/login` — 用户名登录（username、password）
+  - `POST /api/auth/login/email` — 邮箱登录（email、password）
+  - `POST /api/auth/forgot` — 找回密码（校验验证码，发送重置码到邮箱）
+  - `POST /api/auth/reset` — 使用邮箱 + 重置码重置密码
+- Protected endpoints:
+  - 需要携带 `Authorization: Bearer <token>`，例如：`GET /api/account/me`
+
+### 邮箱登录接口说明
+
+- 路径：`POST /api/auth/login/email`
+- 请求体示例：
+  ```json
+  { "email": "user@example.com", "password": "your_password" }
+  ```
+- 响应体示例：
+  ```json
+  { "token": "<JWT>", "userId": 1, "username": "user1", "nickname": "昵称", "role": "USER" }
+  ```
+- 异常与安全：
+  - 当邮箱不存在或密码错误时将返回 4xx 并带中文提示；
+  - 密码校验使用 `PasswordEncoder.matches`，禁止明文比较；
+  - 建议在生产环境启用登录限流与审计日志提升安全性。
 
 ## Logging
 - Tables:

@@ -101,6 +101,32 @@ public class UserService {
         return new AuthResponse(token, user.getId(), user.getUsername(), user.getNickname(), user.getRole());
     }
 
+    /**
+     * 邮箱登录
+     * 行为：
+     * - 按邮箱查询用户并校验密码哈希；
+     * - 通过 {@link JwtUtil} 签发 JWT；
+     * - 返回包含 token 与用户基本信息的响应体。
+     *
+     * 参数：
+     * - req：邮箱登录请求（email、password；验证码不在此处强制校验）。
+     *
+     * 返回：
+     * - {@link AuthResponse}：包含 token、userId、username、nickname、role。
+     *
+     * 异常与安全：
+     * - RuntimeException：用户不存在或密码错误时抛出；
+     * - 使用 PasswordEncoder.matches 做密码校验，避免明文比较；
+     */
+    public AuthResponse loginByEmail(com.yunbq.backend.dto.EmailAuthRequest req) {
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("email", req.getEmail()));
+        if (user == null || !passwordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
+            throw new RuntimeException("邮箱或密码错误");
+        }
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        return new AuthResponse(token, user.getId(), user.getUsername(), user.getNickname(), user.getRole());
+    }
+
 
     /**
      * 通过邮箱重置密码（示例实现）
@@ -122,5 +148,17 @@ public class UserService {
         String hash = passwordEncoder.encode(newPassword);
         userMapper.update(null, new UpdateWrapper<User>().eq("id", user.getId()).set("password_hash", hash));
         return true;
+    }
+
+    /**
+     * 判断邮箱是否存在于用户表中。
+     * 用途：找回密码发送验证码前进行存在性检查，可在控制器层结合“统一提示”策略避免枚举风险。
+     * 参数：email 邮箱地址
+     * 返回：存在返回 true；不存在或为空返回 false
+     */
+    public boolean existsByEmail(String email) {
+        if (email == null || email.isBlank()) return false;
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("email", email));
+        return user != null;
     }
 }

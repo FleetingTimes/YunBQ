@@ -56,6 +56,7 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\config\LogProper
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\config\DbMigrationRunner.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\UserMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\config\MybatisPlusConfig.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\EmailAuthRequest.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\NoteLike.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\NavigationController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\AuthLogMapper.java
