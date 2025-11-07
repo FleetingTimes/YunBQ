@@ -1,0 +1,25 @@
+<!--
+  自定义站点图标（favicon）
+  说明：
+  - 使用 SVG 作为浏览器标签图标，体积小、在高 DPI 屏幕上更清晰；
+  - 该图标将通过 index.html 中的 <link rel="icon" href="/favicon.svg"> 被引用；
+  - 如需替换品牌样式，只需修改本文件的颜色或文字。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 背景圆角矩形：品牌主色，保证在浅/深色主题下均可辨识 -->
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <!-- 渐变：从 #409EFF（Element Plus 主色）过渡到更深的蓝色，提高层次感 -->
+      <stop offset="0%" stop-color="#409EFF"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#g)"/>
+
+  <!-- 中心字母标识：Y（YunBQ 首字母），使用加粗白色以增强对比度 -->
+  <!-- 注意：使用 text 在多数现代浏览器中可正常渲染 favicon；如需更稳定可改为 path。 -->
+  <text x="32" y="41" text-anchor="middle" font-size="34" font-weight="700" fill="#ffffff" font-family="Segoe UI, Roboto, Arial, sans-serif">Y</text>
+
+  <!-- 轻微阴影：让字母在深色背景上更立体，但保持图标简洁 -->
+  <text x="32" y="41" text-anchor="middle" font-size="34" font-weight="700" fill="rgba(0,0,0,0.14)" font-family="Segoe UI, Roboto, Arial, sans-serif" transform="translate(1,1)">Y</text>
+</svg>
