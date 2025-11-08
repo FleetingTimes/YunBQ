@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
  * 拾言服务（NoteService）
  * 职责：
  * - 管理便签的增删改查与分页检索；
- * - 提供公开便签的“最近/热门”聚合视图，并与 {@link NoteCacheService} 协作做轻量缓存；
+ * - 原“最近/热门”聚合视图已下线（对应控制器路由 /recent 与 /hot 已移除）。
  * - 处理点赞与收藏交互，并在成功时通过 {@link MessageService} 生成行为消息通知作者；
  * - 支持批量导入简单的 NoteRequest 列表。
  *
@@ -47,7 +47,7 @@ public class NoteService {
     private final NoteLikeMapper likeMapper;
     private final NoteFavoriteMapper favoriteMapper;
     private final UserMapper userMapper;
-    private final NoteCacheService noteCache;
+    // 已移除：NoteCacheService（热门/最近缓存）。
     // 消息服务：在点赞/收藏成功后生成行为消息，通知作者
     private final MessageService messageService;
 
@@ -55,12 +55,11 @@ public class NoteService {
      * 构造函数：通过 Spring 注入依赖。
      * 新增参数 messageService 用于在点赞/收藏成功后写入消息。
      */
-    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper, UserMapper userMapper, NoteCacheService noteCache, MessageService messageService) {
+    public NoteService(NoteMapper noteMapper, NoteLikeMapper likeMapper, NoteFavoriteMapper favoriteMapper, UserMapper userMapper, MessageService messageService) {
         this.noteMapper = noteMapper;
         this.likeMapper = likeMapper;
         this.favoriteMapper = favoriteMapper;
         this.userMapper = userMapper;
-        this.noteCache = noteCache;
         this.messageService = messageService;
     }
 
@@ -96,8 +95,7 @@ public class NoteService {
         n.setCreatedAt(LocalDateTime.now());
         n.setUpdatedAt(LocalDateTime.now());
         noteMapper.insert(n);
-        // 便签新增，失效热门与最近缓存
-        try { noteCache.evictHotAll(); noteCache.evictRecentAll(); } catch (Exception ignored) {}
+        // 便签新增：已移除热门/最近缓存失效调用
         return n;
     }
 
@@ -136,8 +134,7 @@ public class NoteService {
         n.setIsPublic(Boolean.TRUE.equals(req.getIsPublic()));
         n.setUpdatedAt(LocalDateTime.now());
         noteMapper.updateById(n);
-        // 便签更新，失效热门与最近缓存
-        try { noteCache.evictHotAll(); noteCache.evictRecentAll(); } catch (Exception ignored) {}
+        // 便签更新：已移除热门/最近缓存失效调用
         return n;
     }
 
@@ -162,8 +159,7 @@ public class NoteService {
             throw new RuntimeException("笔记不存在或无权限");
         }
         noteMapper.deleteById(id);
-        // 便签删除，失效热门与最近缓存
-        try { noteCache.evictHotAll(); noteCache.evictRecentAll(); } catch (Exception ignored) {}
+        // 便签删除：已移除热门/最近缓存失效调用
     }
 
     /**
@@ -308,95 +304,7 @@ public class NoteService {
      * 返回：
      * - {@link Page} 包装的 {@link NoteItem} 列表（当前页固定为 1）。
      */
-    public Page<NoteItem> recentPublic(Long userId, int size) {
-        if (size <= 0) size = 10;
-        // 先尝试读取缓存（不含用户态）
-        List<NoteItem> cached = (noteCache == null) ? null : noteCache.getRecent(size);
-        List<Long> ids;
-        List<NoteItem> baseItems;
-        if (cached != null && !cached.isEmpty()) {
-            baseItems = cached;
-            ids = cached.stream().map(NoteItem::getId).collect(Collectors.toList());
-        } else {
-            QueryWrapper<Note> qw = new QueryWrapper<>();
-            qw.eq("is_public", 1).eq("archived", 0).orderByDesc("updated_at");
-            Page<Note> np = noteMapper.selectPage(Page.of(1, size), qw);
-            List<Note> records = np.getRecords();
-            ids = records.stream().map(Note::getId).collect(Collectors.toList());
-
-            Map<Long, String> authorNameMap = new HashMap<>();
-            Map<Long, String> avatarUrlMap = new HashMap<>();
-            List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
-            if (!authorIds.isEmpty()) {
-                List<User> users = userMapper.selectBatchIds(authorIds);
-                for (User u : users) {
-                    String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
-                    authorNameMap.put(u.getId(), name);
-                    avatarUrlMap.put(u.getId(), u.getAvatarUrl());
-                }
-            }
-
-            Map<Long, Long> likeCountMap = new HashMap<>();
-            Map<Long, Long> favoriteCountMap = new HashMap<>();
-            if (!ids.isEmpty()) {
-                List<Map<String,Object>> likeCounts = likeMapper.countByNoteIds(ids);
-                for (Map<String,Object> m : likeCounts) {
-                    Long nid = ((Number)m.get("noteId")).longValue();
-                    Long cnt = ((Number)m.get("cnt")).longValue();
-                    likeCountMap.put(nid, cnt);
-                }
-                List<Map<String,Object>> favCounts = favoriteMapper.countByNoteIds(ids);
-                for (Map<String,Object> m : favCounts) {
-                    Long nid = ((Number)m.get("noteId")).longValue();
-                    Long cnt = ((Number)m.get("cnt")).longValue();
-                    favoriteCountMap.put(nid, cnt);
-                }
-            }
-
-            baseItems = records.stream().map(n -> {
-                NoteItem it = new NoteItem();
-                it.setId(n.getId());
-                it.setUserId(n.getUserId());
-                it.setAuthorName(authorNameMap.get(n.getUserId()));
-                it.setAvatarUrl(avatarUrlMap.get(n.getUserId()));
-                it.setContent(n.getContent());
-                it.setTags(n.getTags());
-                it.setColor(n.getColor());
-                it.setArchived(n.getArchived());
-                it.setIsPublic(n.getIsPublic());
-                it.setCreatedAt(n.getCreatedAt());
-                it.setUpdatedAt(n.getUpdatedAt());
-                it.setLikeCount(likeCountMap.getOrDefault(n.getId(), 0L));
-                it.setFavoriteCount(favoriteCountMap.getOrDefault(n.getId(), 0L));
-                return it;
-            }).collect(Collectors.toList());
-            // 写入缓存（不包含用户 liked/favorited 标记）
-            try { if (noteCache != null) noteCache.setRecent(size, baseItems); } catch (Exception ignored) {}
-        }
-
-        // 用户态补充
-        final Set<Long> likedSet;
-        final Set<Long> favoritedSet;
-        if (userId != null && userId > 0 && !ids.isEmpty()) {
-            List<Long> likedIds = likeMapper.findLikedNoteIdsByUser(userId, ids);
-            likedSet = likedIds.stream().collect(Collectors.toSet());
-            List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
-            favoritedSet = favoritedIds.stream().collect(Collectors.toSet());
-        } else {
-            likedSet = Set.of();
-            favoritedSet = Set.of();
-        }
-        List<NoteItem> items = baseItems.stream().map(it -> {
-            it.setLikedByMe(likedSet.contains(it.getId()));
-            it.setFavoritedByMe(favoritedSet.contains(it.getId()));
-            return it;
-        }).collect(Collectors.toList());
-
-        Page<NoteItem> ip = Page.of(1, size);
-        ip.setTotal(items.size());
-        ip.setRecords(items);
-        return ip;
-    }
+    // 已移除：recentPublic（最近公开拾言）。对应控制器路由 /api/notes/recent 已删除。
 
     /**
      * 热门公开便签
@@ -413,118 +321,7 @@ public class NoteService {
      * 返回：
      * - {@link Page} 包装的 {@link NoteItem} 列表（当前页固定为 1）。
      */
-    public Page<NoteItem> hotPublic(Long userId, int size, int days) {
-        if (size <= 0) size = 10;
-        if (days <= 0) days = 30;
-        // 先读取缓存（不含用户态）
-        List<NoteItem> cached = (noteCache == null) ? null : noteCache.getHot(size);
-        List<Long> ids;
-        List<NoteItem> baseItems;
-        if (cached != null && !cached.isEmpty()) {
-            baseItems = cached;
-            ids = cached.stream().map(NoteItem::getId).collect(Collectors.toList());
-        } else {
-            LocalDateTime since = LocalDateTime.now().minus(days, ChronoUnit.DAYS);
-            // 先取最近 N 天的公开便签（最多 300 条）
-            QueryWrapper<Note> qw = new QueryWrapper<>();
-            qw.eq("is_public", 1).eq("archived", 0).ge("updated_at", since).orderByDesc("updated_at");
-            Page<Note> np = noteMapper.selectPage(Page.of(1, 300), qw);
-            List<Note> records = np.getRecords();
-            if (records.isEmpty()) {
-                Page<NoteItem> empty = Page.of(1, size);
-                empty.setTotal(0);
-                empty.setRecords(java.util.Collections.emptyList());
-                return empty;
-            }
-            ids = records.stream().map(Note::getId).collect(Collectors.toList());
-
-            Map<Long, String> authorNameMap = new HashMap<>();
-            Map<Long, String> avatarUrlMap = new HashMap<>();
-            List<Long> authorIds = records.stream().map(Note::getUserId).distinct().collect(Collectors.toList());
-            if (!authorIds.isEmpty()) {
-                List<User> users = userMapper.selectBatchIds(authorIds);
-                for (User u : users) {
-                    String name = Optional.ofNullable(u.getNickname()).filter(s -> !s.isBlank()).orElse(u.getUsername());
-                    authorNameMap.put(u.getId(), name);
-                    avatarUrlMap.put(u.getId(), u.getAvatarUrl());
-                }
-            }
-
-            Map<Long, Long> likeCountMap = new HashMap<>();
-            Map<Long, Long> favoriteCountMap = new HashMap<>();
-            List<Map<String,Object>> likeCounts = likeMapper.countByNoteIds(ids);
-            for (Map<String,Object> m : likeCounts) {
-                Long nid = ((Number)m.get("noteId")).longValue();
-                Long cnt = ((Number)m.get("cnt")).longValue();
-                likeCountMap.put(nid, cnt);
-            }
-            List<Map<String,Object>> favCounts = favoriteMapper.countByNoteIds(ids);
-            for (Map<String,Object> m : favCounts) {
-                Long nid = ((Number)m.get("noteId")).longValue();
-                Long cnt = ((Number)m.get("cnt")).longValue();
-                favoriteCountMap.put(nid, cnt);
-            }
-
-            // 计算综合热度分：收藏权重 1.0，点赞权重 0.5，时效加权 0.2~1.0
-            Map<Long, Double> scoreMap = new HashMap<>();
-            for (Note n : records) {
-                long like = likeCountMap.getOrDefault(n.getId(), 0L);
-                long fav = favoriteCountMap.getOrDefault(n.getId(), 0L);
-                long hours = ChronoUnit.HOURS.between(n.getUpdatedAt(), LocalDateTime.now());
-                double decay = Math.max(0.2, 1.0 - (hours / (24.0 * days))); // 越新加权越高
-                double score = fav * 1.0 + like * 0.5 + decay;
-                scoreMap.put(n.getId(), score);
-            }
-            List<Note> sorted = records.stream()
-                    .sorted((a, b) -> Double.compare(scoreMap.getOrDefault(b.getId(), 0.0), scoreMap.getOrDefault(a.getId(), 0.0)))
-                    .limit(size)
-                    .collect(Collectors.toList());
-            baseItems = sorted.stream().map(n -> {
-                NoteItem it = new NoteItem();
-                it.setId(n.getId());
-                it.setUserId(n.getUserId());
-                it.setAuthorName(authorNameMap.get(n.getUserId()));
-                // 注入作者头像：数据库保存的是相对路径（如 "/uploads/avatars/xxx.jpg"），
-                // 前端通过 avatarFullUrl(base 去掉 /api 前缀) 拼接成完整访问地址。
-                // 之前遗漏该字段会导致热门列表头像不展示，这里补上。
-                it.setAvatarUrl(avatarUrlMap.get(n.getUserId()));
-                it.setContent(n.getContent());
-                it.setTags(n.getTags());
-                it.setColor(n.getColor());
-                it.setArchived(n.getArchived());
-                it.setIsPublic(n.getIsPublic());
-                it.setCreatedAt(n.getCreatedAt());
-                it.setUpdatedAt(n.getUpdatedAt());
-                it.setLikeCount(likeCountMap.getOrDefault(n.getId(), 0L));
-                it.setFavoriteCount(favoriteCountMap.getOrDefault(n.getId(), 0L));
-                return it;
-            }).collect(Collectors.toList());
-            try { if (noteCache != null) noteCache.setHot(size, baseItems); } catch (Exception ignored) {}
-        }
-
-        // 用户态补充
-        final Set<Long> likedSet;
-        final Set<Long> favoritedSet;
-        if (userId != null && userId > 0 && !ids.isEmpty()) {
-            List<Long> likedIds = likeMapper.findLikedNoteIdsByUser(userId, ids);
-            likedSet = likedIds.stream().collect(Collectors.toSet());
-            List<Long> favoritedIds = favoriteMapper.findFavoritedNoteIdsByUser(userId, ids);
-            favoritedSet = favoritedIds.stream().collect(Collectors.toSet());
-        } else {
-            likedSet = Set.of();
-            favoritedSet = Set.of();
-        }
-        List<NoteItem> items = baseItems.stream().map(it -> {
-            it.setLikedByMe(likedSet.contains(it.getId()));
-            it.setFavoritedByMe(favoritedSet.contains(it.getId()));
-            return it;
-        }).collect(Collectors.toList());
-
-        Page<NoteItem> ip = Page.of(1, size);
-        ip.setTotal(items.size());
-        ip.setRecords(items);
-        return ip;
-    }
+    // 已移除：hotPublic（热门公开拾言）。对应控制器路由 /api/notes/hot 已删除。
 
     /**
      * 批量导入拾言
@@ -613,8 +410,7 @@ public class NoteService {
             try { if (messageService != null) messageService.createLikeMessage(userId, noteId); } catch (Exception ignored) {}
         }
         long count = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId));
-        // 点赞变化影响热门，失效热门缓存
-        try { if (noteCache != null) noteCache.evictHotAll(); } catch (Exception ignored) {}
+        // 点赞变化：已移除热门缓存的失效调用
         return Map.of("count", count, "likedByMe", true);
     }
 
@@ -637,7 +433,7 @@ public class NoteService {
         }
         likeMapper.delete(new QueryWrapper<NoteLike>().eq("note_id", noteId).eq("user_id", userId));
         long count = likeMapper.selectCount(new QueryWrapper<NoteLike>().eq("note_id", noteId));
-        try { if (noteCache != null) noteCache.evictHotAll(); } catch (Exception ignored) {}
+        // 取消点赞：已移除热门缓存的失效调用
         return Map.of("count", count, "likedByMe", false);
     }
 
@@ -693,8 +489,7 @@ public class NoteService {
             try { if (messageService != null) messageService.createFavoriteMessage(userId, noteId); } catch (Exception ignored) {}
         }
         long count = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId));
-        // 收藏变化影响热门，失效热门缓存
-        try { if (noteCache != null) noteCache.evictHotAll(); } catch (Exception ignored) {}
+        // 收藏变化：已移除热门缓存的失效调用
         return Map.of("count", count, "favoritedByMe", true);
     }
 
@@ -717,7 +512,7 @@ public class NoteService {
         }
         favoriteMapper.delete(new QueryWrapper<NoteFavorite>().eq("note_id", noteId).eq("user_id", userId));
         long count = favoriteMapper.selectCount(new QueryWrapper<NoteFavorite>().eq("note_id", noteId));
-        try { if (noteCache != null) noteCache.evictHotAll(); } catch (Exception ignored) {}
+        // 取消收藏：已移除热门缓存的失效调用
         return Map.of("count", count, "favoritedByMe", false);
     }
 

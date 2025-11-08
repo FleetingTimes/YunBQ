@@ -282,51 +282,10 @@ public class NoteController {
         return ResponseEntity.ok(resp);
     }
 
-    // 最近公开便签（匿名可访问）
-    @GetMapping("/recent")
-    /**
-     * 最近公开便签（分页）。
-     *
-     * @param size 每页条数，默认 10
-     * @return 200 OK，分页结果，仅包含公开内容
-     *
-     * 说明：匿名可访问；登录用户附带用户态标记（点赞/收藏）。
-     */
-    public ResponseEntity<PageResult<NoteItem>> recent(@RequestParam(defaultValue = "10") int size) {
-        Long uid = AuthUtil.currentUserId();
-        log.info("[NoteController] GET /api/notes/recent called, uid={}, size={} ", uid, size);
-        Page<NoteItem> p = noteService.recentPublic(uid, size);
-        PageResult<NoteItem> resp = new PageResult<>();
-        resp.setItems(p.getRecords());
-        resp.setTotal(p.getTotal());
-        resp.setPage(p.getCurrent());
-        resp.setSize(p.getSize());
-        return ResponseEntity.ok(resp);
-    }
-
-    // 热门公开便签（按综合热度排序，匿名可访问）
-    @GetMapping("/hot")
-    /**
-     * 热门公开便签（分页）。
-     *
-     * @param size 每页条数，默认 10
-     * @param days 热度统计窗口天数，默认 30
-     * @return 200 OK，分页结果，按综合热度降序
-     *
-     * 说明：匿名可访问；登录用户附带用户态标记（点赞/收藏）。
-     */
-    public ResponseEntity<PageResult<NoteItem>> hot(@RequestParam(defaultValue = "10") int size,
-                                                    @RequestParam(defaultValue = "30") int days) {
-        Long uid = AuthUtil.currentUserId();
-        log.info("[NoteController] GET /api/notes/hot called, uid={}, size={}, days={} ", uid, size, days);
-        Page<NoteItem> p = noteService.hotPublic(uid, size, days);
-        PageResult<NoteItem> resp = new PageResult<>();
-        resp.setItems(p.getRecords());
-        resp.setTotal(p.getTotal());
-        resp.setPage(p.getCurrent());
-        resp.setSize(p.getSize());
-        return ResponseEntity.ok(resp);
-    }
+    // 已移除：最近/热门公开拾言端点
+    // 说明：按需求彻底下线“最近便签”和“热门便签”功能，因此删除
+    // GET /api/notes/recent 与 GET /api/notes/hot 两个路由及对应服务方法调用。
+    // 这样可以避免无效接口暴露与误用，同时确保控制层不再依赖已移除的服务逻辑。
 
     /**
      * 导入拾言（批量）

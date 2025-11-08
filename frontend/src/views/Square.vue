@@ -78,8 +78,10 @@ const { sideNavSections: sections, loading: sectionsLoading, error: sectionsErro
 
 const query = ref('')
 function onSearch(q){ query.value = q || '' }
-// 侧栏当前高亮项（与右侧滚动联动），初始化为热门区
-const activeId = ref('hot')
+// 侧栏当前高亮项（与右侧滚动联动）
+// 说明：原默认为 'hot'（热门便签区），现已下线“最近/热门便签”功能，避免引用失效分区，
+// 将默认高亮改为一个有效分区 'site'（站点集合），其余别名由 SquareBody 的映射逻辑接管。
+const activeId = ref('site')
 // 引用正文组件实例以桥接滚动方法
 const bodyRef = ref(null)
 function onSelect(id){
