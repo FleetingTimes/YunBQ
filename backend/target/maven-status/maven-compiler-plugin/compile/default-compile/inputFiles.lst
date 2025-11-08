@@ -31,6 +31,7 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\dto\RegisterRequ
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\NoteController.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\CaptchaService.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\YunbqBackendApplication.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\config\CacheConfigRedis.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\NoteMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\security\SecurityConfig.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\MessageController.java
@@ -62,4 +63,5 @@ E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\controller\Navig
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\mapper\AuthLogMapper.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\model\User.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\exception\GlobalExceptionHandler.java
+E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\config\CacheConfig.java
 E:\Trea_WorkSpace\YunBQ\backend\src\main\java\com\yunbq\backend\service\UserService.java

@@ -1,0 +1,28 @@
+# Redis 分布式缓存配置示例（按需修改）
+# 生效方式：在启动参数或环境变量中设置 spring.profiles.active=redis
+
+spring:
+  profiles:
+    active: redis
+
+  data:
+    redis:
+      host: 127.0.0.1           # Redis 主机地址（修改为你的环境）
+      port: 6379                # Redis 端口
+      # password: your_password # 如有密码，取消注释并填写
+      # ssl: false              # 如需启用 TLS/SSL
+      # timeout: 2000ms         # 连接与操作超时
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  cache:
+    type: redis                 # 指定缓存类型为 Redis（使用自定义 CacheManager 时可选）
+
+logging:
+  level:
+    org.springframework.cache: INFO
+    org.springframework.data.redis: INFO

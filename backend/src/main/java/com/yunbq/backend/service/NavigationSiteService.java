@@ -17,6 +17,9 @@ import java.util.Map;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 
 /**
  * 导航站点服务（NavigationSiteService）
@@ -38,10 +41,13 @@ public class NavigationSiteService {
     
     private final NavigationSiteMapper siteMapper;
     private final NavigationCategoryMapper categoryMapper;
+    // 注入 CacheManager 以在写操作后进行精确的缓存失效
+    private final CacheManager cacheManager;
     
-    public NavigationSiteService(NavigationSiteMapper siteMapper, NavigationCategoryMapper categoryMapper) {
+    public NavigationSiteService(NavigationSiteMapper siteMapper, NavigationCategoryMapper categoryMapper, CacheManager cacheManager) {
         this.siteMapper = siteMapper;
         this.categoryMapper = categoryMapper;
+        this.cacheManager = cacheManager;
     }
 
     /**
@@ -131,6 +137,13 @@ public class NavigationSiteService {
      * 返回：
      * - 站点列表（按排序权重升序）。
      */
+    /**
+     * 分类站点列表查询（带缓存）
+     * 缓存键：`sites_by_category::categoryId`
+     * 生效范围：仅启用站点，按排序返回稳定顺序。
+     * 失效策略：在创建/更新/删除/启用状态切换/排序调整等写操作后精确失效。
+     */
+    @Cacheable(cacheNames = "sites_by_category", key = "#categoryId")
     public List<NavigationSite> getSitesByCategory(Long categoryId) {
         // 修复：Mapper 方法名与 Service 不一致
         // 说明：NavigationSiteMapper 中定义的方法为 selectByCategoryId(Long categoryId)，
@@ -146,6 +159,12 @@ public class NavigationSiteService {
      * 返回：
      * - 推荐站点列表（按点击次数降序）。
      */
+    /**
+     * 推荐站点查询（带缓存）
+     * 缓存键：`sites_featured::limit`
+     * 失效策略：在推荐状态切换与批量导入写操作后清理（全部或相关）。
+     */
+    @Cacheable(cacheNames = "sites_featured", key = "#limit")
     public List<NavigationSite> getFeaturedSites(int limit) {
         // 修复：Mapper 方法名与 Service 不一致
         // 说明：NavigationSiteMapper 中定义的方法为 selectFeaturedSites(int limit)，
@@ -161,6 +180,12 @@ public class NavigationSiteService {
      * 返回：
      * - 热门站点列表（按点击次数降序）。
      */
+    /**
+     * 热门站点查询（带缓存）
+     * 缓存键：`sites_popular::limit`
+     * 失效策略：在点击次数自增与批量导入写操作后清理（全部或相关）。
+     */
+    @Cacheable(cacheNames = "sites_popular", key = "#limit")
     public List<NavigationSite> getPopularSites(int limit) {
         // 修复：Mapper 方法名与 Service 不一致
         // 说明：NavigationSiteMapper 中定义的方法为 selectPopularSites(int limit)，
@@ -358,6 +383,10 @@ public class NavigationSiteService {
         }
         
         siteMapper.insert(site);
+        // 写操作后：精确失效分类缓存，保证新站点及时可见
+        evictCategoryCache(site.getCategoryId());
+        // 新站点默认不影响热门/推荐，但为简洁可依赖 60s 过期；如需更强一致性可清理：
+        // clearCache("sites_featured"); clearCache("sites_popular");
         return site;
     }
     
@@ -432,7 +461,11 @@ public class NavigationSiteService {
         updateWrapper.set("updated_at", LocalDateTime.now());
         
         siteMapper.update(null, updateWrapper);
-        return siteMapper.selectById(id);
+        NavigationSite updated = siteMapper.selectById(id);
+        // 写操作后：精确失效分类缓存（老分类与新分类）
+        evictCategoryCache(existingSite.getCategoryId());
+        evictCategoryCache(updated.getCategoryId());
+        return updated;
     }
 
     /**
@@ -551,12 +584,17 @@ public class NavigationSiteService {
             }
         }
 
-        return Map.of(
+        Map<String, Object> summary = Map.of(
             "total", total,
             "created", created,
             "updated", updated,
             "errors", errors
         );
+        // 批量导入后：由于涉及多分类及推荐/热门，统一清理相关缓存
+        clearCache("sites_by_category");
+        clearCache("sites_featured");
+        clearCache("sites_popular");
+        return summary;
     }
 
     /**
@@ -572,6 +610,8 @@ public class NavigationSiteService {
         }
         
         siteMapper.deleteById(id);
+        // 删除后：失效所属分类缓存
+        evictCategoryCache(site.getCategoryId());
     }
     
     /**
@@ -588,7 +628,11 @@ public class NavigationSiteService {
         }
         
         siteMapper.incrementClickCount(id);
-        return siteMapper.selectById(id);
+        NavigationSite updated = siteMapper.selectById(id);
+        // 点击数变动可能影响热门/推荐排序：清理相关缓存
+        clearCache("sites_popular");
+        clearCache("sites_featured");
+        return updated;
     }
     
     /**
@@ -609,6 +653,12 @@ public class NavigationSiteService {
             updateWrapper.set("sort_order", i + 1);
             updateWrapper.set("updated_at", LocalDateTime.now());
             siteMapper.update(null, updateWrapper);
+        }
+        // 排序变动后：失效对应分类缓存（若未指定分类，考虑清理全部分类缓存）
+        if (categoryId != null) {
+            evictCategoryCache(categoryId);
+        } else {
+            clearCache("sites_by_category");
         }
     }
     
@@ -631,7 +681,10 @@ public class NavigationSiteService {
         updateWrapper.set("updated_at", LocalDateTime.now());
         
         siteMapper.update(null, updateWrapper);
-        return siteMapper.selectById(id);
+        NavigationSite updated = siteMapper.selectById(id);
+        // 启用状态切换：影响分类列表，清理相应分类缓存
+        evictCategoryCache(updated.getCategoryId());
+        return updated;
     }
     
     /**
@@ -653,7 +706,35 @@ public class NavigationSiteService {
         updateWrapper.set("updated_at", LocalDateTime.now());
         
         siteMapper.update(null, updateWrapper);
-        return siteMapper.selectById(id);
+        NavigationSite updated = siteMapper.selectById(id);
+        // 推荐状态切换：影响推荐缓存
+        clearCache("sites_featured");
+        return updated;
+    }
+
+    // ==================== 缓存工具方法 ====================
+
+    /**
+     * 精确清理分类缓存
+     * 参数：categoryId 非空时清理 `sites_by_category::categoryId`；为空不处理。
+     */
+    private void evictCategoryCache(Long categoryId) {
+        if (categoryId == null) return;
+        Cache cache = cacheManager.getCache("sites_by_category");
+        if (cache != null) {
+            cache.evict(categoryId);
+        }
+    }
+
+    /**
+     * 清空指定缓存名称的所有条目
+     * 使用场景：推荐/热门缓存在排序依据变更（点击数、推荐状态）后统一清理。
+     */
+    private void clearCache(String cacheName) {
+        Cache cache = cacheManager.getCache(cacheName);
+        if (cache != null) {
+            cache.clear();
+        }
     }
     
     /**

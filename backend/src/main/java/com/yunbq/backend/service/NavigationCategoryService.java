@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yunbq.backend.mapper.NavigationCategoryMapper;
 import com.yunbq.backend.model.NavigationCategory;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,9 +34,12 @@ import java.util.Map;
 public class NavigationCategoryService {
     
     private final NavigationCategoryMapper categoryMapper;
+    // 注入 CacheManager：用于在分类写操作后执行精确的缓存清理
+    private final CacheManager cacheManager;
     
-    public NavigationCategoryService(NavigationCategoryMapper categoryMapper) {
+    public NavigationCategoryService(NavigationCategoryMapper categoryMapper, CacheManager cacheManager) {
         this.categoryMapper = categoryMapper;
+        this.cacheManager = cacheManager;
     }
     
     /**
@@ -44,6 +49,12 @@ public class NavigationCategoryService {
      * 返回：
      * - 一级分类列表。
      */
+    /**
+     * 启用的一级分类（根分类）查询（带缓存）
+     * 缓存名：`categories_root`
+     * 说明：用于渲染导航栏的一级分类；读多写少场景下提升响应性能。
+     */
+    @Cacheable(cacheNames = "categories_root")
     public List<NavigationCategory> getRootCategories() {
         return categoryMapper.selectRootCategories();
     }
@@ -64,6 +75,12 @@ public class NavigationCategoryService {
      * 返回：
      * - 启用状态为 true 的全部分类列表。
      */
+    /**
+     * 启用的全部分类（含一级与二级）查询（带缓存）
+     * 缓存名：`categories_enabled`
+     * 说明：用于一次性加载完整导航树（/categories/all）。
+     */
+    @Cacheable(cacheNames = "categories_enabled")
     public List<NavigationCategory> getAllEnabledCategories() {
         return categoryMapper.selectAllEnabled();
     }
@@ -228,6 +245,8 @@ public class NavigationCategoryService {
         }
         
         categoryMapper.insert(category);
+        // 写操作后：清理分类相关缓存，确保导航栏数据刷新
+        clearCategoryCaches();
         return category;
     }
     
@@ -313,6 +332,8 @@ public class NavigationCategoryService {
         updateWrapper.set("updated_at", LocalDateTime.now());
         
         categoryMapper.update(null, updateWrapper);
+        // 写操作后：清理分类相关缓存
+        clearCategoryCaches();
         return categoryMapper.selectById(id);
     }
     
@@ -348,6 +369,8 @@ public class NavigationCategoryService {
         // 这里需要注入NavigationSiteMapper来检查
         
         categoryMapper.deleteById(id);
+        // 写操作后：清理分类相关缓存
+        clearCategoryCaches();
     }
     
     /**
@@ -376,6 +399,8 @@ public class NavigationCategoryService {
             updateWrapper.set("updated_at", LocalDateTime.now());
             categoryMapper.update(null, updateWrapper);
         }
+        // 排序调整后：清理分类相关缓存
+        clearCategoryCaches();
     }
     
     /**
@@ -402,6 +427,8 @@ public class NavigationCategoryService {
         updateWrapper.set("updated_at", LocalDateTime.now());
         
         categoryMapper.update(null, updateWrapper);
+        // 状态切换后：清理分类相关缓存
+        clearCategoryCaches();
         return categoryMapper.selectById(id);
     }
 
@@ -527,11 +554,38 @@ public class NavigationCategoryService {
             }
         }
 
+        // 导入执行完成：清理分类相关缓存，确保前端获取到最新的导航结构
+        clearCategoryCaches();
+
         return Map.of(
             "total", total,
             "created", created,
             "updated", updated,
             "errors", errors
         );
+    }
+
+    // ==================== 缓存辅助方法 ====================
+    /**
+     * 清理与导航分类相关的缓存（统一入口）
+     * 包含：
+     * - categories_root：一级分类缓存（导航栏使用）
+     * - categories_enabled：启用的全部分类缓存（含一级与二级）
+     */
+    private void clearCategoryCaches() {
+        clearCache("categories_root");
+        clearCache("categories_enabled");
+    }
+
+    /**
+     * 清理指定名称的缓存
+     * 若缓存未初始化（尚未命中），安全跳过。
+     * @param cacheName 缓存名称
+     */
+    private void clearCache(String cacheName) {
+        var cache = cacheManager.getCache(cacheName);
+        if (cache != null) {
+            cache.clear();
+        }
     }
 }

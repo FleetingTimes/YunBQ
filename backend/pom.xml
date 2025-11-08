@@ -77,6 +77,23 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
+    <!--
+      Spring Cache 核心依赖：提供 @Cacheable/@CacheEvict 等注解能力与缓存抽象。
+      说明：与具体缓存实现（Caffeine/Redis 等）配合使用，这里选择本地内存 Caffeine。
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-cache</artifactId>
+    </dependency>
+    <!--
+      Caffeine 本地缓存：高性能的本地内存缓存实现，支持最大容量与过期时间策略。
+      使用场景：分类站点列表、热门/推荐站点等读多写少的查询结果缓存。
+    -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+      <version>3.1.8</version>
+    </dependency>
   </dependencies>
   <build>
     <plugins>

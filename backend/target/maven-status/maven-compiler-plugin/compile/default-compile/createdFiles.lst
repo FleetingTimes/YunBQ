@@ -35,6 +35,7 @@ com\yunbq\backend\service\MessageService.class
 com\yunbq\backend\config\DbMigrationRunner.class
 com\yunbq\backend\controller\NavigationController$2.class
 com\yunbq\backend\service\PasswordResetService.class
+com\yunbq\backend\config\CacheConfigRedis.class
 com\yunbq\backend\exception\GlobalExceptionHandler.class
 com\yunbq\backend\model\ErrorLog.class
 com\yunbq\backend\controller\AdminController$2.class
@@ -50,6 +51,7 @@ com\yunbq\backend\dto\AuthRequest.class
 com\yunbq\backend\model\Message.class
 com\yunbq\backend\job\LogRetentionScheduler.class
 com\yunbq\backend\service\NoteService$Parsed.class
+com\yunbq\backend\config\CacheConfig.class
 com\yunbq\backend\dto\RegisterRequest.class
 com\yunbq\backend\controller\HealthController.class
 com\yunbq\backend\YunbqBackendApplication.class
