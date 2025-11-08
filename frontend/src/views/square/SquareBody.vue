@@ -262,6 +262,23 @@ function startIdlePrefetch(){
   scheduleNextIdle()
 }
 
+/**
+ * 停止当前的空闲预取调度（辅助方法）
+ * 背景：sections 在异步加载完成后，allCardIds 会从空变为非空；
+ * 若不停止旧的调度并重新初始化，可能出现“不再预取后续卡片”的情况。
+ * 行为：根据环境取消 requestIdleCallback 或清理 setTimeout，释放句柄。
+ */
+function stopIdlePrefetch(){
+  try {
+    if (idleHandle && 'cancelIdleCallback' in window) {
+      window.cancelIdleCallback(idleHandle)
+    } else if (idleHandle) {
+      clearTimeout(idleHandle)
+    }
+  } catch {}
+  idleHandle = null
+}
+
 // 工具函数：刷新登录状态
 function refreshAuth(){
   try{ 
@@ -478,6 +495,22 @@ onMounted(async () => {
 
   // 初始化分层预加载：首屏少量 + 空闲后台
   initLayeredPrefetch()
+
+  // 监听导航卡片集合变化：在 sections 异步到位后重新初始化空闲预取
+  // 说明：父组件传入的 sections/内部 useNavigation 的 sideNavSections 均为异步加载；
+  // onMounted 时 allCardIds 可能为空，导致仅活跃项被加入 forceLoadIds，其余卡片未触发预取。
+  // 当 allCardIds 长度增加（说明导航数据已到位或扩展）时，停止旧调度并重新初始化预取流程。
+  watch(() => allCardIds.value, (newIds, oldIds) => {
+    const n = Array.isArray(newIds) ? newIds.length : 0
+    const o = Array.isArray(oldIds) ? oldIds.length : 0
+    if (n > o && n > 0) {
+      // 停止之前的空闲预取调度，避免重复与资源浪费
+      stopIdlePrefetch()
+      // 重置进度索引，并按当前渲染顺序重新进行“首屏少量 + 空闲后台”预取
+      prefetchIndex.value = 0
+      initLayeredPrefetch()
+    }
+  }, { deep: false })
   
   // 清理函数
   onUnmounted(() => {
@@ -488,13 +521,7 @@ onMounted(async () => {
       container.removeEventListener('scroll', handleScroll)
     }
     // 释放后台预取调度句柄
-    try {
-      if (idleHandle && 'cancelIdleCallback' in window) {
-        window.cancelIdleCallback(idleHandle)
-      } else if (idleHandle) {
-        clearTimeout(idleHandle)
-      }
-    } catch {}
+    stopIdlePrefetch()
   })
 })
 

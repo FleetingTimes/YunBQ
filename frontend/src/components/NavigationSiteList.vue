@@ -50,8 +50,9 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-// 导航 API：按需导入函数（命名导出）
-import { getSitesByCategory, incrementClickCount } from '@/api/navigation'
+// 说明：点击计数仍走 API；站点列表数据改为复用 useNavigation 的共享缓存
+import { incrementClickCount } from '@/api/navigation'
+import { useNavigation } from '@/composables/useNavigation'
 
 /**
  * Props 约定：
@@ -79,8 +80,21 @@ const props = defineProps({
   deferLoad: { type: Boolean, default: true }
 })
 
-// 响应式数据
-const sites = ref([]) // 站点列表
+// 共享存储复用（核心改造）：
+// - 通过 useNavigation 访问跨组件共享的站点缓存，避免重复请求与二次骨架；
+// - 读取：getSitesByCategoryId(categoryId) 返回已缓存的数组；
+// - 拉取：fetchSitesByCategory(categoryId) 若未缓存则请求后端并写入共享缓存。
+const { getSitesByCategoryId, fetchSitesByCategory } = useNavigation()
+
+// 站点列表：改为计算属性，直接读取共享缓存中对应分类的数据
+// 设计意图：
+// - 组件不再维护本地 sites 副本，消除“同一分类多处实例各自请求”的问题；
+// - 当其他卡片或后台预取已写入共享缓存时，本组件可直接渲染，无需等待与骨架。
+const sites = computed(() => {
+  const cid = props.categoryId
+  const arr = getSitesByCategoryId(Number.isInteger(cid) ? cid : -1)
+  return Array.isArray(arr) ? arr : []
+})
 const isLoading = ref(false) // 加载状态
 const page = ref(1) // 当前页码
 const pageInput = ref(1) // 页码输入框
@@ -95,29 +109,31 @@ const cardRef = ref(null)
 async function loadSites() {
   // 1) 分类ID合法性校验：避免发起 /category/undefined 等错误请求
   // 说明：当使用默认后备导航（无后端分类）时，传入的 categoryId 可能为 undefined；
-  // 此处先判断是否为正整数，若非法则直接清空数据并退出，保证组件稳健。
+  // 此处先判断是否为正整数，若非法则直接退出，保持空态即可。
   const isValidId = Number.isInteger(props.categoryId) && props.categoryId > 0
   if (!isValidId) {
-    sites.value = []
     return
   }
 
   try {
+    // 2) 共享缓存命中快速路径：若已有数据，直接标记已加载并重置分页，无需等待与骨架
+    if ((sites.value?.length || 0) > 0) {
+      page.value = 1
+      pageInput.value = 1
+      hasLoaded.value = true
+      return
+    }
+
+    // 3) 未命中时触发共享拉取：fetchSitesByCategory 内部负责写入共享缓存与错误兜底
     isLoading.value = true
-    const resp = await getSitesByCategory(props.categoryId)
-    // 后端现在返回 camelCase 格式的字段名，直接使用即可
-    // MyBatis 和 Jackson 配置确保了字段名的一致性
-    const rawList = Array.isArray(resp?.data) ? resp.data : []
-    sites.value = rawList
-    // 每次重新加载时将页码重置为 1，并同步页码输入
+    await fetchSitesByCategory(props.categoryId)
+    // 拉取完成后，分页归位并标记已加载
     page.value = 1
     pageInput.value = 1
-    // 标记已完成首次加载（用于懒加载 gating）
     hasLoaded.value = true
   } catch (error) {
-    // 3) 失败兜底：记录错误到控制台，避免中断交互；UI 显示骨架或空态
-    console.error('加载站点失败:', error)
-    sites.value = []
+    // 4) 失败兜底：记录错误到控制台，避免中断交互；UI 由骨架或空态承接
+    console.error('加载站点失败（共享缓存拉取）：', error)
   } finally {
     isLoading.value = false
   }
@@ -220,8 +236,7 @@ watch(() => props.categoryId, (newId) => {
     hasLoaded.value = false
     loadSites()
   } else {
-    // 非法ID：清空数据，保持空态
-    sites.value = []
+    // 非法ID：保持空态（共享缓存读取将返回空数组）
   }
 })
 
