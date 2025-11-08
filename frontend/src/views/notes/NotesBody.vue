@@ -1,10 +1,14 @@
 <template>
   <div>
+    <!-- 顶部弹幕流：统一速度 + 数量上限，避免搜索首屏过于拥挤 -->
     <DanmuWall
       :items="notes"
       :rows="danmuRows"
       :speed-scale="danmuSpeedScale"
       :highlight-id="danmuHighlightId"
+      :same-speed="true"
+      :uniform-duration="16"
+      :max-visible="danmuRows * 3"
       @itemClick="toggleLikeById"
     />
 

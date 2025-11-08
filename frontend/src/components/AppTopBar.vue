@@ -64,7 +64,13 @@
           <span v-if="hasNewMessages" class="badge new" aria-label="有新消息">NEW</span>
         </el-button>
       </el-tooltip>
-      <template v-if="authed">
+      <!-- 认证渲染防闪烁：仅在 authReady=true 后根据 authed 决定显示头像或登录按钮。
+           说明：避免在页面跳转时先显示“登录/注册”，待 /account/me 返回后再切换为头像的闪烁现象。
+           实现：
+           - authReady 初始为 false；有 token 时优先用会话缓存预填 me，再异步刷新；
+           - 无 token 时立即置 authReady=true，直接显示登录/注册；
+           - 当 authReady=false 时，右侧区域保持静默（不显示登录按钮），从而消除闪烁。 -->
+      <template v-if="authReady && authed">
       <div class="profile-trigger" @mouseenter="onHoverEnter" @mouseleave="onHoverLeave">
         <div class="trigger-ref" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
           <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
@@ -198,7 +204,7 @@
         </div>
       </div>
       </template>
-      <template v-else>
+      <template v-else-if="authReady">
         <div style="display:flex; gap:8px;">
           <el-button @click="goLogin">登录</el-button>
           <el-button type="primary" @click="goRegister">注册</el-button>
@@ -333,7 +339,13 @@ const emit = defineEmits(['search'])
 const router = useRouter()
 const route = useRoute()
 const q = ref('')
+// 用户信息（顶栏展示）。
+// 问题修复：页面跳转时出现“先显示登录/注册，稍后显示头像”的闪烁。
+// 原因：组件挂载时 me 为空，模板按 authed=false 显示登录按钮；待 /account/me 返回后才切为头像。
+// 方案：引入 authReady 与会话缓存预填，避免在“已登录但尚未刷新”阶段显示登录按钮。
 const me = reactive({ username:'', nickname:'', avatarUrl:'', email:'', role:'', signature:'' })
+const authReady = ref(false)
+const ME_CACHE_KEY = 'me-cache'
 const profileVisible = ref(false)
 const editVisible = ref(false)
 const infoEditing = ref(false)
@@ -391,7 +403,20 @@ function emitSearch(){
 }
 
 onMounted(() => { 
-  loadMe()
+  // 有 token：尝试会话缓存预填，随后刷新；无 token：直接标记已就绪。
+  try {
+    if (getToken()) {
+      const cached = sessionStorage.getItem(ME_CACHE_KEY)
+      if (cached) {
+        try { Object.assign(me, JSON.parse(cached)) } catch {}
+      }
+      // 异步刷新最新用户信息，完成后标记 authReady
+      loadMe().finally(() => { authReady.value = true })
+    } else {
+      // 无 token：无需等待刷新，直接允许显示登录入口
+      authReady.value = true
+    }
+  } catch { authReady.value = true }
   // 首次加载未读消息情况；未登录会 401，被拦截器抑制或此处自行忽略
   loadUnread()
   // 添加滚动事件监听
@@ -423,6 +448,8 @@ async function loadMe(){
     // 在未登录时可能返回 401，抑制全局拦截器重定向
     const { data } = await http.get('/account/me', { suppress401Redirect: true })
     Object.assign(me, data)
+    // 刷新会话缓存：加速后续页面跳转的顶栏渲染，减少闪烁
+    try { sessionStorage.setItem(ME_CACHE_KEY, JSON.stringify(me)) } catch {}
   }catch(e){
     // 未登录或 token 失效时，顶栏保持未登录状态即可，避免干扰当前页面跳转
     // 受保护页面的跳转由全局路由守卫处理（redirect 到登录）
@@ -432,6 +459,8 @@ async function loadMe(){
       me.avatarUrl = ''
       me.email = ''
       me.role = ''
+      // 清除会话缓存，确保后续不误显示过期头像/昵称
+      try { sessionStorage.removeItem(ME_CACHE_KEY) } catch {}
     }
   }
 }

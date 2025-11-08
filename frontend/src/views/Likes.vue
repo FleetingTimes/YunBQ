@@ -33,7 +33,21 @@
         </div>
 
         <!-- 弹幕墙：仅在非空时展示，用于增强页面动效与氛围 -->
-        <DanmuWall v-if="!isEmpty" :items="danmuItems" :rows="6" :speed-scale="1.35" />
+<!--
+  弹幕墙（喜欢页顶部）：统一速度 + 数量上限，避免拥挤与遮挡
+  - same-speed：所有弹幕使用相同动画时长；
+  - uniform-duration：统一的动画时长（秒），与线性动画配合实现相同速度；
+  - max-visible：限制总展示数量（按行均分）。
+-->
+<DanmuWall
+  v-if="!isEmpty"
+  :items="danmuItems"
+  :rows="6"
+  :speed-scale="1.35"
+  :same-speed="true"
+  :uniform-duration="16"
+  :max-visible="18"
+/>
 
         <!-- 年份分组时间线：在非空时按年分组展示喜欢的便签列表 -->
         <div class="year-groups" v-if="!isEmpty">
