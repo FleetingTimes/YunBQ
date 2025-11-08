@@ -67,6 +67,16 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-redis</artifactId>
     </dependency>
+    <!--
+      健康检查与运维端点（Actuator）：
+      - 提供 /actuator/health、/actuator/info 等端点，用于探测服务存活与基础状态；
+      - 与日志滚动配合，便于部署与监控。
+      说明：Spring Boot 3 使用 jakarta 命名空间，确保版本与父 POM 对齐。
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
   </dependencies>
   <build>
     <plugins>

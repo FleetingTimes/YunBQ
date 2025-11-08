@@ -69,6 +69,14 @@ public class SecurityConfig {
                 .requestMatchers("/api/captcha/**").permitAll()
                 .requestMatchers("/api/debug/**").permitAll()
                 .requestMatchers("/uploads/**").permitAll()
+                // —— 运维端点（Actuator）健康检查放行 ——
+                // 说明：允许匿名探测 /actuator/health 与 /actuator/info，便于负载均衡与监控系统判断存活；
+                // 注意：仅放行只读的健康与信息端点，其他写端点保持受保护状态。
+                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                .requestMatchers(HttpMethod.HEAD, "/actuator/health").permitAll()
+                .requestMatchers(HttpMethod.GET, "/actuator/info").permitAll()
+                // 自定义简化健康检查端点：/healthz（用于负载均衡与开发探针），允许匿名访问
+                .requestMatchers(HttpMethod.GET, "/healthz").permitAll()
                 // 允许匿名访问公开便签的查询接口
                 .requestMatchers(HttpMethod.GET, "/api/notes").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notes/**").permitAll()

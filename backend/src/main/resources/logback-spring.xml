@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback 滚动日志配置（针对 Spring Boot 3）
+  目标与设计：
+  - 将运行日志写入文件 logs/app.log，并按“时间+大小”进行滚动；
+  - 控制台与文件使用一致的格式，包含 MDC（例如 requestId）便于跨模块关联；
+  - 保留最近 30 天的归档日志，并限制总归档大小，避免磁盘占满。
+
+  使用说明：
+  - 当前日志文件：logs/app.log
+  - 归档命名：logs/app.%d{yyyy-MM-dd}.%i.log.gz（按天切分，每天内按大小分片）
+  - 切分策略：每天滚动，单片最大 10MB，最多保留 30 天，归档总量上限 1GB。
+  - 日志级别可在 application.yml 的 logging.level 中按包名调整（例如 org.springframework.security）。
+-->
+<configuration scan="true" scanPeriod="60 seconds">
+
+    <!-- 通用日志格式：包含时间、级别、线程、日志器与消息，并附带 MDC（如 requestId） -->
+    <property name="CONSOLE_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg %mdc%n"/>
+    <property name="FILE_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg %mdc%n"/>
+
+    <!-- 控制台输出：开发环境下直观查看 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- 文件滚动输出：生产环境与本地问题排查均推荐启用 -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <!-- 当前写入的日志文件路径；若目录不存在，Logback 会尝试创建 -->
+        <file>logs/app.log</file>
+        <encoder>
+            <pattern>${FILE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <!-- 结合时间与大小的滚动策略：每天一个目录，每天内按大小切分分片文件 -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- 归档文件路径及命名：按日期与分片序号，使用 gzip 压缩 -->
+            <fileNamePattern>logs/app.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <!-- 单个分片最大 10MB；适中，既防止单文件过大也减少分片次数 -->
+            <maxFileSize>10MB</maxFileSize>
+            <!-- 保留最近 30 天的历史日志分片（按日期维度） -->
+            <maxHistory>30</maxHistory>
+            <!-- 归档总容量上限 1GB，防止长期运行占满磁盘 -->
+            <totalSizeCap>1GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 根日志器：输出到控制台与文件；默认级别 INFO（在 yml 中可覆写包级别） -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </root>
+
+    <!-- 包级别细化：
+         - 可在此处或 application.yml 中调整具体包的日志级别；
+         - 例如将安全模块与业务安全日志设置为 DEBUG 便于排查：
+    <logger name="org.springframework.security" level="DEBUG"/>
+    <logger name="com.yunbq.backend.security" level="DEBUG"/>
+    -->
+
+</configuration>

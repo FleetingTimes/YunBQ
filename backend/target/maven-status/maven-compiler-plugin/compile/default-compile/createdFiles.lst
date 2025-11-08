@@ -12,6 +12,7 @@ com\yunbq\backend\controller\DebugController.class
 com\yunbq\backend\controller\AuthController.class
 com\yunbq\backend\service\NoteCacheService$2.class
 com\yunbq\backend\mapper\NavigationSiteMapper.class
+com\yunbq\backend\dto\EmailAuthRequest.class
 com\yunbq\backend\controller\AccountController.class
 com\yunbq\backend\mapper\AuditLogMapper.class
 com\yunbq\backend\controller\CaptchaController.class

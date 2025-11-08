@@ -104,6 +104,33 @@ logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg %mdc%n"
 
+#
+# Actuator 端点暴露与健康检查设置：
+# - 暴露 /actuator/health 与 /actuator/info，便于部署与监控探测；
+# - 健康检查细节在授权后显示（when_authorized），避免对外泄露过多信息；
+# - 如需统一前缀，可设置 base-path: /ops（此处保留默认 /actuator）。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+      # 在开发环境下，避免因为某些可选依赖（如 Redis 未启动）导致整体状态为 DOWN，从而返回 503：
+      # 将部分异常状态映射为 200，便于本地与前端联调。
+      status:
+        http-mapping:
+          DOWN: 200
+          OUT_OF_SERVICE: 200
+
+  # 在开发环境下，如未启动 Redis，可关闭 Redis 健康检查以避免返回 503：
+  # 生产环境请根据实际依赖选择开启/关闭。
+  health:
+    redis:
+      enabled: false
+
 # 日志数据库写入相关配置（LogProperties）
 logdb:
   # 开关：按需开启/关闭各类日志
