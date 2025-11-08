@@ -62,13 +62,18 @@ jwt:
   expire-minutes: 1440
 
 frontend:
-  base-url: "http://localhost:5500"
+  # 前端公网地址（Cloudflare Tunnel 域名）：用于 OAuth 回跳到前端回调页
+  # 说明：后端在完成 QQ 授权并生成站内 JWT 后，将 302 重定向到
+  #       `${frontend.base-url}/#/oauth/callback?token=...`，因此此处必须写公网可访问的前端域名。
+  base-url: "https://app.shiyan.online"
 
 oauth:
   qq:
-    app-id: ""
-    app-key: ""
-    redirect-uri: "http://localhost:8080/api/auth/qq/callback"
+    app-id: "102815075"
+    app-key: "tjPwKfw21rZAdu70"
+    # QQ 授权回调地址（公网）：必须与 QQ 互联平台设置完全一致（协议/域名/路径）
+    # 通过 Cloudflare Tunnel 将外网 `https://api.shiyan.online` 映射到本机 `http://localhost:8080`
+    redirect-uri: "https://api.shiyan.online/api/auth/qq/callback"
   wechat:
     app-id: ""
     secret: ""
@@ -79,12 +84,25 @@ cache:
     recent-ttl-seconds: 20
 cors:
   allowed-origins:
+    # 允许的跨域来源：前端开发与公网站点
     - "http://localhost:5500"
     - "http://localhost:5173"
+    - "https://app.shiyan.online"
+    - "https://api.shiyan.online"
   allowed-origin-patterns:
     - "http://localhost:*"
+    # 为所有 HTTPS 子域（如 app.shiyan.online、api.shiyan.online）启用跨域匹配
+    # 说明：若未来调整子域（如 m.shiyan.online、www.shiyan.online），无需逐一添加到 allowed-origins
+    # 注意：当 allowCredentials=true 时，不能使用 "*"，需使用 patterns 精确匹配
+    - "https://*.shiyan.online"
+    # 新增：允许所有 HTTP 子域（如 http://app.shiyan.online）
+    # 说明：从控制台日志可见请求的 Origin 为 http://app.shiyan.online，未命中 HTTPS 通配导致 403；
+    # 若你后续将前端页面切换到 HTTPS（推荐），可移除此项以提升整体安全性。
+    - "http://*.shiyan.online"
   allowed-methods:
     - GET
+    # 一些浏览器/代理会先发起 HEAD 探测请求；未放行 HEAD 可能导致 403
+    - HEAD
     - POST
     - PUT
     - DELETE
@@ -96,6 +114,8 @@ cors:
   allowed-headers:
     - Authorization
     - Content-Type
+    # 某些浏览器/前端库会自动携带该头，若未允许可能导致预检失败或被 CORS 拦截
+    - X-Requested-With
 logging:
   level:
     org.springframework.security: DEBUG

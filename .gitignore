@@ -21,3 +21,9 @@ backend/target/classes/com/yunbq/backend/service/PasswordResetService$ResetEntry
 backend/target/classes/com/yunbq/backend/util/AuthUtil.class
 backend/target/maven-archiver/pom.properties
 backend/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst
+backend/src/main/resources/application.yml
+本地隧道工具对比与使用指南.md
+.gitignore
+backend/target/classes/application.yml
+从本地开发到可公网访问的完整指南.md
+QQ登录实现详解.md

@@ -75,6 +75,13 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         final String method = request.getMethod();
         final String uri = request.getRequestURI();
         final String query = request.getQueryString();
+        // 补充采集并打印 CORS 相关请求头，便于定位 403 来源：
+        // - Origin：跨域的实际来源（协议+域名+端口），CORS 主要基于该值判断放行；
+        // - Access-Control-Request-Method：预检请求声明的实际方法（如 PATCH/DELETE 等）；
+        // - Access-Control-Request-Headers：预检请求声明的实际将要携带的非简单头（如 Authorization, X-Requested-With）。
+        final String origin = request.getHeader("Origin");
+        final String acrMethod = request.getHeader("Access-Control-Request-Method");
+        final String acrHeaders = request.getHeader("Access-Control-Request-Headers");
         // 注意：此处不要过早读取用户ID，避免在 JWT 过滤器设置上下文之前读取到 null。
         // 在 filterChain.doFilter 之后再读取一次，确保认证完成后能拿到正确的 userId。
         Long uidBefore = AuthUtil.currentUserId();
@@ -82,6 +89,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         // 进入链路前记录请求基线信息。
         log.info("[RequestLoggingFilter] Incoming request: method={}, uri={}, query={}, uid={}",
                 method, uri, query, uidBefore);
+        // 额外打印 CORS 相关头，结合响应头可快速判断是否因跨域被拒绝。
+        log.debug("[RequestLoggingFilter] CORS headers: Origin={}, ACR-Method={}, ACR-Headers={}",
+                origin, acrMethod, acrHeaders);
 
         // 采集入参以便持久化：客户端 IP 与 UA。
         final String ip = clientIp(request);
@@ -104,6 +114,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         Long uidAfter = AuthUtil.currentUserId();
         log.info("[RequestLoggingFilter] Response: method={}, uri={}, status={}, uid={}",
                 method, uri, status, uidAfter);
+        // 若启用 CORS，响应应包含 `Access-Control-Allow-Origin` 与（在允许凭据时）`Access-Control-Allow-Credentials`。
+        final String allowOrigin = response.getHeader("Access-Control-Allow-Origin");
+        final String allowCreds = response.getHeader("Access-Control-Allow-Credentials");
+        log.debug("[RequestLoggingFilter] CORS response: Allow-Origin={}, Allow-Credentials={}", allowOrigin, allowCreds);
 
         // 将请求指标持久化到数据库，便于后续在管理后台检索与分析。
         try {

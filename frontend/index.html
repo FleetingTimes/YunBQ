@@ -81,22 +81,52 @@
   <script type="module" src="/src/main.js"></script>
   <script>
     (function applyBackground(){
+      /**
+       * 背景加载逻辑（改进版）
+       * 目的：避免移动端或某些网络环境下，第三方图片域（如 img.paulzzh.com）
+       *       请求挂起而不触发 onload/onerror，导致 body 一直处于 `bg-loading`
+       *       状态，#app 透明，从而出现“页面空白”。
+       * 策略：
+       * - 设置兜底超时（例如 2000ms），超时后强制结束加载状态，确保应用可见；
+       * - onload 成功时设置背景并结束加载；
+       * - onerror 失败时直接结束加载，不影响页面显示；
+       * - 所有路径都会调用 finish()，保证 #app 的不透明显示。
+       */
       const url = 'https://img.paulzzh.com/touhou/random?t=' + Date.now();
       document.body.classList.add('bg-loading');
-      const img = new Image();
-      img.onload = function(){
-        document.body.style.backgroundImage = `url('${url}')`;
-        document.body.style.backgroundSize = 'cover';
-        document.body.style.backgroundPosition = 'center';
-        document.body.style.backgroundAttachment = 'fixed';
+
+      var done = false;
+      function finish(){
+        if (done) return; done = true;
         document.body.classList.remove('bg-loading');
         document.body.classList.add('bg-ready');
-      };
-      img.onerror = function(){
-        document.body.classList.remove('bg-loading');
-        document.body.classList.add('bg-ready');
-      };
-      img.src = url;
+      }
+
+      // 兜底：2 秒后强制结束加载，避免第三方资源卡住造成页面空白
+      var timer = setTimeout(finish, 2000);
+
+      try {
+        const img = new Image();
+        img.onload = function(){
+          clearTimeout(timer);
+          // 成功加载背景图
+          document.body.style.backgroundImage = `url('${url}')`;
+          document.body.style.backgroundSize = 'cover';
+          document.body.style.backgroundPosition = 'center';
+          document.body.style.backgroundAttachment = 'fixed';
+          finish();
+        };
+        img.onerror = function(){
+          clearTimeout(timer);
+          // 加载失败也结束加载，不影响应用可见
+          finish();
+        };
+        img.src = url;
+      } catch (e) {
+        // 任意异常下也兜底结束加载状态，避免页面不可见
+        clearTimeout(timer);
+        finish();
+      }
     })();
   </script>
 </body>

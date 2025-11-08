@@ -14,9 +14,30 @@ import axios from 'axios';
  * - 使用 hash 路由，401 时携带重定向参数返回登录页：`#/login?redirect=<当前路径>`。
  */
 
-// 优先使用环境变量，其次回退到默认 8080（与后端 application.yml 一致）
-const base = import.meta.env?.VITE_API_BASE || 'http://localhost:8080/api';
-export const API_BASE = base;
+// API 基址推断逻辑：优先环境变量，其次智能回退到“公网域名”
+// 设计背景：
+// - 在本机联调时，Vite 默认使用 `http://localhost:8080/api`；
+// - 当通过 Cloudflare Tunnel 公网访问前端（例如手机访问 `https://app.shiyan.online`），
+//   若未正确配置环境变量，前端将错误地请求 `http://localhost:8080/api`，导致“看得到页面但没有数据”。
+// - 为提升鲁棒性，这里加入“公网域名自动回退”：当检测到当前页面是公网域名（HTTPS 且形如 *.shiyan.online），
+//   在未显式设置 `VITE_API_BASE` 时，自动将 API 基址设为对应的 `api.<域名>/api`。
+let resolvedBase = import.meta.env?.VITE_API_BASE || 'http://localhost:8080/api';
+try {
+  const loc = window?.location;
+  const hostname = String(loc?.hostname || '');
+  const protocol = String(loc?.protocol || 'http:');
+  // 判定“公网域名”条件：HTTPS 且域名以 shiyan.online 结尾（可根据实际业务拓展）
+  const isPublicDomain = protocol === 'https:' && /\.shiyan\.online$/i.test(hostname);
+  // 仅当没有显式环境变量时，启用自动回退
+  if (!import.meta.env?.VITE_API_BASE && isPublicDomain) {
+    // 规则：将 `app.xxx` 替换为 `api.xxx`；若无 `app.` 前缀，保留原主机名（适配未来域名策略）
+    const apiHost = hostname.replace(/^app\./i, 'api.');
+    resolvedBase = `${protocol}//${apiHost}/api`;
+  }
+} catch (_) {
+  // 忽略运行期环境不支持 window 的情况（如 SSR），保留默认 localhost 基址
+}
+export const API_BASE = resolvedBase;
 
 export const http = axios.create({ baseURL: API_BASE });
 
