@@ -519,6 +519,59 @@ function goToUserNotes(m){
 .list-enter-from, .list-leave-to { opacity: 0; transform: translateY(6px) scale(0.99); }
 .list-move { transition: transform .20s ease; }
 
+/* —— 移动端优化断点（≤640px）——
+   目标：在手机浏览器上更紧凑、易读、可操作。
+   调整项：
+   - 内容区宽度与卡片栅格：单列布局（左栏在上、右栏在下），高度自适应；
+   - 右栏分隔线：改为顶部细线，避免窄屏左右空间压缩；
+   - 头像与字号：缩小尺寸；
+   - 标题行与操作区：允许换行，压缩按钮内边距；
+   - 卡片内容：摘要与操作纵向排列，减少横向拥挤。
+*/
+@media (max-width: 640px) {
+  /* 内容区缩放：占满宽度，减少横向空白 */
+  .center-area { width: 100%; gap: 10px; }
+  .pill-title { font-size: 18px; padding: 8px 16px; }
+
+  /* 居中卡片：改为单列栅格，高度自适应 */
+  .content-card {
+    width: 100%;
+    padding: 12px;
+    grid-template-columns: 1fr;
+    row-gap: 8px;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* 左栏菜单：减小字号与间距 */
+  .menu-list { gap: 10px; }
+  .menu-item { font-size: 16px; padding: 6px 6px; }
+  .menu-item .menu-badge { right: 12px; top: 50%; }
+
+  /* 右栏内容：去掉左侧分隔线，改为顶部细线 */
+  .card-right { border-left: none; border-top: 1px solid rgba(0, 0, 0, 0.15); padding: 10px 12px 12px; }
+  .section-title { font-size: 16px; margin-bottom: 6px; }
+
+  /* 标题行：允许换行，压缩按钮间距 */
+  .title-row { flex-wrap: wrap; gap: 8px; }
+  .bulk-actions { gap: 6px; }
+  .bulk-actions :deep(.el-button) { padding: 4px 8px; font-size: 12px; }
+
+  /* 卡片内容：纵向堆叠，缩小头像与间距 */
+  .msg-header { gap: 8px; margin-bottom: 6px; }
+  .avatar-sm { width: 28px; height: 28px; }
+  .title { gap: 4px; font-size: 13px; }
+  .time { font-size: 11px; }
+
+  .msg-content { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .actions { gap: 6px; }
+  .actions :deep(.el-button) { padding: 4px 8px; font-size: 12px; }
+
+  /* 加载更多：压缩外边距与按钮尺寸 */
+  .load-more-container { gap: 6px; margin: 8px 0 16px; }
+  .load-more-btn { padding: 6px 12px; font-size: 12px; }
+}
+
 /* 加载更多样式（统一视觉） */
 .load-more-container { display:flex; flex-direction:column; align-items:center; gap:8px; margin: 12px 0 24px; }
 .load-more-btn { padding:8px 16px; border-radius:6px; border:1px solid #dcdfe6; background:#f5f7ff; color:#409eff; cursor:pointer; }

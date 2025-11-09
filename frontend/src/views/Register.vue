@@ -111,4 +111,14 @@ async function onSubmit(){
 /* 正文卡片宽度控制：统一登录/注册/找回密码页的卡片宽度为 460px
    说明：覆盖全局 .auth-card 的 max-width=440px，使三页视觉一致 */
 .auth-card { max-width: 460px; }
+
+/* 移动端布局优化：自适应窄屏，避免验证码与按钮拥挤 */
+@media (max-width: 480px) {
+  /* 顶部间距略缩小，提升可视空间 */
+  .with-topbar { padding-top: 60px; }
+  /* 卡片宽度自适应窄屏 */
+  .auth-card { max-width: 420px; }
+  /* 验证码输入与图片在窄屏下换行，避免过度挤压 */
+  .auth-card .el-form-item [style*="display:flex"] { flex-wrap: wrap; }
+}
 </style>

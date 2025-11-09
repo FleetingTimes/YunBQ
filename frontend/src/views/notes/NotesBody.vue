@@ -96,7 +96,17 @@ const justCreatedId = ref(null)
 const justCreatedFirst = ref(false)
 const danmuHighlightId = ref(null)
 
-const danmuRows = 6
+/**
+ * 移动端断点检测（≤640px）与弹幕参数响应式
+ * 说明：手机屏幕较窄，减少弹幕行数与同时可见总数，避免过于拥挤影响输入与阅读。
+ */
+const isMobile = ref(false)
+function updateIsMobile(){
+  try{ isMobile.value = (window.innerWidth || 0) <= 640 }catch{ isMobile.value = false }
+}
+onMounted(() => { updateIsMobile(); window.addEventListener('resize', updateIsMobile) })
+onUnmounted(() => { try{ window.removeEventListener('resize', updateIsMobile) }catch{} })
+const danmuRows = computed(() => isMobile.value ? 3 : 6)
 const danmuSpeedScale = 1.35
 
 const draft = reactive({ content: '', isPublic: false, tags: '', color: '#ffd966' })

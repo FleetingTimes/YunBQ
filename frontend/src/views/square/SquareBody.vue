@@ -288,19 +288,41 @@ function refreshAuth(){
   }
 }
 
-// 滚动控制函数：获取滚动容器
+// 滚动控制函数：获取实际滚动容器（移动端增强）
+// 说明：在移动端或特定布局下，某些容器虽然设置了 `overflow-y: auto`，但由于高度未受限并不产生滚动，
+// 实际的滚动由父级（如 TwoPaneLayout 的 `.scrollable-content`）或页面级滚动容器承担。
+// 为避免出现“滚动到目标失败”的问题，这里除了检测 overflow 之外，还要求存在真实的可滚动高度。
 function getScrollContainer(){
   const base = contentRef.value
   if (!base) return null
-  let el = base
-  while (el && el !== document.body){
+
+  // 工具：判断元素是否具备垂直滚动能力
+  const canScrollY = (node) => {
     try{
-      const s = getComputedStyle(el)
+      const s = getComputedStyle(node)
       const oy = String(s.overflowY || '').toLowerCase()
-      if (oy === 'auto' || oy === 'scroll') return el
-    }catch{ /* 忽略异常，继续向上查找 */ }
+      const hasOverflow = (oy === 'auto' || oy === 'scroll')
+      const sizeOverflow = (node.scrollHeight - node.clientHeight) > 1
+      return hasOverflow && sizeOverflow
+    }catch{ return false }
+  }
+
+  // 自底向上查找：优先返回最近的、确实可滚动的容器
+  let el = base
+  while (el){
+    if (canScrollY(el)) return el
+    // 到达根元素（document.documentElement）后跳出循环
+    if (el === document.documentElement) break
     el = el.parentElement
   }
+
+  // 页面级滚动容器回退（document.scrollingElement 或 document.documentElement）
+  try{
+    const page = document.scrollingElement || document.documentElement
+    if (page && (page.scrollHeight - page.clientHeight) > 1) return page
+  }catch{}
+
+  // 最终回退：返回 base，以保证函数始终有意义的返回值
   return base
 }
 
@@ -316,8 +338,34 @@ function scrollTo(id){
 
   const container = getScrollContainer()
   if (!container) return
-
+  /**
+   * 锚点查找增强：支持父项别名（aliasTargets）回退
+   * 背景：当传入的是“父分类 id”且该父分类具有子分类时，DOM 中不存在父分类对应的锚点；
+   *       需要将父分类 id 映射为其第一个子分类或 aliasTargets 中的任意一个子项 id。
+   * 实现：在未命中原始 id 时，基于统一的导航数据（props.sections 优先）查找对应的别名列表，
+   *       按顺序尝试别名，命中后将当前 id 替换为别名 id 并继续后续滚动流程。
+   */
   let el = (contentRef.value || container).querySelector('#' + id)
+  if (!el && Array.isArray(navigationSections.value)){
+    // 汇总别名：父项自身的 id + aliasTargets（若存在）
+    let aliasList = []
+    try{
+      const sec = navigationSections.value.find(s => s && s.id === id)
+      if (sec){
+        // aliasTargets 可能是字符串或字符串数组；统一为数组
+        const aliases = sec.aliasTargets
+        if (typeof aliases === 'string') aliasList.push(aliases)
+        else if (Array.isArray(aliases)) aliasList = aliasList.concat(aliases)
+        // 若父项存在子分类，优先尝试第一个子分类（与 useNavigation 的填充策略保持一致）
+        if (Array.isArray(sec.children) && sec.children.length){ aliasList.unshift(sec.children[0].id) }
+      }
+    }catch{}
+    for (const aid of aliasList){
+      const cand = (contentRef.value || container).querySelector('#' + aid)
+      if (cand){ el = cand; id = aid; break }
+    }
+    // 当未命中父项别名时，继续下方的重试机制（等待 DOM 渲染完成）
+  }
   /**
    * 锚点缺失的首次点击保护（详细注释）：
    * 背景：
@@ -335,7 +383,25 @@ function scrollTo(id){
     const max = 8
     const timer = setInterval(() => {
       try{
-        el = (contentRef.value || container).querySelector('#' + id)
+        // 重试时同样应用别名映射逻辑，提升首次点击父项的成功率
+        let probe = (contentRef.value || container).querySelector('#' + id)
+        if (!probe && Array.isArray(navigationSections.value)){
+          let aliasList = []
+          try{
+            const sec = navigationSections.value.find(s => s && s.id === id)
+            if (sec){
+              const aliases = sec.aliasTargets
+              if (typeof aliases === 'string') aliasList.push(aliases)
+              else if (Array.isArray(aliases)) aliasList = aliasList.concat(aliases)
+              if (Array.isArray(sec.children) && sec.children.length){ aliasList.unshift(sec.children[0].id) }
+            }
+          }catch{}
+          for (const aid of aliasList){
+            const cand = (contentRef.value || container).querySelector('#' + aid)
+            if (cand){ probe = cand; id = aid; break }
+          }
+        }
+        el = probe
         if (el || attempts >= max){ clearInterval(timer) }
         if (el){
           // 找到锚点后执行滚动（与下方逻辑一致）

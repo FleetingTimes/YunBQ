@@ -2,8 +2,27 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YunBQ 云便签</title>
+  <!--
+    移动端视口与 WebApp 标签（详细注释）：
+    - viewport：设定宽度为设备宽度、初始缩放为 1；viewport-fit=cover 允许在全面屏（刘海/挖孔）设备使用安全区域。
+    - apple-/mobile-web-app-capable：允许在 iOS/Android 添加到主屏时以 WebApp 模式全屏运行。
+    - apple-mobile-web-app-status-bar-style：在 iOS 设置状态栏样式；black-translucent 适配沉浸式状态栏。
+    - theme-color：为 Android Chrome 设置地址栏主题色，提升品牌一致性。
+    - format-detection：禁用自动识别电话/邮箱/地址，避免浏览器非预期改写页面内容。
+    注意：apple-touch-icon 建议使用 180x180 的 PNG；当前项目使用 SVG 占位，生产请替换为 PNG。
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-touch-fullscreen" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="format-detection" content="telephone=no,email=no,address=no" />
+  <!-- 临时占位的 Touch 图标：生产替换为 PNG 180x180 -->
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+    <!-- 页面标题：用于浏览器标签显示与收藏名称
+         变更：由“YunBQ 云便签”调整为统一品牌文案“ShiYan - 拾言” -->
+    <title>ShiYan - 拾言</title>
   <!--
     站点图标（favicon）
     说明：

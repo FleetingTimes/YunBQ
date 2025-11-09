@@ -9,8 +9,11 @@
 
 // 默认配置对象（可按需调整）。
 const splashConfig = {
-  /** 是否启用首屏过渡动画 */
-  enabled: true,
+  /** 是否启用首屏过渡动画
+   * 变更：根据移动端优化需求，取消首次打开时的过渡动画。
+   * 原因：用户在手机浏览器访问时希望立即进入内容，避免额外等待与遮盖层。
+   * 做法：将 enabled 置为 false，App.vue 中的 shouldShowSplash() 将返回 false，从而不渲染 SplashScreen。*/
+  enabled: false,
 
   /**
    * 显示时长（毫秒）。注意：

@@ -1008,7 +1008,7 @@ async function importMyNotes(){
   grid-template-columns: 1fr minmax(260px, 520px) auto;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
+  padding: 10px 0; /* 桌面端默认高度：10px 上下内边距 */
   /* 吸顶：粘性定位 + 顶部距离 */
   position: sticky;
   top: 0;
@@ -1127,6 +1127,56 @@ async function importMyNotes(){
   
   /* 内边距调整：为图标和清除按钮预留空间 */
   padding: 0 16px 0 12px;
+}
+
+/* 移动端顶栏适配与精简：减少高度、隐藏非必要元素、避免挤压内容
+   目标：
+   - 压缩顶栏上下内边距以降低占用空间；
+   - 隐藏“拾言小镇”按钮（保留搜索与右侧操作），减少拥挤；
+   - 允许搜索输入自适应更窄的宽度，避免超出屏幕。 */
+@media (max-width: 480px) {
+  .topbar { 
+    padding: 8px 0; 
+    /* 栅格：品牌 + 中间（搜索 + 小镇）在第一行，右侧操作区换到第二行 */
+    grid-template-columns: auto 1fr auto;
+    row-gap: 6px; /* 第一行与第二行之间提供更紧凑的间距 */
+  }
+  .topbar .brand { margin-left: 16px; }
+  .topbar .brand h1 { font-size: 16px; }
+  /* 移动端：保留“拾言小镇”按钮（核心入口），缩短搜索框以并排显示 */
+  .center-search { 
+    justify-content: flex-start; /* 搜索靠左，按钮紧随其后，避免居中拥挤 */
+    gap: 8px; /* 提供更紧凑的间距 */
+  }
+  .top-search-input { 
+    /* 缩短搜索框：在小屏设备上收窄占用，给小镇按钮留出空间
+       说明：
+       - 使用更小的最大宽度（220px），避免溢出；
+       - 设置 flex-basis 以在容器空间不足时优先压缩搜索框；
+       - 保持 min-width:0 解除默认最小宽度约束，避免 grid/flex 下换行异常。 */
+    min-width: 0; 
+    max-width: 220px; 
+    flex: 1 1 180px;
+  }
+  .center-search .town-btn { 
+    /* 明确显示“拾言小镇”按钮：占据自身内容宽度，保持与搜索框并排 */
+    display: inline-flex; 
+    flex: 0 0 auto; 
+  }
+  /* 右侧操作区：在移动端换到第二行，保持所有入口（添加拾言/喜欢/收藏/消息/登录/注册）可见 */
+  .right-actions {
+    grid-column: 1 / -1; /* 跨整行，位于第二行 */
+    padding: 0 12px; /* 两侧适度留白 */
+    display: flex;
+    flex-wrap: wrap; /* 允许在极窄屏幕下自动换行 */
+    gap: 6px; /* 图标按钮之间更紧凑 */
+    align-items: center;
+    justify-content: space-between; /* 左右分散，避免挤在一侧 */
+  }
+  /* 图标按钮在移动端略缩小，节省空间但保持可点击性 */
+  .right-actions .icon-btn img { width: 20px; height: 20px; }
+  /* 未登录状态下的“登录/注册”按钮：压缩按钮尺寸以适配小屏 */
+  .right-actions .el-button { font-size: 13px; padding: 6px 10px; }
 }
 
 /* 搜索框悬停状态：增强视觉反馈 */

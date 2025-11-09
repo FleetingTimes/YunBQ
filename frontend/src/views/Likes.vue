@@ -42,11 +42,11 @@
 <DanmuWall
   v-if="!isEmpty"
   :items="danmuItems"
-  :rows="6"
+  :rows="danmuRows"
   :speed-scale="1.35"
   :same-speed="true"
   :uniform-duration="16"
-  :max-visible="18"
+  :max-visible="danmuMaxVisible"
 />
 
         <!-- 年份分组时间线：在非空时按年分组展示喜欢的便签列表 -->
@@ -101,6 +101,20 @@ const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
 
 const query = ref('')
 const danmuItems = ref([])
+/**
+ * 移动端断点检测（≤640px）
+ * 用途：根据屏幕宽度调整弹幕行数与同时可见总数，避免手机上过于拥挤。
+ */
+const isMobile = ref(false)
+function updateIsMobile(){
+  try{ isMobile.value = (window.innerWidth || 0) <= 640 }catch{ isMobile.value = false }
+}
+// 首次判断与窗口大小变更监听
+onMounted(() => { updateIsMobile(); window.addEventListener('resize', updateIsMobile) })
+onUnmounted(() => { try{ window.removeEventListener('resize', updateIsMobile) }catch{} })
+// 响应式弹幕参数：手机缩减为 3 行、上限 9；桌面保持 6 行、上限 18
+const danmuRows = computed(() => isMobile.value ? 3 : 6)
+const danmuMaxVisible = computed(() => danmuRows.value * 3)
 // 空状态计算：当“未在加载中且列表为空”时视为空
 const isEmpty = computed(() => !isLoading.value && danmuItems.value.length === 0)
 // 空状态图片：留空使用 Element Plus 默认图片；如需品牌化可设置为自定义图片 URL

@@ -18,6 +18,8 @@ import java.net.URI;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * 第三方登录接口（QQ/微信）
@@ -64,6 +66,12 @@ public class SocialAuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
+    // QQ OAuth state 存储（简易内存版，含 TTL）。
+    // 说明：用于在发起授权时生成随机 state 并在回调中校验，防止 CSRF。
+    // 生产环境建议替换为：Redis（设置过期）或带签名的 JWT state，以支持多实例与持久化。
+    private final ConcurrentMap<String, Long> qqStateStore = new ConcurrentHashMap<>();
+    private final long qqStateTtlMillis = 5 * 60 * 1000L; // 5 分钟有效期
+
     public SocialAuthController(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
@@ -87,11 +95,15 @@ public class SocialAuthController {
         if (qqAppId == null || qqAppId.isBlank() || qqAppKey == null || qqAppKey.isBlank()) {
             return ResponseEntity.status(501).body(Map.of("message", "未配置QQ登录，请在 application.yml 配置 oauth.qq.app-id/app-key"));
         }
+        // 生成随机 state 并缓存（用于 CSRF 防护）
+        String state = "qq-" + System.currentTimeMillis() + "-" + new Random().nextInt(1000000);
+        qqStateStore.put(state, System.currentTimeMillis());
         URI authUrl = UriComponentsBuilder.fromHttpUrl("https://graph.qq.com/oauth2.0/authorize")
                 .queryParam("response_type", "code")
                 .queryParam("client_id", qqAppId)
                 .queryParam("redirect_uri", qqRedirectUri)
-                .queryParam("state", String.valueOf(new Random().nextInt(100000)))
+                // 携带随机 state：QQ 将原样回传，用于在回调中进行校验
+                .queryParam("state", state)
                 .build(true).toUri();
         return ResponseEntity.status(302).location(authUrl).build();
     }
@@ -114,8 +126,22 @@ public class SocialAuthController {
         if (qqAppId == null || qqAppId.isBlank() || qqAppKey == null || qqAppKey.isBlank()) {
             return ResponseEntity.status(501).body(Map.of("message", "未配置QQ登录"));
         }
+        // 1) 校验 state（CSRF 防护）：要求存在且未过期
+        if (state == null || state.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "缺少 state 参数，拒绝回调"));
+        }
+        Long issuedAt = qqStateStore.get(state);
+        if (issuedAt == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "state 无效或已使用"));
+        }
+        if (System.currentTimeMillis() - issuedAt > qqStateTtlMillis) {
+            qqStateStore.remove(state);
+            return ResponseEntity.badRequest().body(Map.of("message", "state 已过期，请重新发起登录"));
+        }
+        // 一次性使用：校验通过后移除，避免重放
+        qqStateStore.remove(state);
         RestTemplate rt = new RestTemplate();
-        // 1) 使用code换取access_token
+        // 2) 使用 code 换取 access_token
         String tokenUrl = UriComponentsBuilder.fromHttpUrl("https://graph.qq.com/oauth2.0/token")
                 .queryParam("grant_type", "authorization_code")
                 .queryParam("client_id", qqAppId)
@@ -129,8 +155,8 @@ public class SocialAuthController {
         }
         String accessToken = parseQueryValue(tokenResp, "access_token");
 
-        // 2) 使用access_token获取openid
-        String meUrl = "https://graph.qq.com/oauth2.0/me?access_token=" + accessToken;
+        // 3) 使用 access_token 获取 openid（附 unionid=1 以便在可用时获取全局唯一 unionid）
+        String meUrl = "https://graph.qq.com/oauth2.0/me?access_token=" + accessToken + "&unionid=1";
         String meResp = rt.getForObject(meUrl, String.class);
         if (meResp == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "获取openid失败"));
@@ -138,11 +164,38 @@ public class SocialAuthController {
         // 响应格式类似：callback( {"client_id":"YOUR_APPID","openid":"YOUR_OPENID"} );
         String json = meResp.replace("callback(", "").replace(")", "").replace(";", "").trim();
         String openid = extractJsonValue(json, "openid");
+        String unionid = extractJsonValue(json, "unionid");
         if (openid == null || openid.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("message", "解析openid失败"));
         }
+        // 4) 可选：拉取 QQ 用户资料（昵称/头像）以丰富站内展示
+        // 文档：https://wiki.connect.qq.com/get_user_info（需提供 access_token、oauth_consumer_key、openid）
+        String infoUrl = UriComponentsBuilder.fromHttpUrl("https://graph.qq.com/user/get_user_info")
+                .queryParam("access_token", accessToken)
+                .queryParam("oauth_consumer_key", qqAppId)
+                .queryParam("openid", openid)
+                .build(true).toUriString();
+        Map info = null;
+        try {
+            info = rt.getForObject(infoUrl, Map.class);
+        } catch (Exception ignored) {
+            // 网络或解析异常不影响登录流程：仅跳过资料填充
+        }
+        String nickname = null;
+        String avatar = null;
+        if (info != null) {
+            Object n = info.get("nickname");
+            if (n != null) nickname = String.valueOf(n);
+            // 优先高清头像（figureurl_qq_2），回退到普通头像（figureurl_qq_1）
+            Object a2 = info.get("figureurl_qq_2");
+            Object a1 = info.get("figureurl_qq_1");
+            if (a2 != null && !String.valueOf(a2).isBlank()) avatar = String.valueOf(a2);
+            else if (a1 != null && !String.valueOf(a1).isBlank()) avatar = String.valueOf(a1);
+        }
 
-        return issueTokenAndRedirect("qq_" + openid, "QQ用户");
+        // 使用 unionid（若可用）作为更稳定的跨应用标识；否则回退为 openid
+        String socialKey = (unionid != null && !unionid.isBlank()) ? ("qq_" + unionid) : ("qq_" + openid);
+        return issueTokenAndRedirect(socialKey, nickname != null ? nickname : "QQ用户", avatar);
     }
 
     @GetMapping("/wechat/login")
@@ -227,11 +280,58 @@ public class SocialAuthController {
             user.setPasswordHash(passwordEncoder.encode("social-" + username)); // 占位密码
             user.setNickname(nicknameIfNew);
             user.setEmail(null);
+            // 设置默认角色，避免后续 JWT 中 role 为空导致授权异常
+            user.setRole("USER");
             user.setCreatedAt(LocalDateTime.now());
             userMapper.insert(user);
+        } else if ((user.getNickname() == null || user.getNickname().isBlank()) && nicknameIfNew != null && !nicknameIfNew.isBlank()) {
+            // 若已存在用户但未设置昵称，则填充为社交侧昵称（一次性回填）
+            user.setNickname(nicknameIfNew);
+            userMapper.updateById(user);
         }
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         // 回跳到前端并携带token
+        String frontend = frontendBaseUrl + "/#/oauth/callback?token=" + token + "&username=" + user.getUsername() + "&nickname=" + (user.getNickname()==null?"":user.getNickname());
+        return ResponseEntity.status(302).location(URI.create(frontend)).build();
+    }
+
+    /**
+     * 重载：支持头像的社交登录签发逻辑。
+     * 行为：在创建新用户或回填空头像时，写入社交头像；其他逻辑与上方方法一致。
+     */
+    private ResponseEntity<?> issueTokenAndRedirect(String username, String nicknameIfNew, String avatarUrlIfNew) {
+        User user = userMapper.selectOne(new QueryWrapper<User>().eq("username", username));
+        if (user == null) {
+            user = new User();
+            user.setUsername(username);
+            user.setPasswordHash(passwordEncoder.encode("social-" + username));
+            user.setNickname(nicknameIfNew);
+            user.setEmail(null);
+            user.setRole("USER");
+            user.setCreatedAt(LocalDateTime.now());
+            if (avatarUrlIfNew != null && !avatarUrlIfNew.isBlank()) {
+                user.setAvatarUrl(avatarUrlIfNew);
+            }
+            userMapper.insert(user);
+        } else {
+            boolean needUpdate = false;
+            if ((user.getNickname() == null || user.getNickname().isBlank()) && nicknameIfNew != null && !nicknameIfNew.isBlank()) {
+                user.setNickname(nicknameIfNew);
+                needUpdate = true;
+            }
+            if ((user.getAvatarUrl() == null || user.getAvatarUrl().isBlank()) && avatarUrlIfNew != null && !avatarUrlIfNew.isBlank()) {
+                user.setAvatarUrl(avatarUrlIfNew);
+                needUpdate = true;
+            }
+            if (user.getRole() == null || user.getRole().isBlank()) {
+                user.setRole("USER");
+                needUpdate = true;
+            }
+            if (needUpdate) {
+                userMapper.updateById(user);
+            }
+        }
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         String frontend = frontendBaseUrl + "/#/oauth/callback?token=" + token + "&username=" + user.getUsername() + "&nickname=" + (user.getNickname()==null?"":user.getNickname());
         return ResponseEntity.status(302).location(URI.create(frontend)).build();
     }

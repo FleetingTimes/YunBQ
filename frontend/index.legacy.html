@@ -1,9 +1,27 @@
-﻿﻿<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YunBQ 云便签</title>
+  <!--
+    移动端视口与 WebApp 标签（与现代入口一致）：
+    - viewport-fit=cover：在全面屏设备可使用安全区域（刘海/挖孔周围）。
+    - apple-/mobile-web-app-capable：添加到主屏时启用全屏 WebApp 行为。
+    - status-bar-style：iOS 状态栏样式；black-translucent 适配沉浸式效果。
+    - theme-color：Android Chrome 地址栏主题色。
+    - format-detection：避免自动识别电话/邮箱/地址导致页面内容被改写。
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-touch-fullscreen" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="format-detection" content="telephone=no,email=no,address=no" />
+  <!-- 临时占位的 Touch 图标：生产替换为 PNG 180x180 -->
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+    <!-- 页面标题（旧版入口）：保持与现代入口一致的品牌文案
+         变更：由“YunBQ 云便签”调整为“ShiYan - 拾言” -->
+    <title>ShiYan - 拾言</title>
   <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
   <style>
     body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }

@@ -48,3 +48,48 @@ body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSyste
 .auth-actions { display:flex; gap:8px; align-items:center; margin-top: 8px; }
 /* 回退说明：移除全局顶栏占位工具类与变量（topbar-spacer），
    恢复页面原始布局，不再对顶栏进行内容避让。 */
+
+/* ---------------------------------------------------------
+   移动端基础优化与安全区域支持（详尽注释）
+   目的：提升手机浏览器显示效果与交互体验，并适配全面屏安全区域。
+   --------------------------------------------------------- */
+/* 1) 盒模型统一：避免 padding/边框导致布局溢出 */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* 2) 文本尺寸调整：避免 iOS 自动放大表单文本 */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* 3) 最小高度与安全区域：适配刘海/挖孔设备的安全区（env/constant 兼容） */
+body {
+  min-height: 100vh;
+  /* env 为现代标准，constant 为旧版 iOS 兼容 */
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+@supports (padding: constant(safe-area-inset-top)) {
+  body {
+    padding-top: constant(safe-area-inset-top);
+    padding-right: constant(safe-area-inset-right);
+    padding-bottom: constant(safe-area-inset-bottom);
+    padding-left: constant(safe-area-inset-left);
+  }
+}
+
+/* 4) 媒体元素自适应：避免图片/视频超出容器宽度 */
+img, video { max-width: 100%; height: auto; }
+
+/* 5) 触控优化：移除高亮，保持字体继承 */
+a, button { -webkit-tap-highlight-color: transparent; }
+button, input, select, textarea { font: inherit; }
+
+/* 6) 移动端排版微调：减少边距与缩小卡片尺寸以增强信息密度 */
+@media (max-width: 640px) {
+  .container { max-width: 100%; margin: 16px auto; padding: 0 12px; }
+  .brand h1 { font-size: 18px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+  .sticky { padding: 12px; }
+  .auth-wrapper { padding: 24px 12px; }
+  .auth-card { max-width: 96vw; }
+}

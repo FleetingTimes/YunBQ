@@ -193,4 +193,16 @@ function loginWithWeChat(){ window.location.href = API_BASE + '/auth/wechat/logi
 .primary-actions { display:flex; gap: 8px; }
 .qq-below { display:flex; justify-content: flex-end; }
 .qq-button { border-color: #c0c4cc; }
+
+/* 移动端布局优化：避免底部绝对定位遮挡内容；按钮区改为随内容自然流动。 */
+@media (max-width: 480px) {
+  /* 顶部间距略缩小，提升可视空间 */
+  .with-topbar { padding-top: 60px; }
+  /* 卡片宽度自适应窄屏，减少底部保留空间，改为内容流动布局 */
+  .auth-card { max-width: 420px; padding-bottom: 24px; }
+  /* 底部操作区不再绝对定位，跟随文档流展示，避免遮挡输入框 */
+  .actions-bottom-row { position: static; left: auto; right: auto; bottom: auto; margin-top: 12px; }
+  /* 主要操作区在窄屏下允许换行，保持按钮易点击 */
+  .primary-actions { flex-wrap: wrap; }
+}
 </style>

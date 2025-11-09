@@ -126,8 +126,18 @@
 
 /* 响应式：窄屏时改为单列纵向布局，左列在上，右列在下 */
 @media (max-width: 960px){
-  .two-pane { min-height: auto; }
+  /* 修复：移动端堆叠布局下取消固定视口高度与页面滚动隐藏，改由页面承载滚动。
+     背景：桌面端使用 height:100vh + overflow:hidden，使右侧正文成为唯一滚动容器；
+           窄屏仅设置 min-height: auto 无法覆盖既有 height:100vh，导致右侧正文不能展开。
+     方案：明确重置 .two-pane 的 height/overflow，允许页面垂直滚动并让内容自然膨胀。 */
+  .two-pane { height: auto; min-height: auto; overflow: visible; }
   /* 窄屏：主体行改为单列堆叠（侧栏在上，正文在下） */
   .bottom-row { grid-template-columns: 1fr; }
+  /* 右侧正文容器在堆叠模式下：随内容自然高度，不强制内部滚动，由页面承载滚动 */
+  .right-main.scrollable-content {
+    height: auto;
+    min-height: 0;
+    overflow-y: visible;
+  }
 }
 </style>
