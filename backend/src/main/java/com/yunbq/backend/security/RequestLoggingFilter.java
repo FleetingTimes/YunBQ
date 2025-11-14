@@ -94,6 +94,12 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 origin, acrMethod, acrHeaders);
 
         // 采集入参以便持久化：客户端 IP 与 UA。
+        // 说明：在经过 CDN/反向代理（如 Cloudflare、Nginx）时，`request.getRemoteAddr()` 通常是“最近一跳”的代理 IP，
+        //      无法代表真实的终端用户 IP。为此，这里做了多层头部解析，优先级如下：
+        //      1) Cloudflare 的 `CF-Connecting-IP`（若存在，直接认为是客户端真实 IP）；
+        //      2) 标准代理头 `X-Forwarded-For`（多级代理时取第一个 IP）；
+        //      3) 常见反代头 `X-Real-IP`（如 Nginx 设置 `proxy_set_header X-Real-IP $remote_addr;`）；
+        //      4) 回退到 `request.getRemoteAddr()`（无代理或未设置头时）。
         final String ip = clientIp(request);
         final String ua = request.getHeader("User-Agent");
 
@@ -119,6 +125,19 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         final String allowCreds = response.getHeader("Access-Control-Allow-Credentials");
         log.debug("[RequestLoggingFilter] CORS response: Allow-Origin={}, Allow-Credentials={}", allowOrigin, allowCreds);
 
+        // 额外打印与“真实客户端 IP 推断”相关的请求头，便于运维定位“为何总是记录到代理 IP”。
+        // 注意：仅在 DEBUG 级别输出，避免生产日志过于冗长。
+        try {
+            String cfConnectingIp = request.getHeader("CF-Connecting-IP");
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            String xRealIp = request.getHeader("X-Real-IP");
+            String remoteAddr = request.getRemoteAddr();
+            log.debug("[RequestLoggingFilter] IP headers: CF-Connecting-IP={}, X-Forwarded-For={}, X-Real-IP={}, remoteAddr={}, resolvedIp={}",
+                    cfConnectingIp, xForwardedFor, xRealIp, remoteAddr, ip);
+        } catch (Exception ignored) {
+            // 忽略打印头部信息失败的情况（极少发生），不影响正常业务与日志持久化
+        }
+
         // 将请求指标持久化到数据库，便于后续在管理后台检索与分析。
         try {
             logService.logRequest(method, uri, query, ip, ua, status, (int) cost, uidAfter, requestId);
@@ -135,12 +154,23 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
      * @return 推断出的客户端 IP 地址字符串
      */
     private String clientIp(HttpServletRequest request) {
+        // 1) Cloudflare 隧道/代理会注入该头，表示客户端真实 IP
+        String cf = request.getHeader("CF-Connecting-IP");
+        if (cf != null && !cf.isBlank()) {
+            return cf.trim();
+        }
+        // 2) 标准多级代理头部，形如 "client, proxy1, proxy2"，取第一个即为原始客户端 IP
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
-            // 多级代理场景取第一个 IP
             int idx = xff.indexOf(',');
             return idx > 0 ? xff.substring(0, idx).trim() : xff.trim();
         }
+        // 3) 常见反代头（例如 Nginx）
+        String xri = request.getHeader("X-Real-IP");
+        if (xri != null && !xri.isBlank()) {
+            return xri.trim();
+        }
+        // 4) 无代理或未设置头时，回退到最近一跳的地址
         return request.getRemoteAddr();
     }
 }

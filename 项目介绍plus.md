@@ -1,6 +1,6 @@
-# 项目介绍 Plus（YunBQ 全面版）
+# 项目介绍 Plus（YunBQ 全面版，对齐代码实现）
 
-本文提供面向产品、研发与运维三方的完整说明：项目架构、项目介绍、详细功能、数据模型、部署与运维、缓存策略、测试验收与路线图，帮助快速上手、稳定迭代与安全上线。
+本文从产品、研发与运维三个维度完整说明 YunBQ：架构、模块、功能、数据模型、部署与运维、缓存与日志、安全策略、测试验收与路线图，全部内容对齐当前仓库代码与配置。
 
 ## 1. 项目介绍
 - 产品定位：拾言（短内容/便签）创作与浏览 + 导航广场聚合，辅以消息中心与管理后台，构成一个轻量内容社区与站点导航融合平台。
@@ -9,7 +9,7 @@
   - 拾言：公开/私有、点赞/收藏、标签解析、分页检索。
   - 导航广场：分类树、站点卡片列表、标签过滤、精选排序。
   - 消息中心：系统/互动消息、未读计数、已读/删除管理。
-  - 账户：登录注册、个人资料、头像上传、找回密码与验证码。
+- 账户：登录注册、个人资料、头像上传、找回密码与验证码。
   - 管理后台：用户/导航/站点管理，审计与日志查询，权限控制。
 
 ## 2. 总体架构（Architecture）
@@ -17,12 +17,14 @@
   - 后端：`Spring Boot`、`MyBatis-Plus`、`JWT`、`Lombok`、`Spring Security`。
   - 前端：`Vue 3`（组合式 API）、`Element Plus`、`Vite`。
   - 数据库：`MySQL`（业务表 + 审计/请求/认证/错误日志表）。
-  - 缓存：`Redis`（仅“热门/最近公开拾言”缓存，当前可禁用）。
+  - 缓存：两类缓存并存：
+    - 拾言缓存（可选）：`NoteCacheService` 基于 `StringRedisTemplate` 的“热门/最近公开拾言”；功能关闭时可整体禁用。
+    - 导航/分类缓存：`Spring Cache` 注解（Caffeine 默认；`redis` Profile 激活后使用 Redis），命名空间含 `categories_root/categories_enabled/sites_by_category/sites_featured/sites_popular`，TTL 30–60s。
 - 分层设计：Controller（接口）→ Service（业务）→ Mapper（数据访问）→ DB。
 - 安全与权限：
   - `JWT` 鉴权，`SecurityContext` 注入当前用户；
   - 管理端路径前缀 + 方法级角色校验双重保护（`hasRole('ADMIN')`）。
-- 日志与审计：请求/认证/错误/审计日志记录与保留；定时清理任务。
+- 日志与审计：请求/认证/错误/审计日志记录与保留；定时清理任务；跨链路 `X-Request-Id`。
 - 静态资源：头像目录映射 `uploads/avatars` → `/uploads/**`。
 - 部署：Docker Compose（可选 Nginx 反向代理）；支持本地快速运行脚本。
 
@@ -32,7 +34,7 @@
   - `NavigationController`（`/api/navigation`）：分类与站点查询、标签过滤。
   - `MessageController`（`/api/messages`）：消息列表、已读、删除、未读计数。
   - `AccountController`（`/api/account`）：个人资料、头像上传、当前用户信息。
-  - `PasswordResetController`（`/api/auth`）：找回与重置密码接口。
+  - `PasswordResetController`（`/api/auth`）：找回与重置密码接口；邮箱发送（SMTP）。
   - `CaptchaController`（`/api/captcha`）：验证码获取与校验（前后端联动）。
   - `AdminController`（`/api/admin`）：管理员后台（用户/导航/站点/日志）。
   - `BackgroundController`（`/api/background`）：随机背景图 URL。
@@ -45,12 +47,13 @@
   - `MessageService`：按类型生成/读取用户消息，维护未读计数逻辑。
   - `AccountService`：用户信息读取与更新、头像上传路径与校验。
   - `CaptchaService`：验证码生成/存储（当前进程内，建议多实例迁移 Redis）。
-  - `PasswordResetService`：重置码生成/校验、邮件发送（防重与TTL建议）。
+  - `PasswordResetService`：重置码生成/校验、邮件发送（防重与 TTL 建议）。
   - `NoteCacheService`：基于 `StringRedisTemplate` 的“热门/最近公开拾言”缓存（可禁用）。
+  - `NavigationCategoryService` / `NavigationSiteService`：`@Cacheable` 注解缓存（默认 Caffeine；`redis` Profile 激活后走 Redis）。
 - 数据访问层（`mapper`）：
   - 基于 `MyBatis-Plus` 实现分页、条件检索与排序（如站点精选/热门）。
 - 任务与配置：
-  - `LogRetentionScheduler`：定期清理日志表，保留期与间隔可配置。
+  - `LogRetentionScheduler`：定期清理日志表，保留期与间隔可配置（`logdb.*`）。
 
 ## 4. 前端架构与模块
 - 入口与根组件：
@@ -70,6 +73,7 @@
 - 通用组件与工具：
   - `NavigationSiteList.vue`、`SiteNoteList.vue`：列表与分页；
   - `utils/siteNoteUtils.js`：标签过滤（`hasTag`）、打开站点、内容截断等。
+  - `api/http.js`：Axios 实例；API 基址解析逻辑包含“公网域名自动回退”：在未设置 `VITE_API_BASE` 但当前页面为 `https://*.shiyan.online` 时，将 `app.*` 替换为 `api.*` 并自动拼接 `/api`，避免手机等公网访问误指向 `localhost`。
 - 可用性与移动端：统一骨架/空态/错误态渲染，滚动哨兵自动加载、BackTop。
 
 ## 5. 详细功能说明
@@ -89,7 +93,7 @@
 ### 5.2 导航广场
 - 分类树：根分类与全部启用分类（含子级）加载，前端侧栏联动滚动。
 - 站点：按分类分页加载、标签搜索（逗号分隔，`LIKE` 模糊），精选/热门排序。
-- 接口示例：`GET /api/navigation/categories`、`GET /api/navigation/sites/category/{categoryId}`、`GET /api/navigation/sites/tags/{tags}`。
+- 接口示例：`GET /api/navigation/categories`、`GET /api/navigation/categories/all`、`GET /api/navigation/sites/category/{categoryId}`、`GET /api/navigation/sites/tags/{tags}`。
 
 ### 5.3 消息中心
 - 列表分页与分组（系统/互动）；支持标记已读与删除，维护未读计数。
@@ -132,14 +136,22 @@
   - 数据库：`DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD`；
   - JWT：`JWT_SECRET/JWT_EXPIRES_IN`；
   - Redis（可选）：`SPRING_DATA_REDIS_HOST/PORT`（禁用时不配置或关闭服务）。
+  - 前端 API：`VITE_API_BASE`（未设置时将按公网域名回退至 `https://api.<domain>/api`）。
 - 日志保留与清理：`LogRetentionScheduler` 通过 `logdb.retention-sweep-interval-ms` 控制清理频率；依据业务量配置保留天数与定期归档。
+  - 请求日志采样：`logdb.request-sampling-percent`（0–100；默认 100 全量）。
+  - 控制台日志 MDC：`logging.pattern.console` 包含 `requestId`，便于前后端联调。
 
-## 8. 缓存策略（Redis，可选）
+## 8. 缓存策略（Redis 与 Spring Cache）
 - 组件与键空间：`NoteCacheService` 使用 `StringRedisTemplate`，键：
   - `notes:hot:size:{size}`：热门公开拾言列表；
   - `notes:recent:size:{size}`：最近公开拾言列表。
 - 失效：写操作（新增/更新/删除/点赞/收藏）后失效相关键空间。
 - 当前状态：若前端已取消“热门/最近”页面且后端不再调用相关接口/失效方法，可视为已停用 Redis。
+- 导航/分类缓存（Spring Cache）：
+  - 命名空间与 TTL（见 `CacheConfigRedis.java`）：
+    - `sites_by_category`：60s；`sites_featured`：30s；`sites_popular`：30s。
+    - `categories_root`/`categories_enabled`：默认 TTL（通常 60s，视配置）。
+  - 激活方式：设置 `spring.profiles.active=redis`，使用 Redis 作为缓存存储；默认 Caffeine。
 - 建议的开关化：
   - 配置 `cache.notes.enabled=false`；
   - 注入改为可选（`@Autowired(required=false)` 或 `ObjectProvider`）；
@@ -150,6 +162,10 @@
 - 鉴权：`JWT`；敏感接口要求登录态；管理端严格 `ADMIN` 角色。
 - 输入与校验：对正文、标签、URL 等进行长度与格式校验；避免 SQL 注入与脚本注入。
 - 验证码与频控：登录/找回密码建议启用验证码与请求频率限制（多实例使用 Redis 存储与 TTL）。
+- CORS：`application.yml` 配置允许来源：
+  - `http://localhost:5500`、`http://localhost:5173`、`https://app.shiyan.online`、`https://api.shiyan.online`；
+  - 通配：`https://*.shiyan.online` 与 `http://*.shiyan.online`；当 `allowCredentials=true` 时必须精确匹配而非 `*`；
+  - 允许方法含 `PATCH`（避免预检拦截管理端操作）。
 - CORS 与 CSRF：前后端分离场景配置允许来源；对有状态接口谨慎评估 CSRF 风险。
 
 ## 10. 测试与验收
