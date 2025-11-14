@@ -1,6 +1,6 @@
 # 生产环境（Linux + Docker）部署：Nginx 配置与服务启动脚本
 
-> 环境约定：Linux（使用 Docker），域名 `com.linaa.shiyan`，对外端口 `6639`。
+> 环境约定：Linux（使用 Docker），域名 `com.linaa.shiyan`，对外端口 `6639`（可按需改为 80/443）。
 > 目标：提供可直接复制使用的 Nginx 配置与 Docker Compose 脚本，快速上线前后端服务。
 
 ---
@@ -141,8 +141,7 @@ services:
       JWT_SECRET: "<长随机密钥>"
       JWT_ISSUER: "com.linaa.shiyan"
       JWT_EXPIRE_MINUTES: "1440"
-      # 首次部署如需自动建表，可在环境变量中开启；后续请改为 never
-      # SPRING_SQL_INIT_MODE: "always"
+      SPRING_SQL_INIT_MODE: "never"
     command: ["java","-Xms256m","-Xmx512m","-jar","/app/app.jar","--spring.profiles.active=prod"]
     networks:
       - yunbq-net
@@ -175,10 +174,10 @@ networks:
 ```
 
 > 说明：
-> - 将仓库中的 `frontend/dist`、`backend/target/*.jar` 与 `uploads` 同级放置在 `/opt/yunbq/` 下；
+> - 将仓库中的 `frontend/dist`、`backend/target/*.jar` 与 `uploads` 放置在 `/opt/yunbq/` 下；
 > - 将本文提供的 Nginx `default.conf` 保存为 `/opt/yunbq/nginx/default.conf`；
 > - 端口映射 `6639:6639`，外网访问为 `http://com.linaa.shiyan:6639/` 与 `http://com.linaa.shiyan:6639/api/...`；
-> - 后端容器内部端口使用默认 `8080`，由 Nginx 通过服务名 `backend` 反代。
+> - 后端容器内部端口使用默认 `8080`，由 Nginx 通过服务名 `backend` 反代；首次部署如需自动建表，改 `SPRING_SQL_INIT_MODE` 为 `always`，完成后改回 `never`。
 
 ---
 
