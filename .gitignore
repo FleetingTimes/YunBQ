@@ -1,26 +1,4 @@
 backend/target/*
-backend/target/classes/application-dev.yml
-backend/target/classes/application-prod.yml
-backend/target/classes/com/yunbq/backend/controller/AccountController.class
-backend/target/classes/com/yunbq/backend/controller/BackgroundController.class
-backend/target/classes/com/yunbq/backend/controller/CaptchaController.class
-backend/target/classes/com/yunbq/backend/controller/PasswordResetController.class
-backend/target/classes/com/yunbq/backend/controller/SocialAuthController.class
-backend/target/classes/com/yunbq/backend/dto/PageResult.class
-backend/target/classes/com/yunbq/backend/dto/RegisterRequest.class
-backend/target/classes/com/yunbq/backend/mapper/UserMapper.class
-backend/target/classes/com/yunbq/backend/security/JwtAuthenticationFilter.class
-backend/target/classes/com/yunbq/backend/security/JwtUtil.class
-backend/target/classes/com/yunbq/backend/security/SecurityConfig.class
-backend/target/classes/com/yunbq/backend/service/CaptchaService.class
-backend/target/classes/com/yunbq/backend/service/CaptchaService$Captcha.class
-backend/target/classes/com/yunbq/backend/service/CaptchaService$CaptchaEntry.class
-backend/target/classes/com/yunbq/backend/service/PasswordResetService.class
-backend/target/classes/com/yunbq/backend/service/PasswordResetService$RateEntry.class
-backend/target/classes/com/yunbq/backend/service/PasswordResetService$ResetEntry.class
-backend/target/classes/com/yunbq/backend/util/AuthUtil.class
-backend/target/maven-archiver/pom.properties
-backend/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst
 backend/src/main/resources/application.yml
 .gitignore
 backend/target/classes/application.yml
@@ -29,3 +7,4 @@ backend/target/classes/application.yml
 项目介绍plus.md
 详细的知识总结.md
 
+backend/src/main/resources/application.yml
