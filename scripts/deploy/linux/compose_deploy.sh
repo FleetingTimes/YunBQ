@@ -36,8 +36,10 @@ popd >/dev/null
 
 echo "部署完成，进行健康检查..."
 set +e
-curl -fsS "http://com.linaa.shiyan:6639/" >/dev/null && echo "前端 OK" || echo "前端检查失败"
-curl -fsS "http://com.linaa.shiyan:6639/api/health" >/dev/null || curl -fsS "http://com.linaa.shiyan:6639/actuator/health" >/dev/null && echo "后端 OK" || echo "后端检查失败"
+PORT=$(grep -E '^EXPOSE_PORT=' "$TARGET_DIR/docker-compose.env" | head -n1 | cut -d'=' -f2)
+PORT=${PORT:-6639}
+curl -fsS "http://localhost:$PORT/" >/dev/null && echo "前端 OK" || echo "前端检查失败"
+curl -fsS "http://localhost:$PORT/api/health" >/dev/null || curl -fsS "http://localhost:$PORT/actuator/health" >/dev/null && echo "后端 OK" || echo "后端检查失败"
 set -e
 
 echo "提示：如需开机自启，参考 生产部署-Docker-Nginx.md 的 systemd 片段。"

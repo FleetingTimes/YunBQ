@@ -37,6 +37,7 @@ services:
     volumes:
       - ./backend/target/backend-0.0.1-SNAPSHOT.jar:/app/app.jar:ro
       - ./uploads:/opt/yunbq/uploads
+      - ./uploads:/app/uploads
     environment:
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
       SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
@@ -46,7 +47,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_ISSUER: ${JWT_ISSUER}
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES}
-      # SPRING_SQL_INIT_MODE: ${SPRING_SQL_INIT_MODE:-never}
+      SPRING_SQL_INIT_MODE: ${SPRING_SQL_INIT_MODE:-never}
     command: ["java","-Xms256m","-Xmx512m","-jar","/app/app.jar","--spring.profiles.active=prod"]
     networks:
       - yunbq-net
@@ -67,7 +68,7 @@ services:
     networks:
       - yunbq-net
     ports:
-      - "${EXPOSE_PORT:-6639}:${EXPOSE_PORT:-6639}"
+      - "${EXPOSE_PORT:-6639}:6639"
     depends_on:
       - backend
     restart: always

@@ -39,7 +39,13 @@ docker compose --env-file "$TargetDir/docker-compose.env" up -d
 Pop-Location
 
 Write-Host "部署完成，进行健康检查..." -ForegroundColor Cyan
-try { Invoke-WebRequest -Uri "http://com.linaa.shiyan:6639/" -UseBasicParsing -TimeoutSec 5 | Out-Null; Write-Host "前端 OK" -ForegroundColor Green } catch { Write-Warning "前端检查失败" }
-try { Invoke-WebRequest -Uri "http://com.linaa.shiyan:6639/api/health" -UseBasicParsing -TimeoutSec 5 | Out-Null; Write-Host "后端 OK" -ForegroundColor Green } catch { Write-Warning "后端检查失败（尝试访问 actuator/health）" }
+$envPath = Join-Path $TargetDir "docker-compose.env"
+$port = 6639
+if (Test-Path $envPath) {
+  $line = (Get-Content $envPath | Where-Object { $_ -match '^EXPOSE_PORT=' } | Select-Object -First 1)
+  if ($line) { $port = [int]($line.Split('=')[1]) }
+}
+try { Invoke-WebRequest -Uri "http://localhost:$port/" -UseBasicParsing -TimeoutSec 5 | Out-Null; Write-Host "前端 OK" -ForegroundColor Green } catch { Write-Warning "前端检查失败" }
+try { Invoke-WebRequest -Uri "http://localhost:$port/api/health" -UseBasicParsing -TimeoutSec 5 | Out-Null; Write-Host "后端 OK" -ForegroundColor Green } catch { Write-Warning "后端检查失败（尝试访问 actuator/health）" }
 
 Write-Host "提示：生产建议使用 Linux + systemd 管理 Compose，详见生产部署文档。" -ForegroundColor Yellow

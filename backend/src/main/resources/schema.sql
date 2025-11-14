@@ -1,4 +1,6 @@
 -- MySQL schema for YunBQ
+-- 声明：本文件可由 Spring SQL 初始化在首次部署时自动执行（当 spring.sql.init.mode=always）。
+--       若使用 backend/sql/init_schema.sql 手动初始化，可将 spring.sql.init.mode 设为 never。
 CREATE TABLE IF NOT EXISTS users (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   username VARCHAR(64) NOT NULL UNIQUE,
@@ -6,8 +8,10 @@ CREATE TABLE IF NOT EXISTS users (
   nickname VARCHAR(64),
   email VARCHAR(128),
   signature VARCHAR(255),
+  avatar_url VARCHAR(255),
   role VARCHAR(16) NOT NULL DEFAULT 'USER',
-  created_at DATETIME NOT NULL
+  created_at DATETIME NOT NULL,
+  UNIQUE KEY uniq_users_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 主表：拾言（原 notes 重命名为 shiyan）
@@ -78,44 +82,16 @@ CREATE TABLE IF NOT EXISTS request_logs (
   status INT NOT NULL,                   -- 响应状态码
   duration_ms INT NOT NULL,              -- 处理耗时（毫秒）
   user_id BIGINT NULL,                   -- 触发该请求的用户 ID（匿名为 NULL）
+  request_id VARCHAR(64) NULL,           -- 请求唯一标识（用于跨表串联）
   created_at DATETIME NOT NULL,          -- 记录时间（UTC）
   INDEX idx_created (created_at),
   INDEX idx_uri (uri),
   INDEX idx_status (status),
-  INDEX idx_user (user_id)
+  INDEX idx_user (user_id),
+  INDEX idx_request_logs_reqid (request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- =========================
--- 追加列：request_id（用于跨表串联）
--- 使用 IF NOT EXISTS 以便重复执行 schema 时不报错（MySQL 8+ 支持）。
--- =========================
--- 兼容 MySQL 5.7 的条件 ALTER：按列不存在时追加
--- request_logs.request_id
-SET @col_exists := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'request_logs' AND COLUMN_NAME = 'request_id');
-SET @ddl := IF(@col_exists = 0, 'ALTER TABLE request_logs ADD COLUMN request_id VARCHAR(64) NULL', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
--- auth_logs.request_id
-SET @col_exists := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'auth_logs' AND COLUMN_NAME = 'request_id');
-SET @ddl := IF(@col_exists = 0, 'ALTER TABLE auth_logs ADD COLUMN request_id VARCHAR(64) NULL', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
--- error_logs.request_id
-SET @col_exists := (SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'error_logs' AND COLUMN_NAME = 'request_id');
-SET @ddl := IF(@col_exists = 0, 'ALTER TABLE error_logs ADD COLUMN request_id VARCHAR(64) NULL', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-
--- 兼容 MySQL 5.7 的条件索引追加：按索引不存在时追加
--- request_logs.idx_request_logs_reqid
-SET @idx_exists := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'request_logs' AND INDEX_NAME = 'idx_request_logs_reqid');
-SET @ddl := IF(@idx_exists = 0, 'ALTER TABLE request_logs ADD INDEX idx_request_logs_reqid (request_id)', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
--- auth_logs.idx_auth_logs_reqid
-SET @idx_exists := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'auth_logs' AND INDEX_NAME = 'idx_auth_logs_reqid');
-SET @ddl := IF(@idx_exists = 0, 'ALTER TABLE auth_logs ADD INDEX idx_auth_logs_reqid (request_id)', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
--- error_logs.idx_error_logs_reqid
-SET @idx_exists := (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'error_logs' AND INDEX_NAME = 'idx_error_logs_reqid');
-SET @ddl := IF(@idx_exists = 0, 'ALTER TABLE error_logs ADD INDEX idx_error_logs_reqid (request_id)', 'SELECT 1');
-PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+-- 已在 CREATE TABLE 中包含 request_id 与其索引，无需条件 ALTER
 
 -- 认证日志表：记录登录或令牌校验的成功/失败事件
 CREATE TABLE IF NOT EXISTS auth_logs (
@@ -126,10 +102,12 @@ CREATE TABLE IF NOT EXISTS auth_logs (
   reason VARCHAR(256) NULL,              -- 失败原因（成功为空）
   ip VARCHAR(64) NULL,                   -- 客户端 IP
   user_agent VARCHAR(256) NULL,          -- 客户端 UA
+  request_id VARCHAR(64) NULL,           -- 请求唯一标识
   created_at DATETIME NOT NULL,          -- 记录时间（UTC）
   INDEX idx_created (created_at),
   INDEX idx_success (success),
-  INDEX idx_user (user_id)
+  INDEX idx_user (user_id),
+  INDEX idx_auth_logs_reqid (request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 错误日志表：持久化未处理异常（便于定位故障）
@@ -140,10 +118,12 @@ CREATE TABLE IF NOT EXISTS error_logs (
   exception VARCHAR(128) NOT NULL,       -- 异常类名
   message VARCHAR(512) NULL,             -- 异常消息
   stack_trace TEXT NULL,                 -- 堆栈信息（可选，体积较大）
+  request_id VARCHAR(64) NULL,           -- 请求唯一标识
   created_at DATETIME NOT NULL,          -- 记录时间（UTC）
   INDEX idx_created (created_at),
   INDEX idx_exception (exception),
-  INDEX idx_user (user_id)
+  INDEX idx_user (user_id),
+  INDEX idx_error_logs_reqid (request_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ------------------------------------------------------------
@@ -232,5 +212,4 @@ CREATE TABLE IF NOT EXISTS messages (
   CONSTRAINT fk_messages_receiver FOREIGN KEY (receiver_user_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_messages_note FOREIGN KEY (note_id) REFERENCES shiyan(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 
