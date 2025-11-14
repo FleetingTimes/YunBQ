@@ -22,10 +22,10 @@ backend/target/classes/com/yunbq/backend/util/AuthUtil.class
 backend/target/maven-archiver/pom.properties
 backend/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst
 backend/src/main/resources/application.yml
-本地隧道工具对比与使用指南.md
 .gitignore
 backend/target/classes/application.yml
-项目详细介绍.md
+本地运行-不启用开发工具.md
 详细的知识总结.md
-简历-项目经验-YunBQ.md
 项目介绍plus.md
+详细的知识总结.md
+
