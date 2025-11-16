@@ -59,7 +59,15 @@ public class UserService {
      */
     @Transactional
     public User register(RegisterRequest req) {
-        User existing = userMapper.selectOne(new QueryWrapper<User>().eq("username", req.getUsername()));
+        // 保留词（大小写不敏感）
+        String uname = req.getUsername();
+        String low = uname == null ? "" : uname.toLowerCase();
+        java.util.Set<String> reserved = java.util.Set.of("admin","root","system","support");
+        if (reserved.contains(low)) {
+            throw new RuntimeException("该用户名为保留词，不能使用");
+        }
+        // 大小写不敏感唯一性检查：使用 LOWER() 比较，避免 Alice 与 alice 并存
+        User existing = userMapper.selectOne(new QueryWrapper<User>().apply("LOWER(username) = LOWER({0})", uname));
         if (existing != null) {
             throw new RuntimeException("用户名已存在");
         }

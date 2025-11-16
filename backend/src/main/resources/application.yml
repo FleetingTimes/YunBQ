@@ -9,7 +9,7 @@ server:
 spring:
   datasource:
     # 使用 UTF-8 作为 JDBC 连接字符集；数据库与表应配置为 utf8mb4 以支持 Emoji
-    url: jdbc:mysql://localhost:3306/yunbq?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false
+    url: jdbc:mysql://localhost:3306/yunbq?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: root
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -36,8 +36,8 @@ spring:
   mail:
     host: "smtp.163.com"
     port: 465
-    username: "your_163_email@163.com"
-    password: "your_163_password"
+    username: "wsk7931@163.com"
+    password: "KQmQZMKBVh7dgiCL"
     properties:
       mail:
         smtp:

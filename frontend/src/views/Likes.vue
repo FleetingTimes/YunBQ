@@ -43,10 +43,12 @@
   v-if="!isEmpty"
   :items="danmuItems"
   :rows="danmuRows"
-  :speed-scale="1.35"
+  :speed-scale="1.6"
   :same-speed="true"
-  :uniform-duration="16"
+  :uniform-duration="20"
   :max-visible="danmuMaxVisible"
+  :avoid-overlap="true"
+  :min-gap-seconds="3"
 />
 
         <!-- 年份分组时间线：在非空时按年分组展示喜欢的便签列表 -->
@@ -67,6 +69,8 @@
                     :note="n"
                     :enableLongPressActions="true"
                     :showAuthorAvatar="true"
+                    :useThumb="true"
+                    @author-click="goToUserNotes"
                     @toggle-like="toggleLike"
                     @toggle-favorite="toggleFavorite"
                   />
@@ -91,6 +95,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from 'vue'
+import { useRouter } from 'vue-router'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
@@ -98,6 +103,8 @@ import { ElMessage } from 'element-plus'
 const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const DanmuWall = defineAsyncComponent(() => import('@/components/DanmuWall.vue'))
 const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
+
+const router = useRouter()
 
 const query = ref('')
 const danmuItems = ref([])
@@ -114,7 +121,7 @@ onMounted(() => { updateIsMobile(); window.addEventListener('resize', updateIsMo
 onUnmounted(() => { try{ window.removeEventListener('resize', updateIsMobile) }catch{} })
 // 响应式弹幕参数：手机缩减为 3 行、上限 9；桌面保持 6 行、上限 18
 const danmuRows = computed(() => isMobile.value ? 3 : 6)
-const danmuMaxVisible = computed(() => danmuRows.value * 3)
+const danmuMaxVisible = computed(() => danmuRows.value * 2)
 // 空状态计算：当“未在加载中且列表为空”时视为空
 const isEmpty = computed(() => !isLoading.value && danmuItems.value.length === 0)
 // 空状态图片：留空使用 Element Plus 默认图片；如需品牌化可设置为自定义图片 URL
@@ -154,6 +161,17 @@ function goExplore(){
   try{ window.location.hash = '#/' }catch{}
 }
 
+function goToUserNotes(it){
+  try{
+    const username = String(it.authorUsername || it.authorName || '').trim()
+    const query = {}
+    if (it.authorName) query.nickname = it.authorName
+    if (it.authorAvatarUrl) query.avatar = it.authorAvatarUrl
+    if (it.userId) query.uid = it.userId
+    if (username) router.push({ path: `/user/${encodeURIComponent(username)}/shiyan`, query })
+  }catch{}
+}
+
 function normalizeNote(it){
   return {
     id: it.id,
@@ -161,6 +179,11 @@ function normalizeNote(it){
     tags: Array.isArray(it.tags) ? it.tags : String(it.tags || '').split(',').filter(Boolean),
     color: String(it.color ?? '#ffd966'),
     authorName: String(it.authorName ?? it.author_name ?? (it.user?.nickname ?? it.user?.username ?? '')),
+    authorUsername: String(
+      it.authorUsername ?? it.author_username ?? it.username ??
+      (it.user?.username ?? it.author?.username ?? '')
+    ),
+    userId: it.userId ?? it.user_id ?? it.user?.id ?? undefined,
     // 作者头像字段：兼容多命名与嵌套结构；为空时组件内回退默认头像
     authorAvatarUrl: (
       it.authorAvatarUrl ?? it.author_avatar_url ??
@@ -323,15 +346,6 @@ async function toggleFavorite(n){
     n.favoriteLoading = false
   }
 }
-
-function sampleDanmu(){
-  // 示例弹幕数据（在无接口或加载失败时展示）
-  return [
-    { id: 1, content: '喜欢：清晨的第一缕阳光', tags:['生活'], color:'#ffd966', likeCount: 12, liked: true },
-    { id: 2, content: '好句子：山高路远，勇者不惧', tags:['语录'], color:'#b6d7a8', likeCount: 30, liked: true },
-    { id: 3, content: '打卡：今日阅读《小王子》', tags:['阅读'], color:'#a4c2f4', likeCount: 7, liked: true },
-  ]
-}
 </script>
 
 <style scoped>
@@ -366,4 +380,6 @@ function sampleDanmu(){
 .load-btn:disabled { cursor:not-allowed; color:#c0c4cc; background:#f5f7fa; border-color:#ebeef5; }
 .load-btn:hover:not(:disabled) { background:#f5f7ff; border-color:#e0e9ff; }
 .load-sentinel { width:100%; height: 1px; }
+/* 头像指针样式：NoteCard 的作者头像在本页显示为可点击，统一指针样式 */
+:deep(.author-head .avatar){ cursor: pointer; }
 </style>

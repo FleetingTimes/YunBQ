@@ -20,6 +20,11 @@ import java.nio.file.Paths;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
+import java.io.File;
 
 /**
  * 账户与个人资料接口
@@ -70,14 +75,13 @@ public class AccountController {
         if (user == null) {
             return ResponseEntity.status(404).body(Map.of("message","用户不存在"));
         }
-        // 仅返回公开字段，避免泄露邮箱等敏感信息。
-        return ResponseEntity.ok(Map.of(
-                "id", user.getId(),
-                "username", user.getUsername(),
-                "nickname", user.getNickname(),
-                "signature", user.getSignature(),
-                "avatarUrl", user.getAvatarUrl()
-        ));
+        java.util.Map<String,Object> resp = new java.util.HashMap<>();
+        resp.put("id", user.getId());
+        resp.put("username", user.getUsername());
+        resp.put("nickname", user.getNickname());
+        resp.put("signature", user.getSignature());
+        resp.put("avatarUrl", user.getAvatarUrl());
+        return ResponseEntity.ok(resp);
     }
 
     /**
@@ -131,6 +135,8 @@ public class AccountController {
         String contentType = file.getContentType();
         if (contentType == null || !contentType.startsWith("image/")) return ResponseEntity.badRequest().body(Map.of("message","仅支持图片文件"));
         try {
+            User prev = userMapper.selectById(uid);
+            String oldUrl = prev != null ? prev.getAvatarUrl() : null;
             String baseDir = System.getProperty("user.dir") + "/uploads/avatars";
             Path dir = Paths.get(baseDir);
             if (!Files.exists(dir)) Files.createDirectories(dir);
@@ -145,17 +151,69 @@ public class AccountController {
             String url = "/uploads/avatars/" + filename; // 静态资源映射
             // 更新数据库
             userMapper.update(null, new UpdateWrapper<User>().eq("id", uid).set("avatar_url", url));
+            try {
+                BufferedImage src = ImageIO.read(target.toFile());
+                if (src != null) {
+                    saveThumb(src, target, 64);
+                    saveThumb(src, target, 128);
+                }
+            } catch (Exception ignore) {}
+            cleanupOldAvatar(oldUrl);
             User u = userMapper.selectById(uid);
-            return ResponseEntity.ok(Map.of(
-                    "id", u.getId(),
-                    "username", u.getUsername(),
-                    "nickname", u.getNickname(),
-                    "email", u.getEmail(),
-                    "avatarUrl", url
-            ));
+            java.util.Map<String,Object> resp = new java.util.HashMap<>();
+            resp.put("id", u.getId());
+            resp.put("username", u.getUsername());
+            resp.put("nickname", u.getNickname());
+            resp.put("email", u.getEmail());
+            resp.put("avatarUrl", url);
+            return ResponseEntity.ok(resp);
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("message","服务器保存头像失败"));
         }
+    }
+
+    private void saveThumb(BufferedImage src, Path target, int size) {
+        try {
+            int w = src.getWidth();
+            int h = src.getHeight();
+            if (w <= 0 || h <= 0) return;
+            double scaleW = size / (double) w;
+            double scaleH = size / (double) h;
+            double scale = Math.max(scaleW, scaleH);
+            int newW = Math.max(1, (int) Math.round(w * scale));
+            int newH = Math.max(1, (int) Math.round(h * scale));
+            BufferedImage scaled = new BufferedImage(newW, newH, src.getType() == BufferedImage.TYPE_CUSTOM ? BufferedImage.TYPE_INT_ARGB : src.getType());
+            Graphics2D g = scaled.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.drawImage(src, 0, 0, newW, newH, null);
+            g.dispose();
+            String name = target.getFileName().toString();
+            int dot = name.lastIndexOf('.');
+            String base = dot > 0 ? name.substring(0, dot) : name;
+            String ext = dot > 0 ? name.substring(dot + 1) : "png";
+            File out = target.getParent().resolve(base + "_" + size + "." + ext).toFile();
+            ImageIO.write(scaled, ext, out);
+        } catch (Exception ignore) {}
+    }
+
+    private void cleanupOldAvatar(String oldUrl) {
+        try {
+            if (oldUrl == null || oldUrl.isBlank()) return;
+            if (!oldUrl.startsWith("/uploads/avatars/")) return; // 仅清理本地存储的头像
+            Path dir = Paths.get(System.getProperty("user.dir"), "uploads", "avatars");
+            String name = oldUrl.substring("/uploads/avatars/".length());
+            Path orig = dir.resolve(name);
+            Files.deleteIfExists(orig);
+            int dot = name.lastIndexOf('.');
+            if (dot > 0) {
+                String base = name.substring(0, dot);
+                String ext = name.substring(dot + 1);
+                Files.deleteIfExists(dir.resolve(base + "_64." + ext));
+                Files.deleteIfExists(dir.resolve(base + "_128." + ext));
+            }
+        } catch (Exception ignore) {}
     }
 
     /**
@@ -284,13 +342,13 @@ public class AccountController {
         if (u == null) return ResponseEntity.status(404).body(Map.of("message","用户不存在"));
         u.setNickname(nickname.isEmpty() ? null : nickname);
         userMapper.updateById(u);
-        return ResponseEntity.ok(Map.of(
-                "id", u.getId(),
-                "username", u.getUsername(),
-                "nickname", u.getNickname(),
-                "email", u.getEmail(),
-                "avatarUrl", u.getAvatarUrl()
-        ));
+        java.util.Map<String,Object> resp = new java.util.HashMap<>();
+        resp.put("id", u.getId());
+        resp.put("username", u.getUsername());
+        resp.put("nickname", u.getNickname());
+        resp.put("email", u.getEmail());
+        resp.put("avatarUrl", u.getAvatarUrl());
+        return ResponseEntity.ok(resp);
     }
 
     /**
@@ -315,14 +373,14 @@ public class AccountController {
         if (u == null) return ResponseEntity.status(404).body(Map.of("message","用户不存在"));
         u.setSignature(signature.isEmpty() ? null : signature);
         userMapper.updateById(u);
-        return ResponseEntity.ok(Map.of(
-                "id", u.getId(),
-                "username", u.getUsername(),
-                "nickname", u.getNickname(),
-                "email", u.getEmail(),
-                "signature", u.getSignature(),
-                "avatarUrl", u.getAvatarUrl()
-        ));
+        java.util.Map<String,Object> resp2 = new java.util.HashMap<>();
+        resp2.put("id", u.getId());
+        resp2.put("username", u.getUsername());
+        resp2.put("nickname", u.getNickname());
+        resp2.put("email", u.getEmail());
+        resp2.put("signature", u.getSignature());
+        resp2.put("avatarUrl", u.getAvatarUrl());
+        return ResponseEntity.ok(resp2);
     }
 
     /**

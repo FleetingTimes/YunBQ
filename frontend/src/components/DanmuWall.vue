@@ -45,6 +45,10 @@ const props = defineProps({
   // 屏幕同时可见的最大弹幕数量（总数上限；0/负数表示不限制）
   // 当设置上限时，会按行“均分”限制每行渲染的条目数量。
   maxVisible: { type: Number, default: 0 },
+  // 是否在同一行内避免重叠：开启后将按最小时间间隔调整初始延迟
+  avoidOverlap: { type: Boolean, default: true },
+  // 同一行相邻弹幕的最小时间间隔（秒）：仅在 avoidOverlap=true 时生效
+  minGapSeconds: { type: Number, default: 2.5 },
 })
 const emit = defineEmits(['itemClick'])
 
@@ -121,7 +125,40 @@ function danmuItemsForRow(row) {
   const limitTotal = Number(props.maxVisible || 0)
   if (limitTotal > 0) {
     const perRow = Math.max(1, Math.floor(limitTotal / Math.max(1, props.rows)))
-    return all.slice(0, perRow)
+    let selected = all.slice(0, perRow)
+    if (props.avoidOverlap) {
+      const viewport = (typeof window !== 'undefined' && window.innerWidth) ? window.innerWidth : 1024
+      const cycleBase = (selected[0]?.duration || props.uniformDuration)
+      const dur = cycleBase * props.speedScale
+      const speedPxPerSec = (220 * viewport / 100) / dur
+      selected.sort((a,b) => a.delay - b.delay)
+      for (let i=1;i<selected.length;i++){
+        const prev = selected[i-1]
+        const cur = selected[i]
+        const widthPxPrev = Math.min(viewport * 0.85, 16 + (String(prev.content||'').length) * 9 + 40)
+        const need = Math.max(props.minGapSeconds, widthPxPrev / speedPxPerSec)
+        const gap = cur.delay - prev.delay
+        if (gap < need){
+          let newDelay = prev.delay + need
+          if (newDelay > cycleBase) newDelay = newDelay - cycleBase
+          cur.delay = newDelay
+        }
+      }
+      if (selected.length > 1){
+        const first = selected[0]
+        const last = selected[selected.length - 1]
+        const widthPxLast = Math.min(viewport * 0.85, 16 + (String(last.content||'').length) * 9 + 40)
+        const needWrap = Math.max(props.minGapSeconds, widthPxLast / speedPxPerSec)
+        const wrapGap = (first.delay + cycleBase) - last.delay
+        if (wrapGap < needWrap){
+          let newFirstDelay = last.delay + needWrap - cycleBase
+          if (newFirstDelay < 0) newFirstDelay = 0
+          first.delay = newFirstDelay
+        }
+      }
+      selected.sort((a,b) => a.id - b.id)
+    }
+    return selected
   }
   return all
 }

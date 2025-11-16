@@ -86,13 +86,32 @@ const formRef = ref();
 const form = reactive({ username:'', email:'', password:'', captchaCode:'' });
 // 登录模式：'password' 表示用户名+密码；'email' 表示邮箱+密码
 const loginMode = ref('password');
+// 登录页校验：与注册用户名规则保持一致，避免“注册后无法登录”的不一致体验
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '用户名长度需 3-20 个字符', trigger: ['blur','change'] },
+    {
+      validator: (rule, value, cb) => {
+        const v = String(value || '').trim()
+        if (!v) return cb(new Error('请输入用户名'))
+        if (/\s/.test(v)) return cb(new Error('用户名不允许空格'))
+        const ok = /^[A-Za-z0-9](?:[A-Za-z0-9_-]{1,18}[A-Za-z0-9])?$/.test(v)
+        if (!ok) return cb(new Error('仅限字母、数字、下划线、短横线，且首尾需为字母或数字'))
+        if (/__|--/.test(v)) return cb(new Error('不允许连续下划线或短横线'))
+        cb()
+      },
+      trigger: ['blur','change']
+    }
+  ],
   email: [
     { required: () => loginMode.value === 'email', message: '请输入邮箱地址', trigger: 'blur' },
     { type: 'email', message: '邮箱格式不正确', trigger: ['blur','change'] }
   ],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 8, max: 64, message: '密码长度需 8-64 位', trigger: ['blur','change'] }
+  ],
   captchaCode: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
 };
 const loading = ref(false);

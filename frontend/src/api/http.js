@@ -21,6 +21,10 @@ import axios from 'axios';
 //   若未正确配置环境变量，前端将错误地请求 `http://localhost:8080/api`，导致“看得到页面但没有数据”。
 // - 为提升鲁棒性，这里加入“公网域名自动回退”：当检测到当前页面是公网域名（HTTPS 且形如 *.shiyan.online），
 //   在未显式设置 `VITE_API_BASE` 时，自动将 API 基址设为对应的 `api.<域名>/api`。
+// 计算 API 基址：
+// 1) 默认取环境变量 `VITE_API_BASE`，否则退回 `http://localhost:8080/api`（本地联调）
+// 2) 当当前页面处于「https 的公网域名（*.shiyan.online）」时，强制覆盖为对应 `https://api.<域名>/api`
+//    目的：避免线上构建时误注入了 http 或 localhost，导致移动端 WebView 在 https 下被“混合内容”拦截，出现“只有背景图、没有数据”的现象。
 let resolvedBase = import.meta.env?.VITE_API_BASE || 'http://localhost:8080/api';
 try {
   const loc = window?.location;
@@ -28,11 +32,22 @@ try {
   const protocol = String(loc?.protocol || 'http:');
   // 判定“公网域名”条件：HTTPS 且域名以 shiyan.online 结尾（可根据实际业务拓展）
   const isPublicDomain = protocol === 'https:' && /\.shiyan\.online$/i.test(hostname);
-  // 仅当没有显式环境变量时，启用自动回退
-  if (!import.meta.env?.VITE_API_BASE && isPublicDomain) {
-    // 规则：将 `app.xxx` 替换为 `api.xxx`；若无 `app.` 前缀，保留原主机名（适配未来域名策略）
+  if (isPublicDomain) {
+    // 线上（https + 公网域名）场景：统一走 api 子域，避免混合内容与跨域异常
     const apiHost = hostname.replace(/^app\./i, 'api.');
     resolvedBase = `${protocol}//${apiHost}/api`;
+  } else {
+    // 非公网域：保留环境变量或本地默认；若存在 http 基址但页面为 https，则尝试自动升级协议以降低被拦截概率
+    try {
+      const u = new URL(resolvedBase);
+      if (protocol === 'https:' && u.protocol === 'http:') {
+        // 自动协议升级：仅修改为 https，主机与端口保持不变（如 http://example:8080 -> https://example:8080）
+        u.protocol = 'https:';
+        resolvedBase = u.toString();
+      }
+    } catch (_) {
+      // 忽略解析异常，保留原值
+    }
   }
 } catch (_) {
   // 忽略运行期环境不支持 window 的情况（如 SSR），保留默认 localhost 基址
@@ -51,6 +66,18 @@ http.interceptors.request.use(cfg => {
 http.interceptors.response.use(
   resp => resp,
   err => {
+    // 诊断辅助：在移动端 WebView 场景下，常见问题为“混合内容被拦截/证书错误/网络不可达”；
+    // 当没有后端日志时，上报基础错误信息便于定位。
+    if (!err?.response) {
+      try {
+        console.error('[HTTP] 请求失败（无响应对象，可能为网络/证书/拦截）：', {
+          baseURL: API_BASE,
+          url: err?.config?.url,
+          method: err?.config?.method,
+          message: err?.message
+        });
+      } catch (_) { /* 控制台不可用时忽略 */ }
+    }
     const status = err?.response?.status;
     if (status === 401) {
       // 说明：在 401（未登录或 token 失效）时统一重定向到登录页。
@@ -86,4 +113,18 @@ export function avatarFullUrl(path) {
   if (path.startsWith('http')) return path;
   const base = API_BASE.replace(/\/api$/, '');
   return base + path;
+}
+
+// 头像缩略图完整地址拼接：
+// - 保留原图路径规则，在文件名后追加 `_<size>` 再拼接后缀；
+// - 绝对 URL（http 开头）直接返回；
+// - 相对路径（如 `/uploads/avatars/xxx.png`）按约定生成 `/uploads/avatars/xxx_<size>.png`。
+export function avatarThumbUrl(path, size = 64) {
+  if (!path) return ''
+  if (String(path).startsWith('http')) return path
+  const s = Number.isFinite(size) ? Math.max(1, Math.floor(size)) : 64
+  const m = String(path).match(/^(.*?)(\.[a-zA-Z0-9]+)$/)
+  const withSize = m ? `${m[1]}_${s}${m[2]}` : `${path}_${s}`
+  const base = API_BASE.replace(/\/api$/, '')
+  return base + withSize
 }

@@ -52,10 +52,12 @@
           v-if="!isEmpty"
           :items="danmuItems"
           :rows="danmuRows"
-          :speed-scale="1.35"
+          :speed-scale="1.6"
           :same-speed="true"
-          :uniform-duration="16"
+          :uniform-duration="20"
           :max-visible="danmuMaxVisible"
+          :avoid-overlap="true"
+          :min-gap-seconds="3"
         />
         <!-- 年份分组时间线：在非空时按年分组展示收藏的便签列表 -->
         <div class="year-groups" v-if="!isEmpty">
@@ -75,6 +77,8 @@
                     :note="n"
                     :enableLongPressActions="true"
                     :showAuthorAvatar="true"
+                    :useThumb="true"
+                    @author-click="goToUserNotes"
                     @toggle-like="toggleLike"
                     @toggle-favorite="toggleFavorite"
                   />
@@ -99,6 +103,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from 'vue'
+import { useRouter } from 'vue-router'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
@@ -120,7 +125,7 @@ function updateIsMobile(){
 onMounted(() => { updateIsMobile(); window.addEventListener('resize', updateIsMobile) })
 onUnmounted(() => { try{ window.removeEventListener('resize', updateIsMobile) }catch{} })
 const danmuRows = computed(() => isMobile.value ? 3 : 6)
-const danmuMaxVisible = computed(() => danmuRows.value * 3)
+const danmuMaxVisible = computed(() => danmuRows.value * 2)
 // 空状态计算：当“未在加载中且列表为空”时视为空
 const isEmpty = computed(() => !isLoading.value && danmuItems.value.length === 0)
 // 空状态图片：留空使用 Element Plus 默认图片；如需品牌化可设置为自定义图片 URL
@@ -140,6 +145,20 @@ function onSearch(q){ query.value = q || ''; reload() }
 onMounted(() => { reload(); setupInfiniteScroll(); })
 onUnmounted(() => { teardownInfiniteScroll() })
 
+
+const router = useRouter()
+function goToUserNotes(note){
+  try{
+    const username = String(note.authorUsername || note.authorName || '').trim()
+    const query = {}
+    if (note.authorName) query.nickname = note.authorName
+    if (note.authorAvatarUrl) query.avatar = note.authorAvatarUrl
+    if (note.userId) query.uid = note.userId
+    if (username) router.push({ path: `/user/${encodeURIComponent(username)}/shiyan`, query })
+  }catch{}
+}
+
+
 function normalizeNote(it){
   // 在收藏页面中，所有便签都应该显示为已收藏状态
   const favorited = Boolean(it.favoritedByMe ?? it.favorited ?? it.bookmarked ?? it.starred ?? it.favored ?? it.isFavorite ?? it.favorite ?? true)
@@ -154,6 +173,11 @@ function normalizeNote(it){
     color: String(it.color ?? '#ffd966'),
     // 作者昵称：兼容后端不同字段与嵌套结构（user.nickname/username）
     authorName: String(it.authorName ?? it.author_name ?? (it.user?.nickname ?? it.user?.username ?? '')),
+    authorUsername: String(
+      it.authorUsername ?? it.author_username ?? it.username ??
+      (it.user?.username ?? it.author?.username ?? '')
+    ),
+    userId: it.userId ?? it.user_id ?? it.user?.id ?? undefined,
     // 作者头像：兼容多命名与嵌套结构；为空时 NoteCard 内部会回退默认头像
     authorAvatarUrl: (
       it.authorAvatarUrl ?? it.author_avatar_url ??
@@ -289,15 +313,6 @@ async function toggleFavorite(n){
     n.favoriteLoading = false
   }
 }
-
-function sampleDanmu(){
-  // 示例弹幕数据（在无接口或加载失败时展示）
-  return [
-    { id: 10, content: '收藏：效率技巧清单', tags:['收藏'], color:'#ffd966', likeCount: 18, liked: true },
-    { id: 11, content: '收藏：旅行计划模板', tags:['模板'], color:'#b6d7a8', likeCount: 22, liked: false },
-    { id: 12, content: '收藏：每日反思问题集', tags:['思考'], color:'#a4c2f4', likeCount: 9, liked: false },
-  ]
-}
 </script>
 
 <style scoped>
@@ -332,4 +347,6 @@ function sampleDanmu(){
 .load-btn:disabled { cursor:not-allowed; color:#c0c4cc; background:#f5f7fa; border-color:#ebeef5; }
 .load-btn:hover:not(:disabled) { background:#f5f7ff; border-color:#e0e9ff; }
 .load-sentinel { width:100%; height: 1px; }
+/* 头像指针样式：NoteCard 的作者头像在本页显示为可点击，统一指针样式 */
+:deep(.author-head .avatar){ cursor: pointer; }
 </style>

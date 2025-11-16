@@ -33,9 +33,9 @@ public class CacheConfig {
         );
         // 可选：预先声明常用缓存名称（非必需），更清晰地看到已使用的缓存
         manager.setCacheNames(java.util.List.of(
-            // 站点：按分类查询
             "sites_by_category",
-            // 分类：导航栏与完整启用分类树
+            "sites_featured",
+            "sites_popular",
             "categories_root",
             "categories_enabled"
         ));

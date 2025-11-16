@@ -7,6 +7,8 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.http.CacheControl;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 应用入口与基础 Web 配置
@@ -36,7 +38,8 @@ public class YunbqBackendApplication {
             public void addResourceHandlers(ResourceHandlerRegistry registry) {
                 String baseDir = System.getProperty("user.dir") + "/uploads/";
                 registry.addResourceHandler("/uploads/**")
-                        .addResourceLocations("file:" + baseDir);
+                        .addResourceLocations("file:" + baseDir)
+                        .setCacheControl(CacheControl.maxAge(365, TimeUnit.DAYS).cachePublic().immutable());
             }
         };
     }

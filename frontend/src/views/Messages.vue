@@ -112,7 +112,7 @@ import AppTopBar from '@/components/AppTopBar.vue'
 // 根据需求，直接在摘要中呈现拾言内容，无需路由跳转
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 // 接口与头像地址拼接（与其它页面一致）
-import { http, avatarFullUrl } from '@/api/http'
+import { http, avatarFullUrl, avatarThumbUrl } from '@/api/http'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 // 登录态工具：用于在未登录时禁用消息计数请求
@@ -217,7 +217,7 @@ function mapItems(items){
 // - 这里提供一个安全函数，当头像缺失或无效时返回默认头像资源；
 // - 并通过 onerror 在网络加载异常（如 404）时将图片替换为默认头像。
 function avatarSrcFor(url){
-  const full = avatarFullUrl(url)
+  const full = avatarThumbUrl(url, 64)
   return full || defaultAvatar
 }
 function onAvatarError(e){
@@ -504,7 +504,7 @@ function goToUserNotes(m){
 .msg-card { background:#fff; border-radius:12px; padding:12px; box-shadow:0 4px 12px rgba(0,0,0,0.06); }
 .msg-card.unread { box-shadow:0 0 0 2px rgba(64,158,255,0.18), 0 4px 12px rgba(0,0,0,0.06); }
 .msg-header { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
-.avatar-sm { border-radius:50%; object-fit:cover; overflow:hidden; }
+.avatar-sm { width:36px; height:36px; aspect-ratio:1; flex:0 0 36px; border-radius:50%; object-fit:cover; overflow:hidden; }
 .clickable { cursor: pointer; }
 .title { display:flex; align-items:center; gap:6px; font-size:14px; color:#303133; }
 .title .nickname { font-weight:600; }

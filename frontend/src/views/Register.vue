@@ -20,7 +20,7 @@
           <el-input v-model="form.nickname" placeholder="可选" />
         </el-form-item>
         <el-form-item label="邮箱" prop="email">
-          <el-input v-model="form.email" placeholder="可选，用于找回密码" />
+          <el-input v-model="form.email" placeholder="请输入邮箱，用于找回密码" />
         </el-form-item>
         <el-form-item label="验证码" prop="captchaCode">
           <div style="display:flex; gap:8px; align-items:center;">
@@ -48,9 +48,51 @@ import AppTopBar from '@/components/AppTopBar.vue';
 const router = useRouter();
 const formRef = ref();
 const form = reactive({ username:'', password:'', nickname:'', email:'', captchaCode:'' });
+// 表单校验规则：
+// - 用户名：3-20 位，仅字母/数字/下划线/短横线，首尾必须为字母或数字；禁止空格与保留词
+// - 密码：至少 8 位，包含大小写字母与数字；
+// - 验证码：必填；
+// - 邮箱：若填写，需符合 Email 格式（后端亦校验）。
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { min: 3, max: 20, message: '用户名长度需 3-20 个字符', trigger: ['blur','change'] },
+    {
+      validator: (rule, value, cb) => {
+        const v = String(value || '').trim()
+        if (!v) return cb(new Error('请输入用户名'))
+        // 禁止空白字符
+        if (/\s/.test(v)) return cb(new Error('用户名不允许空格'))
+        // 仅允许字母/数字/_/-，且首尾为字母或数字；长度通过上面的 min/max 控制
+        const ok = /^[A-Za-z0-9](?:[A-Za-z0-9_-]{1,18}[A-Za-z0-9])?$/.test(v)
+        if (!ok) return cb(new Error('仅限字母、数字、下划线、短横线，且首尾需为字母或数字'))
+        // 不允许连续符号（可选限制）
+        if (/__|--/.test(v)) return cb(new Error('不允许连续下划线或短横线'))
+        // 保留词拦截（大小写不敏感）
+        const reserved = ['admin','root','system','support']
+        if (reserved.includes(v.toLowerCase())) return cb(new Error('该用户名为保留词，不能使用'))
+        cb()
+      },
+      trigger: ['blur','change']
+    }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { min: 8, max: 64, message: '密码长度需 8-64 位', trigger: ['blur','change'] },
+    {
+      validator: (rule, value, cb) => {
+        const v = String(value || '')
+        const strong = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(v)
+        if (!strong) return cb(new Error('需包含大小写字母与数字，且不少于8位'))
+        cb()
+      },
+      trigger: ['blur','change']
+    }
+  ],
+  email: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '邮箱格式不正确', trigger: ['blur','change'] }
+  ],
   captchaCode: [{ required: true, message: '请输入验证码', trigger: 'blur' }],
 };
 const loading = ref(false);

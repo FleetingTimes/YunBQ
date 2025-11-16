@@ -38,12 +38,13 @@
       <img
         v-if="note.authorAvatarUrl"
         class="avatar"
-        :src="avatarFullUrl(note.authorAvatarUrl)"
+        :src="useThumb ? avatarThumbUrl(note.authorAvatarUrl, 64) : avatarFullUrl(note.authorAvatarUrl)"
         alt="avatar"
         loading="lazy"
         @error="onAvatarError"
+        @click="$emit('author-click', note)"
       />
-      <img v-else class="avatar" :src="defaultAvatar" alt="avatar" loading="lazy" />
+      <img v-else class="avatar" :src="defaultAvatar" alt="avatar" loading="lazy" @click="$emit('author-click', note)" />
       <div class="author-meta">
         <div class="name" :title="note.authorName">{{ note.authorName || '匿名' }}</div>
       </div>
@@ -69,8 +70,10 @@
 // - 引入拼接函数 avatarFullUrl，将后端返回的相对路径（如 /uploads/avatars/...）拼接为完整 URL；
 // - 引入默认头像占位图，以防网络或路径异常导致破图；
 import { ref, onBeforeUnmount } from 'vue'
-import { avatarFullUrl } from '@/api/http'
+import { avatarFullUrl, avatarThumbUrl } from '@/api/http'
 import defaultAvatar from '@/assets/default-avatar.svg'
+
+const emit = defineEmits(['toggle-like','toggle-favorite','edit','delete','author-click'])
 
 const props = defineProps({
   note: { type: Object, required: true },
@@ -79,6 +82,7 @@ const props = defineProps({
   showAuthorName: { type: Boolean, default: true },
   // 新增：是否显示作者头像区（默认不显示，避免影响现有页面布局）
   showAuthorAvatar: { type: Boolean, default: false },
+  useThumb: { type: Boolean, default: false },
 })
 
 const showActions = ref(false)

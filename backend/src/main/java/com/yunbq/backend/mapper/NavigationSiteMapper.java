@@ -45,7 +45,7 @@ public interface NavigationSiteMapper extends BaseMapper<NavigationSite> {
      * - 推荐站点列表。
      */
     @Select("SELECT * FROM navigation_sites WHERE is_enabled = 1 AND is_featured = 1 ORDER BY click_count DESC, sort_order ASC LIMIT #{limit}")
-    List<NavigationSite> selectFeaturedSites(int limit);
+    List<NavigationSite> selectFeaturedSites(@org.apache.ibatis.annotations.Param("limit") int limit);
     
     /**
      * 查询热门站点。
@@ -56,7 +56,7 @@ public interface NavigationSiteMapper extends BaseMapper<NavigationSite> {
      * - 热门站点列表。
      */
     @Select("SELECT * FROM navigation_sites WHERE is_enabled = 1 ORDER BY click_count DESC, sort_order ASC LIMIT #{limit}")
-    List<NavigationSite> selectPopularSites(int limit);
+    List<NavigationSite> selectPopularSites(@org.apache.ibatis.annotations.Param("limit") int limit);
     
     /**
      * 根据标签搜索站点。

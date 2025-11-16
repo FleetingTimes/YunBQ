@@ -98,7 +98,7 @@
                 <img
                   v-if="it.authorAvatarUrl"
                   class="avatar clickable"
-                  :src="avatarFullUrl(it.authorAvatarUrl)"
+                  :src="avatarThumbUrl(it.authorAvatarUrl, 64)"
                   alt="avatar"
                   loading="lazy"
                   @error="onAvatarError"
@@ -211,7 +211,7 @@
 // 新增：分页加载与无限滚动，实现性能友好的列表渲染。
 import { ref, defineAsyncComponent, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { http, avatarFullUrl } from '@/api/http'
+import { http, avatarThumbUrl } from '@/api/http'
 import defaultAvatar from '@/assets/default-avatar.svg'
 import { getToken } from '@/utils/auth'
 const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))

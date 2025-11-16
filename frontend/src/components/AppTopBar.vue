@@ -73,7 +73,7 @@
       <template v-if="authReady && authed">
       <div class="profile-trigger" @mouseenter="onHoverEnter" @mouseleave="onHoverLeave">
         <div class="trigger-ref" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-          <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
+          <img v-if="me.avatarUrl" :src="avatarSmallUrl" alt="avatar" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
           <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" style="width:32px;height:32px;border-radius:50%;background:#fff;" />
           <span style="font-weight:500; color:#303133;">{{ me.nickname || me.username }}</span>
         </div>
@@ -118,7 +118,7 @@
             <div class="avatar-line">
               <!-- 头像与昵称居中显示：保持与示例一致的纵向排版，不改变交互逻辑 -->
               <div class="avatar-wrap" style="display:flex; flex-direction:column; align-items:center; gap:8px; width:100%;">
-                <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-lg" />
+                <img v-if="me.avatarUrl" :src="avatarLargeUrl" alt="avatar" class="avatar-lg" />
                 <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" class="avatar-lg" />
                 <div class="nickname">{{ me.nickname || me.username }}</div>
               </div>
@@ -214,7 +214,7 @@
 
     <el-dialog v-model="editVisible" :title="infoEditing ? '编辑信息' : '我的信息'" width="420px">
       <div class="dialog-header" style="display:flex; flex-direction:column; gap:8px; align-items:center; margin-bottom:12px; position:relative;">
-        <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
+        <img v-if="me.avatarUrl" :src="avatarLargeUrl" alt="avatar" style="width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.15);background:#fff;" />
         <img v-else src="https://api.iconify.design/mdi/account-circle.svg" alt="avatar" style="width:56px;height:56px;border-radius:50%;background:#fff;" />
         <template v-if="infoEditing">
           <el-upload :show-file-list="false" accept="image/*" :http-request="uploadAvatar">
@@ -330,7 +330,7 @@ const { solid = false, transparent = false, fluid = false } = defineProps({
 })
 import { reactive, ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { http, avatarFullUrl } from '@/api/http'
+import { http, avatarFullUrl, avatarThumbUrl } from '@/api/http'
 import { clearToken, getToken } from '@/utils/auth'
 import { ElMessage } from 'element-plus'
 
@@ -380,7 +380,8 @@ const shouldShowGlass = computed(() => {
   return solid || isScrolled.value
 })
 
-const avatarUrl = computed(() => avatarFullUrl(me.avatarUrl))
+const avatarSmallUrl = computed(() => avatarThumbUrl(me.avatarUrl, 64))
+const avatarLargeUrl = computed(() => avatarThumbUrl(me.avatarUrl, 128))
 const isAdmin = computed(() => (me.role || '').toUpperCase() === 'ADMIN')
 const authed = computed(() => !!(me.username))
 
