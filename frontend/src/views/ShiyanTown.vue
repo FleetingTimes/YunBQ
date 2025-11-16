@@ -797,7 +797,7 @@ onUnmounted(() => { teardownInfiniteScroll() })
 .note-card .avatar { width:36px; height:36px; border-radius:50%; object-fit:cover; background:#fff; border:2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
 .note-card .meta { display:flex; flex-direction:column; }
 .note-card .name { font-weight:600; color:#303133; }
-.note-card .time { color:#909399; font-size:12px; }
+.note-card .time { color:#909399; font-size:12px; white-space:nowrap; letter-spacing:0; word-spacing:0; }
 .note-card .content { margin-top: 10px; color:#303133; font-size:14px; line-height:1.7; white-space:pre-wrap; word-break:break-word; }
 .note-card .tags { margin-top: 10px; display:flex; flex-wrap:wrap; gap:6px; }
 .note-card .tag { font-size:12px; color:#606266; background: rgba(0,0,0,0.04); border:1px solid rgba(0,0,0,0.06); padding:4px 8px; border-radius:999px; }

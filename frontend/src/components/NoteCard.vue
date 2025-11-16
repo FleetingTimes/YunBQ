@@ -122,7 +122,15 @@ function parsedTags(tags){
 
 function formatTime(t){
   if (!t) return ''
-  try { return new Date(t).toLocaleString() } catch { return String(t) }
+  try {
+    const d = new Date(t)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hh = String(d.getHours()).padStart(2, '0')
+    const mm = String(d.getMinutes()).padStart(2, '0')
+    return `${y}-${m}-${day} ${hh}:${mm}`
+  } catch { return String(t) }
 }
 
 // 头像加载失败兜底：将破图替换为默认头像，避免出现坏链路
@@ -163,6 +171,7 @@ function noteCardStyle(n){
 .note-tags.top-right { position:absolute; top:8px; right:12px; }
 .meta.bottom-left { position:absolute; left:12px; bottom:10px; }
 .meta.bottom-right { position:absolute; right:12px; bottom:10px; color:#606266; font-size:12px; }
+.meta.bottom-right .time { white-space:nowrap; letter-spacing:0; word-spacing:0; }
 
 .actions-overlay { position:absolute; inset:0; background: rgba(0,0,0,0.08); display:flex; align-items:center; justify-content:center; gap:12px; border-radius:12px; }
 .action-icon { width:40px; height:40px; border-radius:50%; background:#fff; box-shadow:0 6px 16px rgba(0,0,0,0.12); display:flex; align-items:center; justify-content:center; cursor:pointer; }
