@@ -349,9 +349,14 @@ onUnmounted(() => {
   margin: 0; 
   padding: 0; 
   display: grid; 
-  /* 网格布局：一行显示4个站点，每个站点最小宽度180px，自适应分配剩余空间 */
-  grid-template-columns: repeat(5, minmax(180px, 1fr)); 
+  grid-template-columns: repeat(5, minmax(160px, 1fr)); 
   gap: 16px; 
+}
+@media (max-width: 1200px) {
+  .note-list { grid-template-columns: repeat(4, minmax(160px, 1fr)); }
+}
+@media (max-width: 1024px) {
+  .note-list { grid-template-columns: repeat(3, minmax(160px, 1fr)); }
 }
 
 .note-item { 
