@@ -1,0 +1,1132 @@
+openapi: 3.0.3
+info:
+  title: 拾·言 后端 API 文档
+  version: 1.0.0
+  description: 基于 Spring Boot 的拾言应用接口（Notes、Auth、Account、Messages、Navigation）。
+servers:
+  - url: /api
+    description: 统一前缀（前端 axios 已配置 baseURL=/api）
+tags:
+  - name: Auth
+    description: 登录与注册
+  - name: Account
+    description: 账户与个人资料
+  - name: Notes
+    description: 拾言内容与交互（/notes 与别名 /shiyan）
+  - name: Messages
+    description: 消息中心
+  - name: Navigation
+    description: 导航分类与站点
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 用户注册
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 用户名登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: 登录失败
+  /auth/login/email:
+    post:
+      tags: [Auth]
+      summary: 邮箱登录
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailAuthRequest'
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: 登录失败
+
+  /account/user:
+    get:
+      tags: [Account]
+      summary: 按用户名查询公开资料
+      parameters:
+        - in: query
+          name: username
+          schema: { type: string }
+          required: true
+      responses:
+        '200':
+          description: 公开用户资料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPublic'
+        '404': { description: 用户不存在 }
+  /account/me:
+    get:
+      tags: [Account]
+      summary: 获取当前登录用户资料
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: 当前用户资料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401': { description: 未登录 }
+  /account/avatar:
+    post:
+      tags: [Account]
+      summary: 上传头像并更新 avatarUrl
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200': { description: 更新后的用户信息 }
+        '401': { description: 未登录 }
+  /account/bind-email:
+    post:
+      tags: [Account]
+      summary: 绑定邮箱
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200': { description: 绑定成功 }
+        '401': { description: 未登录 }
+        '409': { description: 邮箱已使用 }
+  /account/bind-email/send-code:
+    post:
+      tags: [Account]
+      summary: 发送绑定邮箱验证码
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200': { description: 已发送 }
+        '429': { description: 频率受限 }
+  /account/bind-email/confirm:
+    post:
+      tags: [Account]
+      summary: 确认绑定邮箱
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: { type: string, format: email }
+                code: { type: string }
+      responses:
+        '200': { description: 绑定成功 }
+        '400': { description: 验证失败 }
+        '401': { description: 未登录 }
+        '409': { description: 邮箱已使用 }
+  /account/update-nickname:
+    post:
+      tags: [Account]
+      summary: 更新昵称
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nickname: { type: string }
+      responses:
+        '200': { description: 更新后的用户信息 }
+        '401': { description: 未登录 }
+  /account/update-signature:
+    post:
+      tags: [Account]
+      summary: 更新个性签名
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                signature: { type: string }
+      responses:
+        '200': { description: 更新后的用户信息 }
+        '401': { description: 未登录 }
+
+  /notes:
+    get:
+      tags: [Notes]
+      summary: 便签列表（分页）
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 10 }
+        - in: query
+          name: q
+          schema: { type: string }
+        - in: query
+          name: archived
+          schema: { type: boolean }
+        - in: query
+          name: isPublic
+          schema: { type: boolean }
+        - in: query
+          name: mineOnly
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResultNoteItem'
+    post:
+      tags: [Notes]
+      summary: 新建便签
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Note'
+  /notes/{id}:
+    put:
+      tags: [Notes]
+      summary: 更新便签
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoteRequest'
+      responses:
+        '200': { description: 更新后的便签 }
+    delete:
+      tags: [Notes]
+      summary: 删除便签
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '204': { description: 删除成功 }
+  /notes/{id}/like:
+    post:
+      tags: [Notes]
+      summary: 点赞便签
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 点赞结果 }
+  /notes/{id}/unlike:
+    post:
+      tags: [Notes]
+      summary: 取消点赞
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 取消点赞结果 }
+  /notes/{id}/likes:
+    get:
+      tags: [Notes]
+      summary: 查询点赞信息
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 点赞信息 }
+  /notes/{id}/favorite:
+    post:
+      tags: [Notes]
+      summary: 收藏便签
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 收藏结果 }
+  /notes/{id}/unfavorite:
+    post:
+      tags: [Notes]
+      summary: 取消收藏
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 取消收藏结果 }
+  /notes/{id}/favorites:
+    get:
+      tags: [Notes]
+      summary: 查询收藏信息
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 收藏信息 }
+  /notes/favorites:
+    get:
+      tags: [Notes]
+      summary: 我收藏的便签（分页）
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 10 }
+        - in: query
+          name: q
+          schema: { type: string }
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResultNoteItem'
+  /notes/liked:
+    get:
+      tags: [Notes]
+      summary: 我点过赞的便签（分页）
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 10 }
+        - in: query
+          name: q
+          schema: { type: string }
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResultNoteItem'
+  /notes/import:
+    post:
+      tags: [Notes]
+      summary: 批量导入拾言
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportNotesRequest'
+      responses:
+        '200': { description: 导入结果统计 }
+        '401': { description: 未登录 }
+
+  /messages:
+    get:
+      tags: [Messages]
+      summary: 消息列表
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: type
+          schema: { type: string }
+      responses:
+        '200': { description: 分页消息 }
+        '401': { description: 未登录 }
+  /messages/{id}/read:
+    post:
+      tags: [Messages]
+      summary: 标记已读
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 标记结果 }
+        '401': { description: 未登录 }
+  /messages/{id}:
+    delete:
+      tags: [Messages]
+      summary: 删除消息
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 删除结果 }
+        '401': { description: 未登录 }
+  /messages/counts:
+    get:
+      tags: [Messages]
+      summary: 未读计数
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: 计数 }
+        '401': { description: 未登录 }
+
+  /navigation/categories:
+    get:
+      tags: [Navigation]
+      summary: 获取所有启用的一级分类
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NavigationCategory'
+  /navigation/categories/{parentId}/children:
+    get:
+      tags: [Navigation]
+      summary: 获取指定分类的子分类
+      parameters:
+        - in: path
+          name: parentId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NavigationCategory'
+  /navigation/categories/all:
+    get:
+      tags: [Navigation]
+      summary: 获取所有启用分类（一级与二级）
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NavigationCategory'
+  /navigation/sites/category/{categoryId}:
+    get:
+      tags: [Navigation]
+      summary: 根据分类 ID 获取站点列表
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NavigationSite'
+  /navigation/sites/featured:
+    get:
+      tags: [Navigation]
+      summary: 获取推荐站点
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NavigationSite'
+  /navigation/sites/popular:
+    get:
+      tags: [Navigation]
+      summary: 获取热门站点
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NavigationSite'
+  /navigation/sites/search:
+    get:
+      tags: [Navigation]
+      summary: 搜索站点
+      parameters:
+        - in: query
+          name: keyword
+          required: true
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResultNavigationSite'
+  /navigation/sites/tags/{tags}:
+    get:
+      tags: [Navigation]
+      summary: 根据标签搜索站点
+      parameters:
+        - in: path
+          name: tags
+          required: true
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 10 }
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NavigationSite'
+
+  /navigation/sites:
+    post:
+      tags: [Navigation]
+      summary: 用户创建导航站点（需登录）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationSite'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationSite'
+        '401': { description: 未登录 }
+
+  /navigation/sites/my:
+    get:
+      tags: [Navigation]
+      summary: 获取当前用户创建的站点（需登录）
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: 列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NavigationSite'
+        '401': { description: 未登录 }
+
+  # ==================== 管理员接口：分类 ====================
+  /navigation/admin/categories:
+    get:
+      tags: [Navigation]
+      summary: 分页查询导航分类（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 10 }
+        - in: query
+          name: name
+          schema: { type: string }
+        - in: query
+          name: parentId
+          schema: { type: integer }
+        - in: query
+          name: isEnabled
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NavigationCategory'
+                  total: { type: integer }
+                  page: { type: integer }
+                  size: { type: integer }
+    post:
+      tags: [Navigation]
+      summary: 创建导航分类（管理员）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationCategory'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationCategory'
+  /navigation/admin/categories/{id}:
+    put:
+      tags: [Navigation]
+      summary: 更新导航分类（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationCategory'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationCategory'
+    delete:
+      tags: [Navigation]
+      summary: 删除导航分类（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 删除结果消息 }
+  /navigation/admin/categories/{id}/toggle:
+    patch:
+      tags: [Navigation]
+      summary: 切换分类启用状态（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 最新分类实体
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationCategory'
+  /navigation/admin/categories/order:
+    put:
+      tags: [Navigation]
+      summary: 批量更新分类排序（管理员）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                categoryIds:
+                  type: array
+                  items: { type: integer }
+                parentId: { type: integer, nullable: true }
+      responses:
+        '200': { description: 排序更新成功 }
+  /navigation/admin/categories/export:
+    get:
+      tags: [Navigation]
+      summary: 导出全部分类（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: format
+          schema: { type: string, enum: [csv, json], default: csv }
+      responses:
+        '200':
+          description: 文件字节流（CSV/JSON）
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+  /navigation/admin/categories/import:
+    post:
+      tags: [Navigation]
+      summary: 导入导航分类（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: format
+          schema: { type: string, enum: [json], default: json }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200': { description: 导入结果统计 }
+
+  # ==================== 管理员接口：站点 ====================
+  /navigation/admin/sites:
+    get:
+      tags: [Navigation]
+      summary: 分页查询导航站点（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 10 }
+        - in: query
+          name: name
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: integer }
+        - in: query
+          name: isEnabled
+          schema: { type: boolean }
+        - in: query
+          name: isFeatured
+          schema: { type: boolean }
+        - in: query
+          name: userId
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 分页结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageResultNavigationSite'
+    post:
+      tags: [Navigation]
+      summary: 创建导航站点（管理员）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationSite'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationSite'
+  /navigation/admin/sites/{id}:
+    put:
+      tags: [Navigation]
+      summary: 更新导航站点（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NavigationSite'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationSite'
+    delete:
+      tags: [Navigation]
+      summary: 删除导航站点（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200': { description: 删除结果消息 }
+  /navigation/admin/sites/{id}/toggle:
+    patch:
+      tags: [Navigation]
+      summary: 切换站点启用状态（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 最新站点实体
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationSite'
+  /navigation/admin/sites/{id}/featured:
+    patch:
+      tags: [Navigation]
+      summary: 切换站点推荐状态（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 最新站点实体
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NavigationSite'
+  /navigation/admin/sites/export:
+    get:
+      tags: [Navigation]
+      summary: 导出全部站点（管理员）
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: format
+          schema: { type: string, enum: [csv, json], default: csv }
+      responses:
+        '200':
+          description: 文件字节流（CSV/JSON）
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+  /navigation/admin/sites/order:
+    put:
+      tags: [Navigation]
+      summary: 批量更新站点排序（管理员）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                siteIds:
+                  type: array
+                  items: { type: integer }
+                categoryId: { type: integer, nullable: true }
+      responses:
+        '200': { description: 排序更新成功 }
+  /navigation/admin/sites/import:
+    post:
+      tags: [Navigation]
+      summary: 批量导入导航站点（管理员）
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200': { description: 导入结果统计 }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AuthRequest:
+      type: object
+      properties:
+        username: { type: string }
+        password: { type: string }
+        captchaId: { type: string }
+        captchaCode: { type: string }
+      required: [username, password]
+    EmailAuthRequest:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+      required: [email, password]
+    AuthResponse:
+      type: object
+      properties:
+        token: { type: string }
+        userId: { type: integer }
+        username: { type: string }
+        nickname: { type: string }
+        role: { type: string }
+    RegisterRequest:
+      type: object
+      properties:
+        username: { type: string }
+        password: { type: string }
+        nickname: { type: string }
+        email: { type: string, format: email }
+      required: [username, password]
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        nickname: { type: string }
+        email: { type: string, format: email }
+        avatarUrl: { type: string }
+        role: { type: string }
+    UserPublic:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        nickname: { type: string }
+        signature: { type: string }
+        avatarUrl: { type: string }
+    UserProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        nickname: { type: string }
+        email: { type: string, format: email }
+        signature: { type: string }
+        avatarUrl: { type: string }
+        role: { type: string }
+    NoteRequest:
+      type: object
+      properties:
+        content: { type: string }
+        tags: { type: string, description: '逗号分隔' }
+        color: { type: string, description: '如 #RRGGBB' }
+        archived: { type: boolean }
+        isPublic: { type: boolean }
+    NoteItem:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        authorName: { type: string }
+        avatarUrl: { type: string }
+        content: { type: string }
+        tags: { type: string }
+        color: { type: string }
+        archived: { type: boolean }
+        isPublic: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        likeCount: { type: integer }
+        likedByMe: { type: boolean }
+        favoriteCount: { type: integer }
+        favoritedByMe: { type: boolean }
+    Note:
+      allOf:
+        - $ref: '#/components/schemas/NoteItem'
+    PageResultNoteItem:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoteItem'
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    ImportNotesRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoteRequest'
+    NavigationCategory:
+      type: object
+      properties:
+        id: { type: integer }
+        parentId: { type: integer, nullable: true }
+        name: { type: string }
+        icon: { type: string }
+        description: { type: string }
+        sortOrder: { type: integer }
+        isEnabled: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    NavigationSite:
+      type: object
+      properties:
+        id: { type: integer }
+        categoryId: { type: integer }
+        name: { type: string }
+        url: { type: string }
+        description: { type: string }
+        icon: { type: string }
+        faviconUrl: { type: string }
+        tags: { type: string }
+        sortOrder: { type: integer }
+        isEnabled: { type: boolean }
+        isFeatured: { type: boolean }
+        clickCount: { type: integer }
+        userId: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PageResultNavigationSite:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NavigationSite'
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
