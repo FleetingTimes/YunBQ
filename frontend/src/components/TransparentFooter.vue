@@ -1,3 +1,4 @@
+<!-- 透明底栏组件 -->
 <template>
   <footer class="transparent-footer" :style="styleVars">
     <slot>

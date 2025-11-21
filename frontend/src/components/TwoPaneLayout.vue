@@ -16,9 +16,9 @@
        - 保留原有粘性定位语义；
        - 移除了旧的 #rightTop（右列顶栏），改为统一的全宽顶栏；
        - 响应式在窄屏下改为单列堆叠（顶栏 → 侧栏 → 正文）。 -->
-  <section class="two-pane" role="region" aria-label="Top + Left/Right Layout">
+  <section class="two-pane" role="region" aria-label="Top + Left/Right Layout" ref="rootRef">
     <!-- 顶栏：全宽吸顶，背景透明，具体视觉由顶栏组件决定（透明/毛玻璃） -->
-    <div class="layout-header sticky-top">
+    <div class="layout-header sticky-top" ref="headerRef">
       <slot name="topFull" />
     </div>
     <!-- 下方内容区：左右两列（侧栏 + 正文），占满剩余空间 -->
@@ -38,9 +38,18 @@
 </template>
 
 <script setup>
-// 轻量布局组件：提供结构与吸顶支持。
-// 顶栏吸顶通过 CSS sticky 实现，滚动检测由具体的顶栏组件处理。
-// 如需扩展（例如列宽、间距、断点），建议通过 CSS 变量或父级样式覆盖。
+import { ref, onMounted, onUnmounted } from 'vue'
+const rootRef = ref(null)
+const headerRef = ref(null)
+function updateTopbarHeight(){
+  try{
+    const h = headerRef.value ? (headerRef.value.getBoundingClientRect().height || 56) : 56
+    if (rootRef.value) rootRef.value.style.setProperty('--topbar-height', h + 'px')
+  }catch{}
+}
+function onResize(){ updateTopbarHeight() }
+onMounted(() => { updateTopbarHeight(); window.addEventListener('resize', onResize) })
+onUnmounted(() => { try{ window.removeEventListener('resize', onResize) }catch{} })
 </script>
 
 <style scoped>
@@ -137,7 +146,9 @@
   .right-main.scrollable-content {
     height: auto;
     min-height: 0;
-    overflow-y: visible;
+    overflow-y: auto;
+    padding-top: var(--topbar-height, 56px);
   }
+
 }
 </style>

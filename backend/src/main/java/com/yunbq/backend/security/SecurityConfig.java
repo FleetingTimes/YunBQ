@@ -108,6 +108,9 @@ public class SecurityConfig {
                 // 为防止方法匹配导致的 401，这里同时放行 GET 与 HEAD。
                 .requestMatchers(HttpMethod.GET, "/api/navigation/**").permitAll()
                 .requestMatchers(HttpMethod.HEAD, "/api/navigation/**").permitAll()
+                // 站点点击统计：允许匿名上报点击（POST /api/navigation/sites/{id}/click）
+                // 仅放行精确路径模式，避免扩大写操作的放行范围
+                .requestMatchers(HttpMethod.POST, "/api/navigation/sites/*/click").permitAll()
                 .anyRequest().authenticated()
             )
             // 异常处理：统一返回 401/403，避免泄露内部错误信息

@@ -271,7 +271,7 @@ async function loadUnread(){
       system: Number(counts.system || 0),
       total: Number(data?.total || (counts.like || 0) + (counts.favorite || 0) + (counts.system || 0))
     }
-  }catch(e){ /* 未登录或接口异常不影响页面基础功能 */ }
+  }catch(e){ try { if (e?.response?.status === 401) { stopUnreadPoller(); return } } catch {} }
 }
 
 // —— 触底自动加载：移动端进入视口时自动拉取下一页 ——
@@ -384,7 +384,8 @@ onMounted(() => {
   // 说明：当顶栏通过轮询或可见性刷新获取到新计数时，消息页无需额外请求即可更新徽章
   window.addEventListener('messages-counts', onTopBarCounts)
   // 轻量轮询兜底：每 10 秒刷新一次，防止事件错过或顶栏未挂载
-  unreadPoller = setInterval(() => { loadUnread() }, 10000)
+  // 改进：仅在“已登录”时启动轮询，未登录不占用定时器
+  refreshUnreadPoller()
   // 标签重新可见时刷新一次（在当前页查看过程中得到最新计数）
   document.addEventListener('visibilitychange', onVisibilityRefresh)
 })
@@ -407,7 +408,29 @@ function onTopBarCounts(e){
     }
   }catch{}
 }
-function onVisibilityRefresh(){ if (document.visibilityState === 'visible') loadUnread() }
+// 轮询启停（按登录态）
+function startUnreadPoller(){
+  try{
+    if (!unreadPoller && getToken()) {
+      unreadPoller = setInterval(() => { loadUnread() }, 10000)
+    }
+  }catch{}
+}
+function stopUnreadPoller(){
+  try{
+    if (unreadPoller){ clearInterval(unreadPoller); unreadPoller = null }
+  }catch{}
+}
+function refreshUnreadPoller(){
+  try{
+    if (getToken()) startUnreadPoller(); else stopUnreadPoller();
+  }catch{}
+}
+function onVisibilityRefresh(){
+  // 标签页重新可见：根据登录态启停轮询，并拉取一次最新计数
+  refreshUnreadPoller()
+  if (document.visibilityState === 'visible') loadUnread()
+}
 
 // —— 与顶栏通信：消息状态变更后触发顶栏未读刷新 ——
 function notifyTopBar(action, ids){

@@ -101,8 +101,12 @@ export function searchByTags(tags, limit = 10) {
  * @returns {Promise} 返回更新后的站点信息
  */
 export function incrementClickCount(id) {
-  // 增加点击次数
-  return http.post(`/navigation/sites/${id}/click`)
+  // 增加点击次数（匿名场景抑制 401 重定向）
+  // 说明：未登录点击站点时，该 POST 接口可能返回 401；
+  // 为避免全局响应拦截器将当前页面重定向到登录页，这里为单次请求设置
+  // suppress401Redirect: true，使其在 401 时“不跳登录”，由调用方自行忽略错误。
+  // 注意：第二个参数为请求体（此接口无需请求体，传入 null），第三个参数为 axios 配置。
+  return http.post(`/navigation/sites/${id}/click`, null, { suppress401Redirect: true })
 }
 
 /**

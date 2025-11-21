@@ -429,9 +429,12 @@ onMounted(() => {
   window.addEventListener('messages-updated', onMessagesUpdated)
   // 标签重新可见时触发一次刷新，保证切换标签后信息不滞后
   document.addEventListener('visibilitychange', onVisibilityRefresh)
-  // 轻量轮询：每 10 秒刷新一次未读状态，作为后端实时推送缺失时的兜底方案
-  // 注意：在 onUnmounted 中清理，避免内存泄漏与重复请求
-  if (!unreadPoller) unreadPoller = setInterval(() => { loadUnread() }, 10000)
+  // 轻量轮询：仅在“已登录”时启动；未登录不占用定时器资源
+  // 说明：此前无条件启动 setInterval，会在未登录时不断触发空返回的 loadUnread。
+  // 虽不产生网络请求，但浪费一次定时器触发。此处改为按登录态启停。
+  window.addEventListener('hashchange', refreshUnreadPoller)
+  window.addEventListener('storage', onStorageAuthChange)
+  refreshUnreadPoller()
 })
 
 onUnmounted(() => {
@@ -442,6 +445,9 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisibilityRefresh)
   // 清理轮询器
   try { if (unreadPoller) { clearInterval(unreadPoller); unreadPoller = null } } catch {}
+  // 清理登录态监听
+  try { window.removeEventListener('hashchange', refreshUnreadPoller) } catch {}
+  try { window.removeEventListener('storage', onStorageAuthChange) } catch {}
 })
 
 async function loadMe(){
@@ -473,7 +479,33 @@ function onMessagesUpdated(){
   loadUnread()
 }
 function onVisibilityRefresh(){
+  // 标签页重新可见：根据登录态启停轮询，并拉取一次最新未读计数
+  refreshUnreadPoller()
   if (document.visibilityState === 'visible') loadUnread()
+}
+
+// 轮询启停（按登录态）
+function startUnreadPoller(){
+  try{
+    // 已登录且尚未启动 → 启动轮询
+    if (!unreadPoller && getToken()) {
+      unreadPoller = setInterval(() => { loadUnread() }, 10000)
+    }
+  }catch{}
+}
+function stopUnreadPoller(){
+  try{
+    if (unreadPoller){ clearInterval(unreadPoller); unreadPoller = null }
+  }catch{}
+}
+function refreshUnreadPoller(){
+  try{
+    if (getToken()) startUnreadPoller(); else stopUnreadPoller();
+  }catch{}
+}
+function onStorageAuthChange(e){
+  // 跨标签页登录/退出：监听 localStorage 的 token 变化，动态启停轮询
+  try{ if (e && e.key === 'token') refreshUnreadPoller() }catch{}
 }
 
 function openEditInfo(){
@@ -693,8 +725,8 @@ async function loadUnread(){
       }))
     } catch {}
   }catch(e){
-    // 未登录或接口异常时，不影响顶栏显示
     hasNewMessages.value = false
+    try { if (e?.response?.status === 401) { stopUnreadPoller(); return } } catch {}
   }
 }
 
