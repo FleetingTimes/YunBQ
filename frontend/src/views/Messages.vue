@@ -4,16 +4,9 @@
        - 右侧正文内部新增“内容区”，宽度占正文区的 85%，并居中；
        - 内容区再分为左右两栏：左栏为“消息中心”导航，右栏为消息列表；
        - 移除所有过滤与批量工具，保留轻量操作。 -->
-  <TwoPaneLayout>
-    <!-- 顶栏：复用全站顶栏（品牌一致、可搜索），不额外添加过滤控件。 -->
-    <template #topFull>
-      <AppTopBar />
-    </template>
-
-    <!-- 右侧正文：内部居中内容区（宽度 85%）再分左右两栏 -->
-    <template #rightMain>
-      <!-- 页面主内容：先渲染顶端“胶囊标题”，再渲染居中卡片（左右两栏） -->
-      <div class="center-area">
+  <!-- 右侧正文：由根布局提供顶栏，此处仅渲染居中内容区（宽度 85%）再分左右两栏 -->
+  <!-- 页面主内容：先渲染顶端“胶囊标题”，再渲染居中卡片（左右两栏） -->
+  <div class="center-area">
         <!-- 顶端胶囊标题：与截图一致的圆角条形，居中显示“消息中心” -->
         <div class="pill-title">消息中心</div>
 
@@ -98,15 +91,11 @@
             </div>
           </section>
         </div>
-      </div>
-    </template>
-  </TwoPaneLayout>
+  </div>
 </template>
 
 <script setup>
-// 布局与通用组件：顶栏、两栏布局、侧边导航
-import TwoPaneLayout from '@/components/TwoPaneLayout.vue'
-import AppTopBar from '@/components/AppTopBar.vue'
+// 布局由根组件承载，此页仅渲染内容区
 // 状态与路由
 // 状态管理：本页不再跳转拾言详情，移除路由依赖
 // 根据需求，直接在摘要中呈现拾言内容，无需路由跳转

@@ -1,8 +1,6 @@
 <template>
-  <!-- 顶栏：与登录/注册页保持一致的导航体验 -->
-  <AppTopBar />
-  <!-- 正文：加入 with-topbar 占位，避免卡片与顶栏重叠 -->
-  <div class="auth-wrapper with-topbar">
+  <!-- 顶栏由根布局承载，此页仅渲染正文卡片 -->
+  <div class="auth-wrapper">
     <div class="auth-card p-1 rot-1">
       <div class="auth-title">
         <img src="https://api.iconify.design/mdi/lock-reset.svg" alt="forgot" width="26" height="26"/>
@@ -70,8 +68,7 @@
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { http } from '@/api/http';
-// 引入顶栏组件：在找回密码页同样展示全局导航与入口
-import AppTopBar from '@/components/AppTopBar.vue';
+// 顶栏由根布局承载，此页不再单独引入顶栏组件
 
 // 单页联动：在一个表单里完成“发送邮箱验证码”与“重置密码”两项操作
 // 好处：减少来回切换，视觉更聚焦；同时保留严格的校验与风控提示。
@@ -260,16 +257,8 @@ async function reset(){
 </script>
 
 <style scoped>
-/* 顶栏占位：为正文增加顶部内边距，防止被吸顶顶栏遮挡
-   注：若后续顶栏高度变更，可在此同步调整数值 */
-.with-topbar { padding-top: 68px; }
-
-/* 高度填充：让正文容器占满“顶栏与底栏之间”的可视高度
-   计算：100vh - 顶栏高度(默认 68px) - 底栏高度(默认 0)
-   说明：
-   - 使用 CSS 变量以便未来在全局定义 --topbar-height / --footer-height；
-   - 保留上方占位 padding-top:68px；配合 min-height 计算后，总高度不超过视口（避免滚动条异常）。 */
-.auth-wrapper.with-topbar { min-height: calc(100vh - var(--topbar-height, 68px) - var(--footer-height, 0px)); box-sizing: border-box; }
+/* 高度填充：根布局已处理顶栏高度，本页仅需占满可用空间 */
+.auth-wrapper { min-height: calc(100vh - var(--footer-height, 0px)); box-sizing: border-box; }
 
 /* 正文卡片宽度控制：统一与登录/注册页保持一致
    说明：覆盖全局 .auth-card 的 max-width=440px，将三页统一为 460px */

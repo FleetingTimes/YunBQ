@@ -12,42 +12,16 @@
   - 滚动桥接避免重复计算与偏移误差，移动端与桌面端统一体验。
 -->
 <template>
-  <!-- 广场页：展示用户互动内容，包含侧栏导航与顶部搜索栏 -->
-  <!-- 两栏布局：左侧 SideNav，右侧上方顶栏、下方广场正文
-       说明：
-       - 顶栏移入右列上方（rightTop），保持“左右两部分、右侧再分上下”的结构；
-       - 侧栏移至左列（left），从 SquareBody 中抽离，避免嵌套影响布局；
-       - 选择侧栏项时，通过父组件桥接调用 SquareBody 的滚动方法，不改变原有锚点与高亮行为。 -->
-  <TwoPaneLayout>
-    <!-- 左侧：通用侧栏组件（复用公共导航配置）
-         行为：
-         - 使用 v-model 绑定父级 activeId，以保持与右侧滚动联动的高亮状态；
-         - 选择事件 @select 调用 SquareBody 的 scrollTo（通过 ref 暴露），保证滚动逻辑完全复用原实现。 -->
-    <template #left>
-      <SideNav :sections="sections" v-model:activeId="activeId" @select="onSelect" />
-    </template>
-
-    <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
-    <template #topFull>
-      <!-- 开启铺满模式：fluid，让中间搜索区域在可用空间内尽可能拉伸 -->
-      <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
-      <!-- 说明：广场页需要保持极简沉浸效果，顶栏在滚动时不切换毛玻璃，以免分散注意力。 -->
-      <AppTopBar fluid :transparent="true" @search="onSearch" />
-    </template>
-
-    <!-- 右下：广场正文内容，保留 query 传参；通过 ref 暴露滚动方法与高亮更新事件供父级桥接 -->
-    <template #rightMain>
-      <div class="square-container">
-        <!-- 关键修复：传入与侧栏一致的 sections，确保左右锚点 id 完全一致 -->
-        <SquareBody 
-          ref="bodyRef" 
-          :sections="sections" 
-          :query="query" 
-          @update:activeId="val => activeId = val" 
-        />
-      </div>
-    </template>
-  </TwoPaneLayout>
+  <!-- 广场页正文：由根布局承载顶栏与侧栏，此处仅渲染右侧内容区域 -->
+  <div class="square-container">
+    <!-- 关键修复：传入与侧栏一致的 sections，确保左右锚点 id 完全一致 -->
+    <SquareBody 
+      ref="bodyRef" 
+      :sections="effectiveSections" 
+      :query="query" 
+      @update:activeId="onUpdateActiveId" 
+    />
+  </div>
   <!-- 右下：回到顶部组件（可见高度 360px 后出现）
        说明：
        - 指定 target 为 TwoPaneLayout 的右侧滚动容器（.scrollable-content），
@@ -63,12 +37,8 @@
 </template>
 
 <script setup>
-import { ref, defineAsyncComponent, onMounted, onUnmounted, nextTick } from 'vue'
-// 通用两栏布局 + 侧栏组件
-const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
-const SideNav = defineAsyncComponent(() => import('@/components/SideNav.vue'))
-
-const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
+import { ref, defineAsyncComponent, onMounted, onUnmounted, nextTick, watch, computed } from 'vue'
+// 根布局承载顶栏与侧栏，此页仅关注正文内容
 const SquareBody = defineAsyncComponent(() => import('./square/SquareBody.vue'))
 // 使用新的导航数据管理组合式函数
 import { useNavigation } from '@/composables/useNavigation'
@@ -76,18 +46,26 @@ import { useNavigation } from '@/composables/useNavigation'
 // 初始化导航数据（使用 sideNavSections，并通过 fetchCategories 加载）
 const { sideNavSections: sections, loading: sectionsLoading, error: sectionsError, fetchCategories } = useNavigation()
 
+// 接收来自根布局的当前侧栏高亮项（activeId）以联动滚动
+const props = defineProps({
+  sections: { type: Array, default: () => [] },
+  activeId: { type: String, default: 'site' }
+})
+const effectiveSections = computed(() => (Array.isArray(props.sections) && props.sections.length) ? props.sections : sections)
+
 const query = ref('')
 function onSearch(q){ query.value = q || '' }
 // 侧栏当前高亮项（与右侧滚动联动）
 // 说明：原默认为 'hot'（热门便签区），现已下线“最近/热门便签”功能，避免引用失效分区，
 // 将默认高亮改为一个有效分区 'site'（站点集合），其余别名由 SquareBody 的映射逻辑接管。
-const activeId = ref('site')
+const activeId = ref(props.activeId || 'site')
 // 引用正文组件实例以桥接滚动方法
 const bodyRef = ref(null)
-function onSelect(id){
-  // 通过子组件暴露的 scrollTo 保持滚动逻辑与偏移计算的一致性
-  try{ bodyRef.value?.scrollTo?.(id) }catch{ /* 忽略异常以保障选择稳定 */ }
-}
+// 监听来自根布局的 activeId 变化，触发右侧滚动定位
+watch(() => props.activeId, (id) => {
+  try{ bodyRef.value?.scrollTo?.(id) }catch{}
+})
+function onUpdateActiveId(val){ activeId.value = val }
 
 // 顶栏背景切换（保留解释性注释）：默认透明；当滚动使顶栏底部接触到内容区域时，切换为纯白
 // 说明：
@@ -122,8 +100,10 @@ function updateTopbarSolid(){
 }
 
 onMounted(async () => {
-  // 加载导航分类数据
-  await fetchCategories()
+  // 当未从根布局传入 sections 时，加载导航分类数据提供后备渲染
+  if (!Array.isArray(props.sections) || props.sections.length === 0) {
+    await fetchCategories()
+  }
   
   // 初始计算一次（避免进入页面时出现闪烁）
   updateTopbarSolid()

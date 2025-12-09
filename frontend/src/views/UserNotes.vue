@@ -11,16 +11,8 @@
   - 接口错误统一提示；空状态与骨架加载保持一致体验。
 -->
 <template>
-  <!-- 他人拾言页：复用 TwoPaneLayout 与公共顶栏，右侧展示目标用户的公开拾言 -->
-  <TwoPaneLayout class="user-notes-layout">
-    <!-- 全宽吸顶顶栏：与站内其它页面一致，保持统一交互与视觉 -->
-    <template #topFull>
-      <AppTopBar fluid />
-    </template>
-
-    <!-- 右侧正文区域：顶部个人资料摘要 + 下方拾言时间线 -->
-    <template #rightMain>
-      <div class="container">
+  <!-- 他人拾言页正文：由根布局承载顶栏，此处仅渲染右侧内容区域 -->
+  <div class="container">
         <!-- 个人资料摘要：使用路由传参（username/nickname/avatar）渲染目标用户信息 -->
         <!-- 说明：
              - 初版不依赖后端“按用户名查询用户信息”的接口，直接使用消息页传来的昵称与头像；
@@ -64,9 +56,7 @@
         <div class="empty-wrap" v-if="!isLoading && filteredNotes.length === 0">
           <el-empty description="暂无公开拾言" />
         </div>
-      </div>
-    </template>
-  </TwoPaneLayout>
+  </div>
 </template>
 
 <script setup>
@@ -82,9 +72,7 @@ import { ElMessage } from 'element-plus'
 // 新增：引入本地登录态工具，用于在点赞/收藏前做未登录提醒而非跳转
 import { getToken } from '@/utils/auth'
 
-// 布局与通用组件
-const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
-const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
+// 布局由根组件承载，此页仅渲染内容区
 const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
 
 // 路由参数：用户名（必填）、昵称与头像（可选）、签名（可选）

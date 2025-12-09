@@ -20,17 +20,38 @@
     @close="showSplash = false"
   />
 
-  <!-- 应用内容区域（路由视图 + 全局底栏） -->
-  <router-view />
+  <!-- 持久化布局：全局顶栏 + 两栏容器 + 路由内容 -->
+  <router-view v-slot="{ Component, route }">
+    <TwoPaneLayout>
+      <!-- 顶栏始终存在：根据路由切换透明与铺满模式，不随页面卸载重建 -->
+      <template #topFull>
+        <AppTopBar :transparent="isTopTransparent(route.path)" :fluid="true" />
+      </template>
+
+      <!-- 左侧栏：仅在广场页渲染站点导航，其它页面为空 -->
+      <template #left>
+        <SideNav v-if="isSquareRoute(route.path)" :sections="sections" v-model:activeId="activeId" @select="onSelect" />
+      </template>
+
+      <!-- 右侧正文：当前路由页面内容。为广场页注入 props 以联动侧栏，其它页面不传递多余属性。 -->
+      <template #rightMain>
+        <component :is="Component" v-bind="pagePropsFor(route.path)" @update:activeId="onActiveIdUpdate" />
+      </template>
+    </TwoPaneLayout>
+  </router-view>
   <TransparentFooter />
-</template>
+  </template>
 
 <script setup>
 import TransparentFooter from '@/components/TransparentFooter.vue'
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import SplashScreen from '@/components/SplashScreen.vue'
 import splash, { shouldShowSplash, computeDurationMs } from '@/config/splash'
 import { useRoute } from 'vue-router'
+import TwoPaneLayout from '@/components/TwoPaneLayout.vue'
+import AppTopBar from '@/components/AppTopBar.vue'
+import SideNav from '@/components/SideNav.vue'
+import { useNavigation } from '@/composables/useNavigation'
 
 /**
  * 显示控制：showSplash
@@ -78,6 +99,43 @@ watch(showSplash, (val) => {
   const needLock = splash.behavior?.lockScroll
   setBodyScrollDisabled(!!needLock && val)
 })
+
+// —— 顶栏透明模式控制（按路径）——
+// 说明：保持与各页面原先传入 AppTopBar 的 props 一致，避免样式变化。
+function isTopTransparent(path){
+  try{
+    const p = String(path || '')
+    return (
+      p === '/' ||
+      p.startsWith('/search') ||
+      p.startsWith('/likes') ||
+      p.startsWith('/favorites') ||
+      p.startsWith('/shiyan-town') ||
+      p === '/town' ||
+      p.startsWith('/shiyan') ||
+      p === '/notes'
+    )
+  }catch{ return false }
+}
+
+// —— 广场页左侧导航（持久化渲染）——
+// 说明：将 SideNav 固定在根布局的左栏，仅在广场路径下显示；
+//       导航数据沿用 useNavigation，保持与原实现一致。
+const { sideNavSections: sections, fetchCategories } = useNavigation()
+const activeId = ref('site')
+function isSquareRoute(path){ return String(path || '') === '/' }
+function onSelect(id){ activeId.value = String(id || '') }
+function onActiveIdUpdate(val){ activeId.value = String(val || '') }
+
+// —— 向右侧页面注入 props（仅广场页需要）——
+const pagePropsFor = (path) => {
+  const p = String(path || '')
+  if (p === '/') return { sections: sections.value, activeId: activeId.value }
+  return {}
+}
+
+// 首次进入拉取导航分类数据（广场页所需）
+onMounted(async () => { try{ await fetchCategories() }catch{} })
 </script>
 
 <style>

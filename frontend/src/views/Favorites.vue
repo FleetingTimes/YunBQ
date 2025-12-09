@@ -16,16 +16,8 @@
   - 分页与懒加载降低首屏压力；取消收藏后从当前列表移除以保持一致性。
 -->
 <template>
-  <!-- 单列布局：去掉左侧区域，仅保留全宽顶栏和正文
-       说明：继续复用 TwoPaneLayout 的顶栏吸顶与右侧唯一滚动容器逻辑。 -->
-  <TwoPaneLayout>
-    <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
-    <template #topFull>
-      <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
-      <AppTopBar fluid :transparent="true" @search="onSearch" />
-    </template>
-    <template #rightMain>
-      <div class="container">
+  <!-- 单列正文：由根布局承载顶栏，此处仅渲染页面内容 -->
+  <div class="container">
         <div class="page-header">
           <h2>我的收藏</h2>
         </div>
@@ -96,19 +88,14 @@
           <button class="load-btn" :disabled="!hasNext || isLoading" @click="loadMore">{{ isLoading ? '加载中…' : '加载更多' }}</button>
           <div ref="loadMoreSentinel" class="load-sentinel" aria-hidden="true"></div>
         </div>
-      </div>
-    </template>
-  </TwoPaneLayout>
+  </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, defineAsyncComponent, computed } from 'vue'
 import { useRouter } from 'vue-router'
-const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
 import { http } from '@/api/http'
 import { ElMessage } from 'element-plus'
-
-const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const DanmuWall = defineAsyncComponent(() => import('@/components/DanmuWall.vue'))
 const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
 

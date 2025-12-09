@@ -22,15 +22,7 @@
        2) 顶栏放在 topFull 插槽中，保持全宽并吸顶；
        3) 页面主体（个人资料、过滤栏与列表）放在 rightMain 插槽中；
        4) 将回到顶部组件指定 target 为布局的滚动容器（.scrollable-content），确保滚动联动正常。 -->
-  <TwoPaneLayout class="my-notes-layout">
-    <!-- 公共顶栏：统一风格与交互；fluid 让中间区域（搜索）铺满宽度 -->
-    <template #topFull>
-      <AppTopBar fluid />
-    </template>
-
-    <!-- 右侧正文：保留原页面主体结构，仅移除了本地顶栏 -->
-    <template #rightMain>
-      <div class="container" :style="{ '--filtersH': filtersHeight + 'px' }">
+  <div class="container" :style="{ '--filtersH': filtersHeight + 'px' }">
         <!-- 个人资料摘要（显示在过滤栏上方） -->
         <div class="profile-summary">
           <img v-if="me.avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-lg" width="260" height="260" loading="lazy" />
@@ -264,9 +256,7 @@
         </button>
         <!-- 触底哨兵：进入视口时自动加载下一页；在没有更多或正在加载时隐藏 -->
         <div v-show="hasNext && !isLoading" ref="loadMoreSentinel" class="load-more-sentinel" aria-hidden="true"></div>
-      </div>
-    </template>
-  </TwoPaneLayout>
+  </div>
   <!-- 右下：统一“回到顶部”按钮（玻璃拟态风格，平滑滚动）
        说明：
        - 替换原 Element Plus 的 el-backtop，改用站内统一 BackToTop 组件；
@@ -276,11 +266,7 @@
 </template>
 
 <script setup>
-// 引入统一布局与公共顶栏组件：
-// - TwoPaneLayout：提供“全宽吸顶顶栏 + 右侧正文滚动”的通用布局结构；
-// - AppTopBar：公共顶栏，统一品牌与快捷入口，支持透明/毛玻璃切换与搜索。
-import TwoPaneLayout from '@/components/TwoPaneLayout.vue';
-import AppTopBar from '@/components/AppTopBar.vue';
+// 引入统一的“回到顶部”组件：玻璃拟态风格 + 平滑滚动
 // 统一的“回到顶部”组件：玻璃拟态风格 + 平滑滚动
 import BackToTop from '@/components/BackToTop.vue';
 import { ref, reactive, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';

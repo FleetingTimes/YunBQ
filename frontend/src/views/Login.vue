@@ -1,9 +1,6 @@
 <template>
-  <!-- 在登录页引入顶栏组件：
-       目的：保持站点导航一致性，便于用户在登录页也能返回广场或进入公开页面；
-       说明：顶栏自身会在未登录时抑制 401 重定向（如未读消息计数），因此可安全展示在登录页。 -->
-  <AppTopBar />
-  <div class="auth-wrapper with-topbar">
+  <!-- 顶栏由根布局承载，此页仅渲染正文卡片 -->
+  <div class="auth-wrapper">
     <div class="auth-card p-1 rot-1">
       <div class="auth-title">
         <img src="https://api.iconify.design/mdi/account-circle.svg" alt="login" width="26" height="26"/>
@@ -75,9 +72,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { http, API_BASE } from '@/api/http';
 import { setToken } from '@/utils/auth';
-// 顶栏组件：用于在登录页展示全局导航与入口（如“拾言小镇”）
-// 说明：组件内部对未登录的交互（添加拾言/消息/喜欢/收藏）会提示“请先登录”，不会强制跳转登录页。
-import AppTopBar from '@/components/AppTopBar.vue';
+// 顶栏由根布局承载，此页不再单独引入
 
 const router = useRouter();
 const route = useRoute();
@@ -187,16 +182,8 @@ function loginWithWeChat(){ window.location.href = API_BASE + '/auth/wechat/logi
 </script>
 
 <style scoped>
-/* 顶栏占据页面顶部高度时，给登录内容增加顶部间距，避免视觉重叠。
-   注：若后续调整顶栏高度或布局，可在这里同步更新数值。*/
-.with-topbar { padding-top: 68px; }
-
-/* 高度填充：正文区占满“顶栏与底栏之间”的可视高度
-   计算：100vh - 顶栏高度(默认 68px) - 底栏高度(默认 0)
-   说明：
-   - 通过 CSS 变量支持未来全局自定义 --topbar-height / --footer-height；
-   - 与上方 padding-top 配合后，总高度恰好填充视口，不会出现额外溢出。 */
-.auth-wrapper.with-topbar { min-height: calc(100vh - var(--topbar-height, 68px) - var(--footer-height, 0px)); box-sizing: border-box; }
+/* 高度填充：根布局已处理顶栏高度，本页仅需占满可用空间 */
+.auth-wrapper { min-height: calc(100vh - var(--footer-height, 0px)); box-sizing: border-box; }
 
 /* 正文卡片宽度控制：统一登录/注册/找回密码页的卡片宽度为 460px
    说明：覆盖全局 .auth-card 的 max-width=440px，使三页视觉一致 */

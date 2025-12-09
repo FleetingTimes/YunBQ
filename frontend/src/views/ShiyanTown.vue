@@ -12,15 +12,8 @@
        - 顶栏使用站点公共顶栏组件 AppTopBar；
        - 启用 fluid（铺满）与 transparent（固定透明），保持统一沉浸式体验；
        - 正文展示标题“拾言”和介绍“一句话：拾心之所言”。 -->
-  <TwoPaneLayout>
-    <!-- 顶栏：跨越左右两列并吸顶。fluid 让中间搜索区域拉伸，transparent 固定透明不随滚动变更毛玻璃态。 -->
-    <template #topFull>
-      <AppTopBar fluid :transparent="true" @search="onSearch" />
-    </template>
-
-    <!-- 正文：右下主区。此页为静态介绍，后续可扩展“镇首页公告/拾言动态”等模块。 -->
-    <template #rightMain>
-      <div class="town-container">
+  <!-- 根布局承载顶栏与滚动容器，此处仅渲染正文内容区域 -->
+  <div class="town-container">
         <!-- 添加拾言：替换原“标题栏”，以玻璃卡片风格呈现新增表单 -->
         <section class="composer-card" aria-label="添加拾言">
           <div class="composer-brand">
@@ -200,9 +193,7 @@
         <!-- 回到顶部：绑定右侧滚动容器，采用玻璃拟态风格与平滑滚动；
              当滚动超过设定偏移后自动出现，点击平滑返回容器顶部。 -->
         <BackToTop :target="scrollRootEl" />
-      </div>
-    </template>
-  </TwoPaneLayout>
+  </div>
 </template>
 
 <script setup>
@@ -214,8 +205,6 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { http, avatarThumbUrl } from '@/api/http'
 import defaultAvatar from '@/assets/default-avatar.svg'
 import { getToken } from '@/utils/auth'
-const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
-const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 // 回到顶部组件：按需异步加载，保持首屏资源体积友好
 const BackToTop = defineAsyncComponent(() => import('@/components/BackToTop.vue'))
 import { useRouter } from 'vue-router'

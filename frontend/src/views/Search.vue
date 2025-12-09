@@ -1,14 +1,7 @@
 <template>
   <!-- 单列布局：去除左侧侧边栏，仅保留全宽顶栏与正文区域 -->
   <!-- 说明：继续复用 TwoPaneLayout 的顶栏吸顶与右侧滚动容器逻辑。 -->
-  <TwoPaneLayout>
-    <!-- 全宽顶栏：跨越左右两列并吸顶，顶栏内容全屏铺满 -->
-    <template #topFull>
-      <!-- 固定透明顶栏：transparent=true 禁止滚动时毛玻璃切换，保持沉浸式背景 -->
-      <AppTopBar fluid :transparent="true" @search="onSearch" />
-    </template>
-    <template #rightMain>
-      <div class="container">
+  <div class="container">
         <div class="page-header">
           <h2>搜索结果</h2>
         </div>
@@ -55,9 +48,7 @@
           <!-- 触底哨兵：进入视口尝试自动加载下一页 -->
           <div ref="loadMoreSentinel" class="load-sentinel" aria-hidden="true"></div>
         </div>
-      </div>
-    </template>
-  </TwoPaneLayout>
+  </div>
   
 </template>
 
@@ -72,8 +63,6 @@
 // 3) 新增“首屏不足自动填充”兜底逻辑，在内容不足一屏或 IO 未触发时主动拉取后续页。
 import { ref, watch, defineAsyncComponent, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-const TwoPaneLayout = defineAsyncComponent(() => import('@/components/TwoPaneLayout.vue'))
-const AppTopBar = defineAsyncComponent(() => import('@/components/AppTopBar.vue'))
 const NotesBody = defineAsyncComponent(() => import('./notes/NotesBody.vue'))
 const NoteCard = defineAsyncComponent(() => import('@/components/NoteCard.vue'))
 import { http } from '@/api/http'
