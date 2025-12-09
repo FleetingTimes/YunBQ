@@ -40,6 +40,7 @@
     </TwoPaneLayout>
   </router-view>
   <TransparentFooter />
+  <ContactModal />
   </template>
 
 <script setup>
@@ -52,6 +53,7 @@ import TwoPaneLayout from '@/components/TwoPaneLayout.vue'
 import AppTopBar from '@/components/AppTopBar.vue'
 import SideNav from '@/components/SideNav.vue'
 import { useNavigation } from '@/composables/useNavigation'
+import ContactModal from '@/components/ContactModal.vue'
 
 /**
  * 显示控制：showSplash

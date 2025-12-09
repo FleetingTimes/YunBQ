@@ -5,11 +5,11 @@
       <div class="content">
         <span class="text">© {{ year }} 拾·言</span>
         <span class="text">·</span>
-        <a class="text" href="mailto:wsk7931@163.com" rel="noopener">联系我们</a>
+        <a class="text" href="#" @click.prevent="openContact('contact')">联系我们</a>
         <span class="text">·</span>
-        <span class="text">隐私政策</span>
+        <a class="text" href="#" @click.prevent="openContact('privacy')">隐私政策</a>
         <span class="text">·</span>
-        <span class="text">用户协议</span>
+        <a class="text" href="#" @click.prevent="openContact('terms')">用户协议</a>
       </div>
     </slot>
   </footer>
@@ -36,6 +36,10 @@ const styleVars = computed(() => ({
 }))
 
 const year = new Date().getFullYear()
+
+function openContact(tab){
+  try{ window.dispatchEvent(new CustomEvent('open-contact-modal', { detail: { tab } })) }catch{}
+}
 </script>
 
 <style scoped>

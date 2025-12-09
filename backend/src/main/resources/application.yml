@@ -7,11 +7,23 @@ server:
       enabled: true
       force: true
 spring:
+  config:
+    import: optional:file:./config/application-secrets.yml
   datasource:
     # 使用 UTF-8 作为 JDBC 连接字符集；数据库与表应配置为 utf8mb4 以支持 Emoji
-    url: jdbc:mysql://localhost:3306/yunbq?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: root
+    # 通过环境变量注入连接信息，避免将私密凭据写入仓库：
+    # - Windows PowerShell 示例：
+    #   $env:SPRING_DATASOURCE_URL="jdbc:mysql://localhost:3306/yunbq?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
+    #   $env:SPRING_DATASOURCE_USERNAME="admin"
+    #   $env:SPRING_DATASOURCE_PASSWORD="<strong-password>"
+    # - Linux/macOS 示例：
+    #   export SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/yunbq?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true
+    #   export SPRING_DATASOURCE_USERNAME=admin
+    #   export SPRING_DATASOURCE_PASSWORD=<strong-password>
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/yunbq?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${SPRING_DATASOURCE_USERNAME:admin}
+    # 不提供默认密码以减少误提交风险；本地开发请在环境变量中显式设置
+    password: ${SPRING_DATASOURCE_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jackson:
     # 使用默认的 camelCase 命名策略，确保与前端字段名一致
@@ -29,15 +41,18 @@ spring:
       max-request-size: 5MB
   data:
     redis:
-      host: localhost
-      port: 6379
-      # password: your_redis_password
-      timeout: 2000
+      # Redis 连接信息同样支持环境变量注入；若未使用可保持默认
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      # 可选：如有密码请通过环境变量提供；默认留空
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2000}
   mail:
-    host: "smtp.163.com"
-    port: 465
-    username: "wsk7931@163.com"
-    password: "KQmQZMKBVh7dgiCL"
+    # 邮件服务配置：所有账户信息通过环境变量注入，避免泄露
+    host: ${SPRING_MAIL_HOST:smtp.163.com}
+    port: ${SPRING_MAIL_PORT:465}
+    username: ${SPRING_MAIL_USERNAME:}
+    password: ${SPRING_MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -57,27 +72,30 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 jwt:
-  secret: "change-this-secret-to-a-long-random-string"
-  issuer: "yunbq"
-  expire-minutes: 1440
+  # JWT 私钥请务必通过环境变量设置；无默认值以防误用
+  secret: ${JWT_SECRET:}
+  # 签发者可保留默认，也可通过环境变量覆盖
+  issuer: ${JWT_ISSUER:yunbq}
+  # 令牌有效期（分钟），可通过环境变量覆盖
+  expire-minutes: ${JWT_EXPIRE_MINUTES:10080}
 
 frontend:
-  # 前端公网地址（Cloudflare Tunnel 域名）：用于 OAuth 回跳到前端回调页
-  # 说明：后端在完成 QQ 授权并生成站内 JWT 后，将 302 重定向到
-  #       `${frontend.base-url}/#/oauth/callback?token=...`，因此此处必须写公网可访问的前端域名。
-  base-url: "https://app.shiyan.online"
+  # 前端公网地址：用于 OAuth 回跳到前端回调页
+  # 可通过环境变量覆盖以适配不同部署环境
+  base-url: ${FRONTEND_BASE_URL:https://app.shiyan.online}
 
 oauth:
   qq:
-    app-id: "your_app_id"
-    app-key: "your_app_key"
-    # QQ 授权回调地址（公网）：必须与 QQ 互联平台设置完全一致（协议/域名/路径）
-    # 通过 Cloudflare Tunnel 将外网 `https://api.shiyan.online` 映射到本机 `http://localhost:8080`
-    redirect-uri: "https://api.shiyan.online/api/auth/qq/callback"
+    # QQ 互联应用凭据：必须在环境变量中设置
+    app-id: ${OAUTH_QQ_APP_ID:}
+    app-key: ${OAUTH_QQ_APP_KEY:}
+    # 授权回调地址（公网）：需与 QQ 平台配置一致
+    redirect-uri: ${OAUTH_QQ_REDIRECT_URI:https://api.shiyan.online/api/auth/qq/callback}
   wechat:
-    app-id: ""
-    secret: ""
-    redirect-uri: "http://localhost:8080/api/auth/wechat/callback"
+    # 微信开放平台/公众号：按需配置，默认留空
+    app-id: ${OAUTH_WECHAT_APP_ID:}
+    secret: ${OAUTH_WECHAT_SECRET:}
+    redirect-uri: ${OAUTH_WECHAT_REDIRECT_URI:http://localhost:8080/api/auth/wechat/callback}
 cache:
   notes:
     hot-ttl-seconds: 60

@@ -213,3 +213,46 @@ CREATE TABLE IF NOT EXISTS messages (
   CONSTRAINT fk_messages_note FOREIGN KEY (note_id) REFERENCES shiyan(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 建议与问题反馈表：统一存储用户提交的“问题反馈”与“站点建议”
+-- 设计说明：
+-- - type：反馈类型（issue/suggest）；
+-- - status：处理状态（open/processing/resolved/rejected）；
+-- - user_id：提交用户（匿名为 NULL）；
+-- - 联系方式：email/qq/github（可空）；
+-- - issue 字段：module/page_path/title/description/steps/expected/actual；
+-- - suggest 字段：category/title/description/expected_benefit；
+-- - 统一时间字段：created_at/updated_at。
+CREATE TABLE IF NOT EXISTS feedback_submissions (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  type VARCHAR(16) NOT NULL,               -- issue 或 suggest
+  status VARCHAR(16) NOT NULL DEFAULT 'open',
+  user_id BIGINT NULL,
+  contact_email VARCHAR(128) NULL,
+  contact_qq VARCHAR(64) NULL,
+  -- 根据需求：移除 GitHub 联系方式列（仅保留 email/qq）
+  module VARCHAR(64) NULL,                 -- 所属模块（广场/我的便签/搜索/喜欢/收藏/消息/用户拾言）
+  page_path VARCHAR(256) NULL,             -- 页面路径（如 /、/my/shiyan、/search?q=...）
+  title VARCHAR(128) NULL,
+  description TEXT NOT NULL,
+  -- 根据需求：移除复现步骤/期望结果/实际结果列，保留核心描述
+  category VARCHAR(64) NULL,               -- 建议分类（新增栏目/导航优化/交互改进/性能优化/移动端体验/其他）
+  -- 根据需求：移除预期收益列
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_type (type),
+  INDEX idx_status (status),
+  INDEX idx_user (user_id),
+  INDEX idx_created (created_at),
+  CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 兼容已有数据库的列清理（若此前已创建包含以下列）：
+-- 注意：部分 MySQL 版本不支持 IF EXISTS；如首次初始化，无这些列则需手动忽略失败。
+-- 可根据实际环境选择单独执行以下 ALTER 语句。
+-- ALTER 操作：删除冗余列（contact_github/steps/expected/actual/expected_benefit）
+--
+-- ALTER TABLE feedback_submissions DROP COLUMN contact_github;
+-- ALTER TABLE feedback_submissions DROP COLUMN steps;
+-- ALTER TABLE feedback_submissions DROP COLUMN expected;
+-- ALTER TABLE feedback_submissions DROP COLUMN actual;
+-- ALTER TABLE feedback_submissions DROP COLUMN expected_benefit;

@@ -83,6 +83,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/actuator/info").permitAll()
                 // 自定义简化健康检查端点：/healthz（用于负载均衡与开发探针），允许匿名访问
                 .requestMatchers(HttpMethod.GET, "/healthz").permitAll()
+                // 公开反馈提交接口：允许匿名 POST 提交问题与建议
+                .requestMatchers(HttpMethod.POST, "/api/feedback/**").permitAll()
                 // 允许匿名访问公开便签的查询接口
                 .requestMatchers(HttpMethod.GET, "/api/notes").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/notes/**").permitAll()

@@ -1,13 +1,22 @@
 cors:
+  # 联网联测：允许本地与典型公网测试域名（HTTPS/HTTP）
   allowed-origin-patterns:
     - "http://localhost:*"
+    - "http://127.0.0.1:*"
+    - "https://*.shiyan.online"
+    - "http://*.shiyan.online"
+    # 如需通过局域网设备访问（手机/平板），可临时放开网段：
+    # - "http://192.168.*:*"
   allowed-methods:
     - GET
+    - HEAD
     - POST
     - PUT
     - DELETE
     - OPTIONS
+    - PATCH
   allowed-headers:
     - Authorization
     - Content-Type
+    - X-Requested-With
   allow-credentials: true

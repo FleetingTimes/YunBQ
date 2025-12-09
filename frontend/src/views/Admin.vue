@@ -19,6 +19,8 @@
         <!-- 内容管理 -->
         <el-menu-item index="navigation">导航管理</el-menu-item>
         <el-menu-item index="sites">站点管理</el-menu-item>
+        <!-- 建议反馈管理 -->
+        <el-menu-item index="feedback">建议反馈</el-menu-item>
         <!-- 日志管理：按类型拆分为独立子页面，便于分别筛选与查看 -->
         <el-menu-item index="logs_audit">审计日志</el-menu-item>
         <el-menu-item index="logs_request">请求日志</el-menu-item>
@@ -65,6 +67,8 @@ const components = {
   // 内容管理
   navigation: defineAsyncComponent(() => import('./admin/AdminNavigation.vue')),
   sites: defineAsyncComponent(() => import('./admin/AdminSites.vue')),
+  // 建议反馈管理
+  feedback: defineAsyncComponent(() => import('./admin/AdminFeedback.vue')),
   // 审计日志（系统操作或审计事件）
   logs_audit: defineAsyncComponent(() => import('./admin/AdminLogs.vue')),
   // 请求日志（HTTP 请求流量与状态）
@@ -82,6 +86,7 @@ const activeLabel = computed(() => {
     case 'users': return '用户管理';
     case 'navigation': return '导航管理';
     case 'sites': return '站点管理';
+    case 'feedback': return '建议反馈';
     case 'logs_audit': return '审计日志';
     case 'logs_request': return '请求日志';
     case 'logs_auth': return '认证日志';
