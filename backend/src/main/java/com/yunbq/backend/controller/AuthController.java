@@ -22,9 +22,30 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<User> register(@Valid @RequestBody RegisterRequest req) {
-        User user = userService.register(req);
-        return ResponseEntity.ok(user);
+    /**
+     * 用户注册接口
+     * 行为与响应：
+     * - 成功：200 OK，返回创建后的用户基础信息（不含密码哈希）。
+     * - 失败：
+     *   - 409 Conflict：用户名或邮箱与现有用户冲突（统一友好提示）。
+     *   - 400 Bad Request：保留词等输入不合法的情况。
+     *   - 500 Internal Server Error：其他未预期异常。
+     * 异常处理策略：
+     * - 服务层在唯一性冲突或不合法输入时抛出运行时异常；此处捕获并转换为合适的 HTTP 状态与 message，避免直接返回 500。
+     */
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req) {
+        try {
+            User user = userService.register(req);
+            return ResponseEntity.ok(user);
+        } catch (RuntimeException ex) {
+            String msg = ex.getMessage() != null ? ex.getMessage() : "注册信息不合法";
+            // 根据异常消息粗粒度映射状态码：包含“已存在/已被使用/已使用”→ 409；其余 → 400
+            boolean conflict = msg.contains("已存在") || msg.contains("已被使用") || msg.contains("已使用");
+            int status = conflict ? 409 : 400;
+            return ResponseEntity.status(status).body(Map.of("message", msg));
+        } catch (Exception ex) {
+            return ResponseEntity.status(500).body(Map.of("message", "服务器内部错误"));
+        }
     }
 
     @PostMapping("/login")

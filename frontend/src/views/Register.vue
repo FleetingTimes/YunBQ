@@ -127,9 +127,11 @@ async function onSubmit(){
       router.replace('/login');
     } else {
       ElMessage.error(data?.message || '注册失败');
+      await refreshCaptcha();
     }
   }catch(e){
     ElMessage.error(e?.response?.data?.message || '注册失败');
+    try { await refreshCaptcha(); } catch{}
   }finally{
     loading.value = false;
   }

@@ -3,8 +3,13 @@
   <footer class="transparent-footer" :style="styleVars">
     <slot>
       <div class="content">
-  <!-- 文案重命名：品牌统一为“拾·言” -->
-  <span class="text">拾·言 · 底栏</span>
+        <span class="text">© {{ year }} 拾·言</span>
+        <span class="text">·</span>
+        <a class="text" href="mailto:wsk7931@163.com" rel="noopener">联系我们</a>
+        <span class="text">·</span>
+        <span class="text">隐私政策</span>
+        <span class="text">·</span>
+        <span class="text">用户协议</span>
       </div>
     </slot>
   </footer>
@@ -29,6 +34,8 @@ const styleVars = computed(() => ({
   '--blur': props.blur ? 'saturate(180%) blur(8px)' : 'none',
   '--pos': props.fixed ? 'fixed' : 'absolute',
 }))
+
+const year = new Date().getFullYear()
 </script>
 
 <style scoped>

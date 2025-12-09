@@ -71,6 +71,18 @@ public class UserService {
         if (existing != null) {
             throw new RuntimeException("用户名已存在");
         }
+        // 邮箱唯一性检查（大小写不敏感）：若提供邮箱且与其他用户冲突，抛出友好提示
+        // 设计说明：
+        // - DTO 已通过 @Email 保证基本格式；此处仅做唯一性校验；
+        // - 使用 LOWER(email) 防止同一邮箱不同大小写被视为不同记录；
+        // - 统一抛出运行时异常，由控制层转换为 409 冲突并返回友好消息。
+        String email = req.getEmail();
+        if (email != null && !email.isBlank()) {
+            User existEmail = userMapper.selectOne(new QueryWrapper<User>().apply("LOWER(email) = LOWER({0})", email));
+            if (existEmail != null) {
+                throw new RuntimeException("该邮箱已被使用");
+            }
+        }
         User user = new User();
         user.setUsername(req.getUsername());
         user.setPasswordHash(passwordEncoder.encode(req.getPassword()));

@@ -170,9 +170,11 @@ async function onSubmit(){
       router.replace(to);
     } else {
       ElMessage.error('登录失败：未返回 token');
+      await refreshCaptcha();
     }
   }catch(e){
     ElMessage.error(e?.response?.data?.message || '登录失败');
+    try { await refreshCaptcha(); } catch {}
   }finally{
     loading.value = false;
   }
