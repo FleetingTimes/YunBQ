@@ -1,9 +1,15 @@
 backend/target/
-backend/src/main/resources/application.yml
+# 忽略后端真实资源配置，但允许提交模板文件
+backend/src/main/resources/*
+!backend/src/main/resources/*.example.yml
+!backend/src/main/resources/*.example.yaml
+!backend/src/main/resources/*.example.properties
 本地运行-不启用开发工具.md
 详细的知识总结.md
 项目介绍plus.md
 详细的知识总结.md
-backend/src/main/resources/application.yml
 backend/logs/
 backend/uploads/
+frontend/android/
+backend/logs/
+
