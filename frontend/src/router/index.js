@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
+import { ElMessage } from 'element-plus';
 /**
  * 前端路由配置
  * 说明：
@@ -50,8 +51,8 @@ router.beforeEach(async (to, from) => {
   if (to.meta && to.meta.requiresAuth) {
     const token = localStorage.getItem('token') || sessionStorage.getItem('token');
     if (!token) {
-      const redirect = typeof to.fullPath === 'string' ? to.fullPath : to.path;
-      return { path: '/login', query: { redirect } };
+      ElMessage.warning('请先登录');
+      return false;
     }
   }
   if (to.meta && to.meta.requiresAdmin) {

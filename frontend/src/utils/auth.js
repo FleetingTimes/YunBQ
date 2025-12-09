@@ -13,9 +13,13 @@ export function setToken(token, persist = true){
   // persist=true → 使用 localStorage（跨会话保留）；false → 使用 sessionStorage（随会话失效）
   const storage = persist ? localStorage : sessionStorage;
   storage.setItem('token', token);
+  // 派发登录态变化事件：通知顶栏等组件刷新用户信息与轮询器
+  try { window.dispatchEvent(new CustomEvent('auth-changed', { detail: { loggedIn: !!token } })) } catch {}
 }
 export function clearToken(){
   // 清理两类存储，确保退出后拦截器不再附加旧 Authorization
   localStorage.removeItem('token');
   sessionStorage.removeItem('token');
+  // 派发登录态变化事件（已退出）：便于顶栏等组件及时复位
+  try { window.dispatchEvent(new CustomEvent('auth-changed', { detail: { loggedIn: false } })) } catch {}
 }

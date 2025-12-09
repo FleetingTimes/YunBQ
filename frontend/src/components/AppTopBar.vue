@@ -434,6 +434,8 @@ onMounted(() => {
   // 虽不产生网络请求，但浪费一次定时器触发。此处改为按登录态启停。
   window.addEventListener('hashchange', refreshUnreadPoller)
   window.addEventListener('storage', onStorageAuthChange)
+  // 登录态变更事件：同页登录/退出时主动刷新用户信息与未读状态
+  window.addEventListener('auth-changed', onAuthChanged)
   refreshUnreadPoller()
 })
 
@@ -448,6 +450,7 @@ onUnmounted(() => {
   // 清理登录态监听
   try { window.removeEventListener('hashchange', refreshUnreadPoller) } catch {}
   try { window.removeEventListener('storage', onStorageAuthChange) } catch {}
+  try { window.removeEventListener('auth-changed', onAuthChanged) } catch {}
 })
 
 async function loadMe(){
@@ -506,6 +509,27 @@ function refreshUnreadPoller(){
 function onStorageAuthChange(e){
   // 跨标签页登录/退出：监听 localStorage 的 token 变化，动态启停轮询
   try{ if (e && e.key === 'token') refreshUnreadPoller() }catch{}
+}
+
+// 同标签页登录/退出：由 setToken/clearToken 主动派发
+function onAuthChanged(e){
+  try{
+    authReady.value = true
+    if (getToken()) {
+      // 登录成功：刷新用户信息与未读徽章
+      loadMe()
+      loadUnread()
+    } else {
+      // 退出登录：复位用户信息与会话缓存
+      me.username = ''
+      me.nickname = ''
+      me.avatarUrl = ''
+      me.email = ''
+      me.role = ''
+      try { sessionStorage.removeItem(ME_CACHE_KEY) } catch {}
+    }
+    refreshUnreadPoller()
+  }catch{}
 }
 
 function openEditInfo(){

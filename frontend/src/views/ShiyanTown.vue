@@ -28,7 +28,7 @@
               type="textarea"
               :rows="4"
               placeholder="写下一句触动心灵的话…（最后一行用 #标签1 #标签2 标注标签）"
-              maxlength="500"
+              maxlength="2500"
               show-word-limit
               @focus="onComposerFocus"
               @blur="onComposerBlur"

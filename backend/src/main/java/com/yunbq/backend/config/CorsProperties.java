@@ -5,6 +5,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+/**
+ * CORS 配置属性类，用于存储 CORS 相关的配置信息。
+ * 该类通过 Spring Boot 的 @ConfigurationProperties 注解将配置文件中前缀为 "cors" 的属性绑定到类的字段上。
+ */
 @Component
 @ConfigurationProperties(prefix = "cors")
 public class CorsProperties {

@@ -43,6 +43,12 @@ public class SecurityConfig {
     private final RequestLoggingFilter requestLoggingFilter;
     private final com.yunbq.backend.config.CorsProperties corsProperties;
 
+    /**
+     * 构造函数：注入 JWT 过滤器、请求日志过滤器与 CORS 配置属性。
+     * @param jwtFilter JWT 认证过滤器，负责校验与解析 JWT 令牌
+     * @param requestLoggingFilter 请求日志过滤器，负责采集请求元数据并入库
+     * @param corsProperties CORS 配置属性，包含允许的端口、方法与头信息
+     */
     public SecurityConfig(JwtAuthenticationFilter jwtFilter,
                           RequestLoggingFilter requestLoggingFilter,
                           com.yunbq.backend.config.CorsProperties corsProperties) {

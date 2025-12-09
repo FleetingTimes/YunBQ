@@ -12,4 +12,5 @@ backend/logs/
 backend/uploads/
 frontend/android/
 backend/logs/
+backend/config/
 
