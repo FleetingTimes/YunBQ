@@ -68,7 +68,7 @@ const props = defineProps({
   title: { type: String, required: true },
   subtitle: { type: String, default: '' },
   categoryId: { type: Number, required: true },
-  pageSize: { type: Number, default: 12 },
+  pageSize: { type: Number, default: 50 },
   showPagination: { type: Boolean, default: true },
   /**
    * 性能优化：是否延迟数据加载（懒加载）
